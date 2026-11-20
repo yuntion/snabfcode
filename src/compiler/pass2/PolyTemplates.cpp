@@ -1,4 +1,5 @@
 #include "PolyTemplates.h"
+#include "NonlinearOpRegistry.h"
 
 #include <algorithm>
 #include <cmath>
@@ -10,16 +11,8 @@
 namespace snabf::pass2 {
 
 const std::vector<PolyTemplateSpec>& templatesFor(std::string_view activation) {
-  using F = StageFunction;
-  // tanh(2z)/2 = tanh(z)/(1+tanh(z)^2); Phi(x)-1/2 = erf(x/sqrt(2))/2.
-  static const std::vector<PolyTemplateSpec> silu{
-      {"silu_direct", 0, {F::SiluDirect}},
-      {"silu_tanh_rational", 0, {F::TanhQuarter, F::Rational}}};
-  static const std::vector<PolyTemplateSpec> gelu{
-      {"gelu_direct", 0, {F::GeluDirect}}};
+  if (const auto* op=builtinNonlinearOps().find(activation)) return op->templates;
   static const std::vector<PolyTemplateSpec> empty;
-  if (activation == "silu") return silu;
-  if (activation == "gelu") return gelu;
   return empty;
 }
 
