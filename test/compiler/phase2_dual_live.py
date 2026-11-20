@@ -16,7 +16,9 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'src/frontend/snabf_frontend'))
+sys.path.insert(0, str(ROOT / 'src/tools'))
 from pass2_evidence import Oracle, TOLERANCE, load, require, save, sha
+from e2e_oracle_witness import freeze as witness_for, replay as verify_witness
 
 MODES = ('keep-source', 'force-down', 'adaptive')
 
@@ -102,7 +104,10 @@ def replay(root):
     actual={f.relative_to(root).as_posix():sha(f) for f in root.rglob('*') if f.is_file() and f!=root/'SHA256SUMS'}
     require(actual==manifest,'checksum or member set differs')
     a=load(root/'acceptance.json');source=root/'source.mlir';o=Oracle(source.read_text());require(o.cross_residual and not o.residual,'not the cross-residual graph')
-    corpus=o.corpus();require(load(root/'inputs.json')==[c['x'] for c in corpus] and a['source_sha256']==sha(source) and a['inputs_sha256']==sha(root/'inputs.json'),'wrong inputs')
+    require(a['schema']=='snabf.dev2.cross.v2','expected portable DEV-2 evidence')
+    corpus=load(root/'corpus.json')
+    verify_witness(o,corpus,{'source.mlir':sha(source),'corpus.json':sha(root/'corpus.json')},root/'exp64.json')
+    require(load(root/'inputs.json')==[c['x'] for c in corpus] and a['source_sha256']==sha(source) and a['inputs_sha256']==sha(root/'inputs.json'),'wrong inputs')
     require(a['arms']==[verify_arm(root/m,m,corpus) for m in MODES] and a['threshold']==TOLERANCE and a['probabilistic_cert_issued'] is False,'independent replay mismatch')
     require({(v['case'],v['gate']) for v in a['negatives']}=={(n,g) for n in ('missing_bypass','stale_join_scale') for g in ('--snabf-check-plan','--snabf-lower-ckks=direct-go=true')}, 'incomplete recorded negatives')
     print('Checksums, source oracle, three physical traces and all decoded slots verified.')
@@ -112,6 +117,7 @@ def run(a):
     root=a.out.resolve();root.mkdir(parents=True,exist_ok=False)
     source=root/'source.mlir';shutil.copyfile(a.source,source)
     oracle=Oracle(source.read_text());require(oracle.cross_residual and not oracle.residual,'expected W1*SiLU(h)+h');corpus=oracle.corpus()
+    save(root/'corpus.json',corpus); save(root/'exp64.json',witness_for(root))
     save(root/'inputs.json',[c['x'] for c in corpus]); results=[];basis=None
     ext=Path(os.getenv('SNABF_EXTERN',ROOT/'extern')).resolve();native=Path(os.getenv('SNABF_OPT',ROOT/'build/native/ir/snabf-opt')).resolve()
     env=dict(os.environ,GOPATH=str(ext/'gopath'),GOCACHE=os.getenv('GOCACHE',str(ext/'go-cache')),GOWORK='off',GOPROXY='off',GOTOOLCHAIN='local')
@@ -127,7 +133,7 @@ def run(a):
         results.append(verify_arm(d,mode,corpus))
     sdk=Path(env.get('SNABF_MLIR_ROOT',ext/'mlir24/usr/lib/llvm-24'))
     neg=negatives(root/'force-down',native,dict(env,SNABF_PASS4_ESTIMATES=str(root/'force-down/work/domains.json'),LD_LIBRARY_PATH=os.pathsep.join(map(str,[sdk/'lib',sdk.parent/'x86_64-linux-gnu',ext/'highs-install/lib',env.get('LD_LIBRARY_PATH','')]))))
-    evidence=dict(schema='snabf.dev2.cross.v1',source_sha256=sha(source),inputs_sha256=sha(root/'inputs.json'),threshold=TOLERANCE,
+    evidence=dict(schema='snabf.dev2.cross.v2',source_sha256=sha(source),inputs_sha256=sha(root/'inputs.json'),threshold=TOLERANCE,
                   timing='Eval only; independent fresh keys per arm; physical slots include periodic copies',probabilistic_cert_issued=False,arms=results,negatives=neg)
     save(root/'acceptance.json',evidence)
     files=sorted(x for x in root.rglob('*') if x.is_file());(root/'SHA256SUMS').write_text(''.join(f'{sha(f)}  {f.relative_to(root)}\n' for f in files))
