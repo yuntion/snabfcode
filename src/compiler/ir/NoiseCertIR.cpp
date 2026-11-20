@@ -17,25 +17,6 @@ int checkedInt(int64_t n) {
   return int(n);
 }
 
-std::optional<ng::Exact> encoderScale(ModuleOp m, StringRef id, double log,
-                                      const BoundEncodingScale &binding) {
-  require(std::isfinite(log), "bad emitted plaintext scale exponent");
-  std::optional<ng::Exact> exact;
-  // DirectGo writes a round-trip binary64 literal; Bind calls Go math.Exp2.
-  // Integer exponents in this range give EXACT binary64 powers of two.
-  if (log == std::trunc(log) && log >= -1074 && log <= 1023)
-    exact = pass2::exactBinary(std::ldexp(1., int(log)));
-  if (binding) {
-    if (auto s = binding(m, id, log)) {
-      require(std::isfinite(*s) && *s > 0, "invalid materialized encoder scale");
-      auto bound = pass2::exactBinary(*s);
-      require(!exact || bound == *exact, "encoder binding disagrees with exact power of two");
-      return bound;
-    }
-  }
-  return exact;
-}
-
 std::vector<uint64_t> moduli(ArrayRef<int64_t> primes) {
   std::vector<uint64_t> out;
   for (auto q : primes) {
@@ -46,7 +27,7 @@ std::vector<uint64_t> moduli(ArrayRef<int64_t> primes) {
 }
 } // namespace
 
-ng::Topology checkedNoiseTopology(ModuleOp m, const BoundEncodingScale &binding) {
+ng::Topology checkedNoiseTopology(ModuleOp m) {
   const bool mixed = isMixed(m);
   if (mixed) checkRings(m);
   else { verifyPlan(m); verifyPass3(m); checkRingSearch(m); }
@@ -61,15 +42,23 @@ ng::Topology checkedNoiseTopology(ModuleOp m, const BoundEncodingScale &binding)
   // decoded_arithmetic_bound, profile noise table or empirical value is read.
   auto program = ringProgram(m);
   const eg::EmitGraph emitted(program);
+  auto receipt = m->getAttr("snabf.encoding_receipts");
+  require(!receipt || receipt == emitted.encodingPlan, "stale_encoding_scale_binding");
   ng::Topology g;
   std::map<int64_t, size_t> domain;
   for (const auto &[n, d] : emitted.families) {
     domain.emplace(n, g.domains.size());
     g.domains.push_back({eg::str(d, "key_id").str(), checkedInt(n),
-                         moduli(eg::ints(d, "q")), moduli(eg::ints(d, "p"))});
+                         moduli(eg::ints(d, "q")), moduli(eg::ints(d, "p")),
+                         eg::num(d, "scale") <= 64 ? 1 : 2});
   }
   std::map<std::string, size_t> byID;
   std::vector<size_t> mapped;
+  std::optional<ng::Exact> inputBound;
+  m.walk([&](SourceOp src) {
+    require(!inputBound, "ambiguous input envelope");
+    inputBound = pass2::exactBinary(field<FloatAttr>(src, "input_bound").getValueAsDouble());
+  });
   for (const auto &e : emitted.edges) {
     ng::Node n{};
     n.id = e.id;
@@ -77,26 +66,22 @@ ng::Topology checkedNoiseTopology(ModuleOp m, const BoundEncodingScale &binding)
     n.level = checkedInt(e.level);
     n.k = checkedInt(e.k);
     for (auto i : e.inputs) n.inputs.push_back(mapped.at(i));
-    auto family = emitted.families.at(e.n);
+    if (receipt && e.encoding) {
+      n.encoded_scale.emplace(eg::str(e.encoding, "metadata_scale").str());
+      n.effective_encoder_scale.emplace(eg::str(e.encoding, "effective_encoder_scale").str());
+    }
     const auto &key = g.domains[n.domain].key_id;
     using O = eg::Op;
     switch (e.op) {
     case O::Source: {
       n.op = ng::Op::Source;
       n.input_draw = e.id; // EmitGraph has exactly one external input here
-      auto exp = eg::num(family, "scale");
-      require(exp > 0 && exp <= 1023, "invalid materialized default encoder scale");
-      n.encoded_scale = pass2::exactBinary(std::ldexp(1., int(exp)));
+      n.source_bound = inputBound; // conditional input domain, not a measured maximum
       break;
     }
     case O::Drop: n.op = ng::Op::Drop; break;
     case O::Mul: n.op = ng::Op::CtMul; break;
     case O::Mask: case O::Coefficient: case O::AddPlain: {
-      // These operands alone are materialized by epoch.Bind. Match the Go
-      // emitter's subtraction of two *binary64* exponents before Exp2.
-      const auto parentLog = emitted.edges.at(e.inputs[0]).scale;
-      const auto plainLog = e.op == O::AddPlain ? parentLog : e.scale - parentLog;
-      n.encoded_scale = encoderScale(m, e.id, plainLog, binding);
       if (e.op != O::AddPlain && e.values.size() == 1) {
         n.op = ng::Op::ScalarMulPlain;
         n.real_scalar = e.values.front();
@@ -229,7 +214,12 @@ j::Object noiseAuditJSON(const ng::CertAuditReport &r) {
   }
   for (const auto &e : r.edge_inventory)
     edges.emplace_back(j::Object{{"node_id", e.id}, {"key_id", e.key_id}, {"evk", e.evk},
-        {"ring_n", e.ring_n}, {"level", e.level}, {"k", e.k}, {"physical_scale_exact", exactText(e.physical_scale_exact)}});
+        {"ring_n", e.ring_n}, {"level", e.level}, {"k", e.k}, {"physical_scale_exact", exactText(e.physical_scale_exact)},
+        {"metadata_scale", exactText(e.metadata_scale)}, {"effective_encoder_scale", exactText(e.effective_scale)},
+        {"ideal_abs_bound", exactText(e.ideal_bound)}, {"local_scale_bias", exactText(e.scale_bias)},
+        {"join_branch", exactText(e.join_branch)}, {"multiplier_a", exactText(e.multiplier_a)},
+        {"multiplier_b", exactText(e.multiplier_b)}, {"scale_residual_a", exactText(e.residual_a)},
+        {"scale_residual_b", exactText(e.residual_b)}});
   for (const auto &s : r.sinks)
     ports.emplace_back(j::Object{{"sink_id", s.sink_id}, {"ring_n", s.ring_n},
         {"physical_scale_exact", exactText(s.physical_scale_exact)},
@@ -302,6 +292,10 @@ void auditNoisePlan(ModuleOp m, StringRef path, bool certify, unsigned bits, dou
     }
   } catch (const std::exception &e) { r.errors.emplace_back(e.what()); }
   auto data = noiseAuditJSON(r);
+  if (auto enc = m->getAttrOfType<DictionaryAttr>("snabf.encoding_receipts"))
+    data["encoding_program_sha256"] = eg::str(enc, "program_sha256").str();
+  if (auto seal = m->getAttrOfType<StringAttr>("snabf.emit_sha256"))
+    data["emit_sha256"] = seal.str();
   data["precision_bits"] = int64_t(bits);
   publishAudit(path, std::move(data));
   require(r.errors.empty(), r.errors.empty() ? "" : "invalid noise replay: " + r.errors.front());

@@ -1,4 +1,5 @@
 #include "DirectEmitter.h"
+#include "EmitGraph.h"
 #include "Pass2IR.h"
 #include "Pass3IR.h"
 #include "Pass4IR.h"
@@ -52,7 +53,7 @@ DictionaryAttr request(ModuleOp m) {
       require(!field<BoolAttr>(s, "enabled").getValue(),
               "bootstrap_not_emittable_in_epoch_graph");
   });
-  return ringProgram(m);
+  return detail::bindEncodingProgram(m, ringProgram(m), false);
 }
 
 // Same-directory temporaries ensure rename is atomic. The caller stages both
@@ -88,10 +89,14 @@ public:
 void checkAndSeal(ModuleOp m) {
   replay(m);
   if (!m->hasAttr("snabf.pass3")) return; // legacy HEIR path
+  if (!m->hasAttr(seal))
+    require(!existing(m) && !m->hasAttr("snabf.encoding_receipts"), "unsealed_derived_encoding_program");
+  auto program = detail::bindEncodingProgram(m, ringProgram(m), !m->hasAttr(seal));
   auto hash = fingerprint(m);
+  if (m->hasAttr(seal))
+    require(field<StringAttr>(m, seal).getValue() == hash, "stale_emit_fingerprint");
   if (auto p = existing(m))
-    require(p == ringProgram(m) && field<StringAttr>(m, seal).getValue() == hash,
-            "stale_epoch_lowering");
+    require(p == program, "stale_epoch_lowering");
   m->setAttr(seal, StringAttr::get(m.getContext(), hash));
 }
 void lowerDirect(ModuleOp m) {

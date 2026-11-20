@@ -30,6 +30,7 @@ type Program struct {
 	Source, Target, Width, Slots, GaloisBytes int
 	Epochs                                    []Epoch
 	Plain                                     []PlainBinding
+	Ports                                     []ExactPort
 	Switch                                    *Transition
 }
 type Evaluation func(*Runtime, *rlwe.Ciphertext) (*rlwe.Ciphertext, error)
@@ -53,6 +54,7 @@ type Runtime struct {
 	decrypt  *rlwe.Decryptor
 	convert  *backend.SparseDownConverter
 	plain    map[int]*rlwe.Plaintext
+	exact    map[string]rlwe.Scale
 	evaluate Evaluation
 	last     EvalObservation // per Eval; like the CKKS evaluator, this runtime is not concurrent
 }
@@ -98,7 +100,18 @@ func (r *Runtime) key(role string, n, l, p int, g uint64, k binaryKey) (int, err
 	r.Keys = append(r.Keys, record)
 	return len(b), nil
 }
-func Bind(s Program, evaluate Evaluation) (*Runtime, error) {
+
+type EncodingPolicy uint8
+
+const RequireExactEncoding EncodingPolicy = 1
+
+// Two-argument Bind remains the archived engineering ABI. Newly emitted
+// programs require receipts even when a caller removes the entire port list.
+func Bind(s Program, evaluate Evaluation, policy ...EncodingPolicy) (*Runtime, error) {
+	exact := len(policy) == 1 && policy[0] == RequireExactEncoding
+	if !exact && (len(policy) != 0 || len(s.Ports) != 0) {
+		return nil, fmt.Errorf("invalid encoding policy")
+	}
 	r := &Runtime{Program: s, evaluate: evaluate, families: map[int]family{}, plain: map[int]*rlwe.Plaintext{}}
 	digest, err := hex.DecodeString(s.Fingerprint)
 	if err != nil || len(digest) != 32 || evaluate == nil || s.Width < 1 || s.Slots < s.Width || s.Slots%s.Width != 0 || s.Slots&(s.Slots-1) != 0 {
@@ -106,6 +119,13 @@ func Bind(s Program, evaluate Evaluation) (*Runtime, error) {
 	}
 	if err := validateDomains(s); err != nil {
 		return nil, err
+	}
+	var scales map[int]rlwe.Scale
+	if exact {
+		r.exact, scales, err = validateExactPorts(s)
+		if err != nil {
+			return nil, err
+		}
 	}
 	sk := map[int]*rlwe.SecretKey{}
 	total := 0
@@ -180,11 +200,18 @@ func Bind(s Program, evaluate Evaluation) (*Runtime, error) {
 		}
 		pt := ckks.NewPlaintext(f.p, i.Level)
 		pt.LogDimensions.Cols = bits.TrailingZeros(uint(s.Slots))
-		scale := math.Exp2(i.LogScale)
-		if !finite(scale) || scale <= 0 {
-			return nil, fmt.Errorf("invalid encoding scale at %d", i.Index)
+		if exact {
+			pt.Scale = scales[i.Index]
+			if err := checkEncoderPort(s.Ports[i.Index], pt, f.enc); err != nil {
+				return nil, err
+			}
+		} else {
+			scale := math.Exp2(i.LogScale) // legacy generated engineering programs only
+			if !finite(scale) || scale <= 0 {
+				return nil, fmt.Errorf("invalid encoding scale at %d", i.Index)
+			}
+			pt.Scale = rlwe.NewScale(scale)
 		}
-		pt.Scale = rlwe.NewScale(scale)
 		if len(i.Values) == 0 || s.Slots%len(i.Values) != 0 {
 			return nil, fmt.Errorf("invalid constants at %d", i.Index)
 		}
@@ -207,6 +234,11 @@ func (r *Runtime) Encrypt(x []float64) (*rlwe.Ciphertext, error) {
 	f := r.families[s.Source]
 	pt := ckks.NewPlaintext(f.p, f.p.MaxLevel())
 	pt.LogDimensions.Cols = bits.TrailingZeros(uint(s.Slots))
+	if r.exact != nil {
+		if err := checkEncoderPort(s.Ports[0], pt, f.enc); err != nil {
+			return nil, err
+		}
+	}
 	v := make([]float64, s.Slots)
 	for j := range v {
 		v[j] = x[j%s.Width]
@@ -233,6 +265,12 @@ func (r *Runtime) Check(id string, v *rlwe.Ciphertext, n, l int, scale float64) 
 	if v == nil || v.MetaData == nil || len(v.Value) == 0 || v.Value[0].N() != n || v.Level() != l || !v.IsBatched || v.LogDimensions.Rows != 0 || v.Slots() != r.Program.Slots || !v.IsNTT || !finite(v.LogScale()) || math.Abs(v.LogScale()-scale) > 1e-7 {
 		return fmt.Errorf("physical epoch/level/scale/layout mismatch: %s", id)
 	}
+	if r.exact != nil {
+		want, ok := r.exact[id]
+		if !ok || v.Scale.Mod != nil || v.Scale.Value.Prec() != rlwe.ScalePrecision || !want.Equal(v.Scale) {
+			return fmt.Errorf("missing or mismatched exact physical scale: %s", id)
+		}
+	}
 	return nil
 }
 
@@ -245,7 +283,7 @@ func (r *Runtime) Down(edge string, v *rlwe.Ciphertext) (*rlwe.Ciphertext, error
 		if edge != op.Edge {
 			continue
 		}
-		if err := r.Check("DownConv input", v, op.Provided.N, t.LevelQ, op.Provided.LogScale); err != nil {
+		if err := r.Check(edge, v, op.Provided.N, t.LevelQ, op.Provided.LogScale); err != nil {
 			return nil, err
 		}
 		out, err := r.convert.Convert(v)

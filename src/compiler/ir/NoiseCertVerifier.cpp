@@ -19,6 +19,7 @@ void checkDomain(const Domain &d) {
   check(!d.key_id.empty() && d.ring_n >= 4 &&
         std::has_single_bit(unsigned(d.ring_n)) && !d.q.empty() && !d.p.empty(),
         "invalid concrete domain: " + d.key_id);
+  check(d.rescale_primes == 1 || d.rescale_primes == 2, "unsupported rescale mode");
   std::set<uint64_t> seen;
   for (const auto *chain : {&d.q, &d.p})
     for (auto p : *chain)
@@ -27,7 +28,12 @@ void checkDomain(const Domain &d) {
 }
 
 // No edge scale, reported log2, gain, variance or margin is read from a plan.
-std::vector<Scale> replayPhysical(const Topology &g, CertAuditReport &r) {
+struct Step {
+  Scale ideal, bias;
+  Exact ma = 1, mb = 1, gain = 1;
+};
+
+std::vector<Scale> replayPhysical(const Topology &g, CertAuditReport &r, std::vector<Step> &steps) {
   check(!g.nodes.empty() && !g.outputs.empty(), "empty graph or sink inventory");
   std::set<std::string> domains, ids, draws, ports;
   r.domains = g.domains;
@@ -49,6 +55,12 @@ std::vector<Scale> replayPhysical(const Topology &g, CertAuditReport &r) {
     need(keyed == !n.evk.empty(), "missing or unexpected physical EVK");
     need((n.op == Op::Source) == !n.input_draw.empty(), "missing or unexpected input draw");
     need(n.op == Op::Source || plain || !n.encoded_scale, "unexpected encoded scale");
+    need(n.op == Op::Source || plain || !n.effective_encoder_scale, "unexpected effective scale");
+    if ((n.op == Op::Source || plain) && (!n.encoded_scale || !n.effective_encoder_scale))
+      r.missing_contract_terms.insert("node/" + n.id + "/missing_encoding_scale_binding");
+    if (n.effective_encoder_scale)
+      need(*n.effective_encoder_scale == roundCKKSScale(*n.effective_encoder_scale), "invalid effective scale");
+    if (n.source_bound) need(n.op == Op::Source && *n.source_bound >= 0, "invalid source envelope");
     if (n.encoded_scale)
       need(*n.encoded_scale == roundCKKSScale(*n.encoded_scale), "inexact scale literal");
     need((n.op == Op::ScalarMulPlain) == n.real_scalar.has_value() &&
@@ -72,44 +84,97 @@ std::vector<Scale> replayPhysical(const Topology &g, CertAuditReport &r) {
              d.p == src.p, "incompatible ring-down basis");
       } else need(in.domain == n.domain, "implicit change of ring or key");
       need(n.op == Op::Drop ? in.level >= n.level :
-           n.op == Op::Rescale ? in.level - 1 == n.level : in.level == n.level,
+           n.op == Op::Rescale ? in.level - d.rescale_primes == n.level : in.level == n.level,
            "physical level mismatch");
     }
     Scale s = arity ? scales[n.inputs[0]] : Scale{};
+    Step step;
+    step.ideal = arity ? steps[n.inputs[0]].ideal : n.source_bound;
+    Scale plainBound;
+    if (plain) {
+      Exact b = 0;
+      if (n.real_scalar) b = exactBinary(std::abs(*n.real_scalar));
+      for (double x : n.plain_values) b = std::max(b, exactBinary(std::abs(x)));
+      plainBound = b;
+    }
+    std::string branch;
+    Exact da = 0, db = 0;
+    Scale ba = step.ideal, bb;
+    const auto meta = n.effective_encoder_scale ? n.encoded_scale : Scale{};
     switch (n.op) {
     case Op::Source:
       need(draws.insert(n.input_draw).second, "duplicate definition of one physical input; reuse its SSA value");
-      s = n.encoded_scale;
+      s = meta;
+      if (s) da = *n.effective_encoder_scale - *s;
       break;
-    case Op::ScalarMulPlain: case Op::VectorMulPlain:
-      s = s && n.encoded_scale ? Scale(roundCKKSScale(*s * *n.encoded_scale)) : Scale{};
-      break;
-    case Op::CtMul: {
-      const auto &b = scales[n.inputs[1]];
-      s = s && b ? Scale(roundCKKSScale(*s * *b)) : Scale{};
+    case Op::ScalarMulPlain: case Op::VectorMulPlain: {
+      if (step.ideal) *step.ideal *= *plainBound;
+      ba = step.ideal;
+      if (s && meta) {
+        const Exact physical = *s * *n.effective_encoder_scale;
+        s = roundCKKSScale(*s * *meta);
+        da = physical - *s;
+        if (n.real_scalar) step.gain = *n.effective_encoder_scale * exactBinary(*n.real_scalar);
+      } else s.reset();
       break;
     }
-    case Op::Rescale:
-      if (s) s = roundCKKSScale(*s / Exact(std::to_string(d.q[n.level + 1])));
+    case Op::CtMul: {
+      const auto &b = scales[n.inputs[1]];
+      auto &other = steps[n.inputs[1]].ideal;
+      if (step.ideal && other) *step.ideal *= *other; else step.ideal.reset();
+      ba = step.ideal;
+      if (s && b) { Exact raw = *s * *b; s = roundCKKSScale(raw); da = raw - *s; }
+      else s.reset();
       break;
+    }
+    case Op::Rescale: {
+      const auto before = s;
+      for (int l = g.nodes[n.inputs[0]].level; l > n.level; --l) {
+        Exact q(std::to_string(d.q[l]));
+        step.gain /= q;
+        if (s) s = roundCKKSScale(*s / q);
+      }
+      if (s) da = *before * step.gain - *s;
+      break;
+    }
     case Op::Add: case Op::Sub: case Op::AddPlain: {
-      const auto &b = n.op == Op::AddPlain ? n.encoded_scale : scales[n.inputs[1]];
+      const auto &b = n.op == Op::AddPlain ? meta : scales[n.inputs[1]];
+      bb = n.op == Op::AddPlain ? plainBound : steps[n.inputs[1]].ideal;
+      if (step.ideal && bb) *step.ideal += *bb; else step.ideal.reset();
       if (s && b) {
+        const Exact a = *s;
+        branch = "equal";
         if (*s != *b) {
-          // Lattigo reports max(scale_a,scale_b) and may internally align
-          // operands. That transfer is not signed componentwise addition.
-          r.missing_contract_terms.insert("node/" + n.id + "/unequal_physical_join_transfer");
-          s = std::max(*s, *b);
+          const bool left = a < *b;
+          const Exact ratio = roundCKKSScale(std::max(a, *b) / std::min(a, *b));
+          const Exact m(ratio.get_num() / ratio.get_den()); // big.Float.Int, NOT Scale.BigInt
+          // Keep the evaluator's scalar-to-RNS integer conversion exact even
+          // at its lowest encoding precision. Larger multipliers are unproved.
+          need(m >= 1 && m <= (mpz_class(1) << 50), "unsupported add alignment integer");
+          (left ? step.ma : step.mb) = m;
+          branch = left ? "multiply_left" : "multiply_right";
+          s = std::max(a, *b);
         }
+        da = step.ma * a - *s;
+        db = step.mb * (n.op == Op::AddPlain ? *n.effective_encoder_scale : *b) - *s;
       }
       else s.reset();
       break;
     }
-    case Op::Neg: case Op::Drop: case Op::Relin: case Op::Rotate: case Op::Down: break;
+    case Op::Down: step.ideal.reset(); break; // no certified projection envelope here
+    case Op::Neg: case Op::Drop: case Op::Relin: case Op::Rotate: break;
     default: throw std::invalid_argument(n.id + ": unknown opcode");
     }
     if (!s) r.missing_contract_terms.insert("node/" + n.id + "/physical_scale");
-    r.edge_inventory.push_back({n.id, d.key_id, n.evk, s ? s->get_str() : "", d.ring_n, n.level, n.k});
+    else if ((da == 0 || ba) && (db == 0 || bb))
+      step.bias = Exact(abs(da) * ba.value_or(0) + abs(db) * bb.value_or(0));
+    else r.missing_contract_terms.insert("node/" + n.id + (branch.empty() ? "/scale_drift_message_bound" : "/unequal_physical_join_transfer"));
+    auto txt = [](const Scale &v) { return v ? v->get_str() : std::string{}; };
+    r.edge_inventory.push_back({n.id, d.key_id, n.evk, txt(s), d.ring_n, n.level, n.k,
+        txt(meta), txt(n.effective_encoder_scale), txt(step.ideal), txt(step.bias), branch,
+        branch.empty() ? "" : step.ma.get_str(), branch.empty() ? "" : step.mb.get_str(),
+        s ? da.get_str() : "", s ? db.get_str() : ""});
+    steps.push_back(std::move(step));
     scales.push_back(std::move(s));
   }
   for (const auto &p : g.outputs) {
@@ -185,7 +250,8 @@ void audit(const Topology &g, const Options &o, const AnalyticContracts *provide
   check(o.precision_bits >= 0 && o.precision_bits <= 16384, "invalid precision bits");
   Exact target = exactBinary(o.target_failure_prob);
   check(target > 0 && target <= exactBinary(theoremBudget), "target exceeds Theorem 1 or is not positive");
-  auto scales = replayPhysical(g, r);
+  std::vector<Step> steps;
+  auto scales = replayPhysical(g, r, steps);
   std::set<std::string> outputs;
   for (const auto &s : g.outputs) outputs.insert(s.id);
   for (const auto &[id, p] : o.sink_delta)
@@ -250,6 +316,8 @@ void audit(const Topology &g, const Options &o, const AnalyticContracts *provide
     if (!scales[i]) f.markMissing("node/" + n.id + "/physical_scale");
     auto unequal = "node/" + n.id + "/unequal_physical_join_transfer";
     if (r.missing_contract_terms.contains(unequal)) f.markMissing(unequal);
+    if (steps[i].bias) f.addBias(*steps[i].bias);
+    else f.markMissing("node/" + n.id + "/scale_transfer");
     switch (n.op) {
     case Op::Source: case Op::CtMul: case Op::Rotate: case Op::Down: case Op::VectorMulPlain:
       break; // complete transformed-input bound required; no guessed linear gain
@@ -259,18 +327,18 @@ void audit(const Topology &g, const Options &o, const AnalyticContracts *provide
         // or residual. The defining and subtraction sites still owe proofs.
         f.addScaled(edges[n.inputs[0]], 0);
       } else {
-        f.addScaled(edges[n.inputs[0]], 1);
-        f.addScaled(edges[n.inputs[1]], n.op == Op::Sub ? -1 : 1);
+        f.addScaled(edges[n.inputs[0]], steps[i].ma);
+        f.addScaled(edges[n.inputs[1]], n.op == Op::Sub ? -steps[i].mb : steps[i].mb);
       }
       break;
     case Op::ScalarMulPlain: case Op::Rescale:
       if (scales[i]) {
-        Exact gain = *scales[i] / *scales[n.inputs[0]];
-        if (n.op == Op::ScalarMulPlain) gain *= exactBinary(*n.real_scalar);
-        f.addScaled(edges[n.inputs[0]], gain);
+        f.addScaled(edges[n.inputs[0]], steps[i].gain);
       }
       break;
-    case Op::Neg: case Op::Drop: case Op::AddPlain: case Op::Relin:
+    case Op::AddPlain:
+      f.addScaled(edges[n.inputs[0]], steps[i].ma); break;
+    case Op::Neg: case Op::Drop: case Op::Relin:
       f.addScaled(edges[n.inputs[0]], n.op == Op::Neg ? -1 : 1);
       break;
     }
