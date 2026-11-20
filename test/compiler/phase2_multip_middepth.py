@@ -2,17 +2,22 @@
 
 --out NEW [--generate-only] or --replay RUN. A rejected cell or a shallow
 measurement is evidence, never a successful 14--16-rescale observation.
+Set SNABF_PASS3_TRACE_REJECTIONS=1 on a new run to include candidate-level
+evidence from rejected source searches. Old logs cannot acquire new causes.
 """
 import argparse
 import json
+import math
 import sys
 from decimal import Decimal, localcontext
+from functools import lru_cache
 from pathlib import Path
 
 import phase2_multip_ablation as ab
 import phase2_multip_deep as source
 
 SCHEMA = 'snabf.a2.middepth.v1'
+REJECTION = 'snabf.pass3.candidate-rejection.v1'
 OPS = {'source', 'mask', 'coefficient', 'add', 'add_plain', 'drop', 'baby',
        'giant', 'mul', 'relin', 'rescale'}
 
@@ -74,6 +79,88 @@ def depth(g):
                 max_path_drop_limbs=drops[sink], q_count=len(q))
 
 
+@lru_cache(maxsize=4096)
+def prime_u64(n):
+    """Deterministic uint64 Miller-Rabin, with PrimeInstantiator.cpp's bases."""
+    if not 2 <= n < (1 << 64):
+        return False
+    for p in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37):
+        if n % p == 0:
+            return n == p
+    d = n - 1
+    s = (d & -d).bit_length() - 1
+    d >>= s
+    for a in (2, 325, 9375, 28178, 450775, 9780504, 1795265022):
+        if a % n == 0:
+            continue
+        x = pow(a, d, n)
+        if x in (1, n-1):
+            continue
+        for _ in range(s-1):
+            x = x*x % n
+            if x == n-1:
+                break
+        else:
+            return False
+    return True
+
+
+def rejection_records(lines, *, n, q_count, alpha, max_k, margin_bits=2):
+    """Replay only candidate evidence, never an attribution for the whole arm."""
+    rows = []
+
+    def uint(s):
+        source.check(isinstance(s, str) and s.isascii() and s.isdecimal() and str(int(s)) == s,
+                     'noncanonical rejection integer')
+        return int(s)
+
+    def unique(pairs):
+        obj = dict(pairs)
+        source.check(len(obj) == len(pairs), 'duplicate candidate rejection field')
+        return obj
+
+    for line in lines:
+        # Native JSON lines are mixed with MLIR diagnostics. JSON object member
+        # order is not semantic; don't lose a record if its schema moves.
+        if not line.lstrip().startswith('{') or 'snabf.pass3.candidate-rejection.' not in line:
+            continue
+        r = json.loads(line, object_pairs_hook=unique)
+        if not str(r.get('schema', '')).startswith('snabf.pass3.candidate-rejection.'):
+            continue
+        source.check(r['schema'] == REJECTION and
+                     [uint(r[k]) for k in ('n','q_count','alpha','max_k')] == [n,q_count,alpha,max_k],
+                     'wrong rejection schema, cell or arm')
+        stage, status, attempt = r['stage'], r['status'], uint(r['round'])
+        source.check((stage == 'model_bounds' and attempt == 0) or
+                     (stage == 'solver' and status == 'infeasible' and 1 <= attempt <= 12) or
+                     (stage == 'concrete_replay' and status == 'rejected' and 1 <= attempt <= 12) or
+                     (stage == 'refinement' and status == 'round_limit' and attempt == 12), 'wrong rejection stage')
+        has_basis = any(k in r for k in ('q', 'p', 'basis_source'))
+        source.check(has_basis or stage != 'concrete_replay', 'missing concrete rejection basis')
+        if has_basis:
+            origin = 'concrete_replay' if stage == 'concrete_replay' else 'profile_input'
+            source.check(r.get('basis_source') == origin and isinstance(r.get('q'), list) and
+                         isinstance(r.get('p'), list), 'wrong rejection basis source')
+            q, p = [list(map(uint, r[key])) for key in ('q', 'p')]
+            source.check(len(q) == q_count and len(p) == alpha and len(set(q+p)) == len(q+p) and
+                         all(3 <= x < (1 << 60) and x % (2*n) == 1 for x in q+p), 'wrong rejection NTT basis')
+            source.check(all(prime_u64(x) for x in q+p), 'composite rejection modulus')
+        if r['reason'] == 'unknown':
+            source.check('witness' not in r, 'unknown reason with a witness')
+        else:
+            source.check(stage == 'concrete_replay' and r['reason'] == 'aux_block_margin',
+                         'unsupported candidate attribution')
+            w = r['witness']
+            first, end, bits = (uint(w[k]) for k in ('block_first', 'block_end_exclusive', 'margin_bits'))
+            source.check(first < len(q) and first % alpha == 0 and end == min(first+alpha, len(q)) and
+                         bits == margin_bits, 'wrong original block or threshold')
+            actual, required = math.prod(p), math.prod(q[first:end]) << bits
+            source.check(actual == uint(w['p_product']) and required == uint(w['required_product']) and
+                         actual < required, 'auxiliary block rejection does not replay')
+        rows.append(r)
+    return rows
+
+
 def assess(root):
     old = source.read(root/'source.json')
     src, data, meta = generate(old['linear_layers'], old['seed'], old['input_seed'], old['trials'], old['input_bound'])
@@ -100,6 +187,19 @@ def assess(root):
                         and all(v['log'] in ('joint.log','no_trunc.log') and (d/v['log']).is_file()
                                 and v['reason'] in (d/v['log']).read_text(errors='replace') for v in rejected))
             cells[name] = dict(measured=False, parameter_infeasible=negative, admission=ledger, error=row['error'])
+            # ab.replay checked the log digests. Do not infer a cause for an
+            # unexecuted arm, from a generic message, or from diagnostic_tail.
+            for arm in ('joint', 'no_trunc'):
+                v = ledger.get(arm, {})
+                if v.get('status') != 'compiler_rejected' or v.get('reason') != accepted_reasons[0]:
+                    continue
+                log = d / (arm+'.log')
+                if v.get('log') == log.name and log.is_file():
+                    with log.open(encoding='utf-8', errors='replace') as f:
+                        rows = rejection_records(f, n=1 << rec['log_n'], q_count=rec['q_count'],
+                                                 alpha=int(name.split(':')[0]), max_k=rec['joint_max_k'] if arm=='joint' else 0)
+                    if rows:
+                        cells[name].setdefault('candidate_rejections', {})[arm] = rows
             if name == '1:narrow':
                 single_admission_ok = negative
             continue
