@@ -9,6 +9,7 @@
 #include <deque>
 #include <limits>
 #include <numeric>
+#include <queue>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -271,6 +272,44 @@ double residualBound(const Reference& g, const Derivatives& p, Interval1D domain
   }
   return upper;
 }
+
+// Each z*Q(z^2) uses the output of the preceding stage; x is the original
+// bypass operand. The signed residual on a closed half-axis is exactly
+// x*(g(x)+1)/2 on the left, x*(g(x)-1)/2 on the right, also at zero.
+double reluBranchBound(const std::vector<Powers>& oddPowers, Interval1D domain, double offset) {
+  const Box shift(offset);
+  auto residual = [&](Interval1D cell) {
+    const Box x(cell.lo,cell.hi);
+    Box z(x);
+    for (const auto& q : oddPowers) z = z*evaluate(q,square(z));
+    return over(x*(z+shift),2).bounds();
+  };
+  struct Cell {
+    Interval1D axis;
+    double upper;
+    bool operator<(const Cell& b) const {
+      return upper == b.upper ? axis.lo > b.axis.lo : upper < b.upper;
+    }
+  };
+  std::priority_queue<Cell> leaves;
+  auto cover = [&](Interval1D cell) { leaves.push({cell,magnitude(residual(cell))}); };
+  cover(domain);
+  if (domain.lo == domain.hi) return leaves.top().upper;
+  auto pointLower = [&](double x) { return lowerMagnitude(residual({x,x})); };
+  double witness = std::max(pointLower(domain.lo),pointLower(domain.hi));
+  // Leaves always cover the whole branch. A point can stop refinement but
+  // never supplies the upper bound, even at the work/precision limit.
+  constexpr unsigned maxSplits = 512;
+  for (unsigned i=0; i<maxSplits && leaves.top().upper>witness; ++i) {
+    const auto [lo,hi] = leaves.top().axis;
+    const double mid = std::midpoint(lo,hi);
+    if (mid == lo || mid == hi) break;
+    witness = std::max(witness,pointLower(mid));
+    leaves.pop();
+    cover({lo,mid}); cover({mid,hi});
+  }
+  return leaves.top().upper;
+}
 }  // namespace
 
 StageCertificate certifyStage(F stage, const StagePolynomial& p, Interval1D Iin,
@@ -294,6 +333,29 @@ StageCertificate certifyStage(F stage, const StagePolynomial& p, Interval1D Iin,
   auto Aout = polynomialRange(derivatives[0],Ain);
   if (odd && Ain.lo == -Ain.hi) Aout = {-magnitude(Aout),magnitude(Aout)};
   return {Iin,Ain,J,g.range(Iin),Aout,epsilon,L};
+}
+
+ReluReconstructionCertificate certifyReluReconstruction(
+    std::span<const StagePolynomial> chain, Interval1D input) {
+  checkDomain(input);
+  if (input.lo > 0 || input.hi < 0 || chain.empty())
+    throw std::invalid_argument("ReLU certification needs a nonempty chain and a domain containing zero");
+  std::vector<Powers> oddPowers;
+  oddPowers.reserve(chain.size());
+  for (const auto& p : chain) {
+    if (p.degree > kCandidateDegrees.back() || p.coefficients.size() != p.degree+1)
+      throw std::invalid_argument("invalid ReLU stage dimension");
+    Powers& q = oddPowers.emplace_back();
+    for (unsigned i=0; i<=p.degree; ++i) {
+      const double a = p.coefficients[i];
+      if (!std::isfinite(a) || (i%2 == 0 && a != 0))
+        throw std::invalid_argument("ReLU stage must have finite odd-polynomial coefficients");
+      if (i%2) q.emplace_back(a);
+    }
+  }
+  const double left = reluBranchBound(oddPowers,{input.lo,0},1);
+  const double right = reluBranchBound(oddPowers,{0,input.hi},-1);
+  return {input,left,right,std::max(left,right)};
 }
 
 }  // namespace snabf::pass2
