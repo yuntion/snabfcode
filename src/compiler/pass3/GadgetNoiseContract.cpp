@@ -62,6 +62,8 @@ int scaleClass(const Graph &g, int i) {
   }
 }
 void validate(const Graph &g, const Options &o) {
+  if (o.costProfile && o.alpha < 0)
+    throw std::invalid_argument("calibrated pricing requires explicit gadget alpha (0 for auto)");
   if (g.n < 4 || (g.n & (g.n - 1)) || g.levels < 1 || g.sink < 0 ||
       g.sink >= int(g.edges.size()) ||
       !(o.minBase >= 20 && o.minBase <= 60 && o.minScale >= 24 &&

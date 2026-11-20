@@ -105,6 +105,12 @@ void refreshPolynomials(ModuleOp m,bool verify) {
   if (!m->hasAttr("snabf.activation_sources")) return;
   Builder b(m.getContext()); struct Edge { double bound; int64_t level; };
   llvm::DenseMap<Value,Edge> edges;
+  const auto domains=affinePlanningDomains(m);
+  const bool affine=!domains.empty();
+  auto domain=[&](Value v) {
+    auto it=domains.find(v); require(it!=domains.end(),"missing affine candidate domain");
+    return pass2::PlanRange{it->second.first,it->second.second};
+  };
   m.walk([&](Operation *o){
     if(o->getNumResults()!=1 || !isa<CtType>(o->getResult(0).getType())) return;
     auto input=[&](unsigned i){require(edges.contains(o->getOperand(i)),"non-topological Pass 2 region");return edges.lookup(o->getOperand(i));};
@@ -114,20 +120,24 @@ void refreshPolynomials(ModuleOp m,bool verify) {
       out={field<FloatAttr>(s,"input_bound").getValueAsDouble(),int64_t(profile.getQ().size())-1};
     }
     else if(isa<ConvertOp>(o)){out=input(0);}
-    else if(auto l=dyn_cast<LintransOp>(o)){out=input(0);out.bound=upperProduct(out.bound,linearNorm(preparedWeights(l.getTable(),l.getDiagonals()),true)); --out.level;}
+    else if(auto l=dyn_cast<LintransOp>(o)){out=input(0);if(!affine) out.bound=upperProduct(out.bound,linearNorm(preparedWeights(l.getTable(),l.getDiagonals()),true)); --out.level;}
     else if (auto p=dyn_cast<PolyEvalOp>(o)) {
       auto activation=field<StringAttr>(p,"activation").getValue();
       require(activation=="silu" || activation=="gelu", "unsupported activation contract");
       out=input(0); auto depth=field<IntegerAttr>(p,"depth_budget").getInt();
       auto eps=field<FloatAttr>(p,"approx_budget").getValueAsDouble();
-      require(depth>=0 && depth<=INT32_MAX && std::isfinite(eps) && eps>=0 && out.level>=0 && out.bound>0, "invalid logical activation domain or budget");
+      require(depth>=0 && depth<=INT32_MAX && std::isfinite(eps) && eps>=0 && out.level>=0 && (affine || out.bound>0), "invalid logical activation domain or budget");
       DPOptions options; options.inputLevel=out.level; options.maxDepth=std::min(depth,out.level);options.maxError=eps;
       auto family=field<StringAttr>(p,"allowed_templates").getValue();
       require(family=="all"||family=="direct"||family=="composed","invalid template admission policy");
       options.direct=family!="composed";options.composed=family!="direct";
-      auto result=synthesizePolynomials(activation.str(),{-out.bound,out.bound},options); SmallVector<Attribute> records;
+      auto in=affine ? domain(p.getInput()) : PlanRange{-out.bound,out.bound};
+      auto result=synthesizePolynomials(activation.str(),in,options); SmallVector<Attribute> records;
       unsigned least=UINT32_MAX; double largest=0;
-      for(auto &c:result.frontier){auto raw=record(b,c); NamedAttrList fields(raw);
+      for(auto &c:result.frontier){
+        if(affine) require(c.idealInput.lo==in.lo && c.idealInput.hi==in.hi &&
+            c.approximationError>=0 && c.approximationError<=eps,"uncovered affine candidate/error contract");
+        auto raw=record(b,c); NamedAttrList fields(raw);
         fields.set("transfer",transferRecord(p,raw,out.level));records.push_back(fields.getDictionary(b.getContext()));
         least=std::min(least,c.cost.depth);largest=std::max({largest,-c.actualOutput.lo,c.actualOutput.hi});}
       require(!records.empty(),"empty " + activation + " Pareto frontier under full activation error and RNS depth budgets");
@@ -138,8 +148,9 @@ void refreshPolynomials(ModuleOp m,bool verify) {
       } else p->setAttr("poly_frontier",frontier);
       out.level-=least; out.bound=largest;
     } else if (auto s=dyn_cast<StepOp>(o); s && s.getKind()=="ckks.add") {
-      auto a=input(0),c=input(1);out={upperSum(a.bound,c.bound),std::min(a.level,c.level)};
+      auto a=input(0),c=input(1);out={affine ? 0. : upperSum(a.bound,c.bound),std::min(a.level,c.level)};
     } else throw ContractError("unsupported logical region while enumerating Pass 2");
+    if(affine) { auto d=domain(o->getResult(0)); out.bound=std::max(-d.lo,d.hi); }
     require(std::isfinite(out.bound),"nonfinite source interval"); edges[o->getResult(0)]=out;
   });
 }
