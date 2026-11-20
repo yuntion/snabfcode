@@ -1,9 +1,11 @@
 #include "ParameterMILP.h"
 #include "ConcreteVerifier.h"
+#include "CostProfile.h"
 #include "Highs.h"
 #include "PrimeInstantiator.h"
 #include <algorithm>
 #include <cmath>
+#include <exception>
 #include <iomanip>
 #include <map>
 #include <optional>
@@ -67,7 +69,8 @@ struct Model {
   }
 };
 // One-hot k names zero original limbs; u_b stays active until the entire
-// original key block is zero. Both costs are work proxies, not timing data.
+// original key block is zero. Zero weight retains the structural/noise rows
+// without counting a second (proxy) objective in calibrated mode.
 std::vector<int> priceBlocks(Model &m, int level, int alpha,
                              const std::vector<int> &z, double weight) {
   std::vector<int> active;
@@ -85,7 +88,47 @@ std::vector<int> priceBlocks(Model &m, int level, int alpha,
   }
   return active;
 }
-std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha) {
+void applyPrices(Model &m, const std::vector<PriceGroup> &groups,
+                 const std::vector<std::vector<int>> &z) {
+  for (const auto &group : groups) {
+    if (group.edges.size()==1) {
+      const auto &cols=z.at(group.edges.front());
+      for(int k=0;k<int(cols.size());++k) if(cols[k]>=0) {
+        auto it=group.prices->find({k});
+        if(it==group.prices->end()) ok(m.h.changeColBounds(cols[k],0,0));
+        else ok(m.h.changeColCost(cols[k],it->second));
+      }
+      continue;
+    }
+    // Whole hoisted call: one paid selector per measured vector, linked to
+    // each member's original one-hot (which still drives the noise rows).
+    Row one; std::map<int,Row> link;
+    for(int edge:group.edges) for(int col:z.at(edge)) if(col>=0) link[col]={{col,1}};
+    for (const auto &[ks,us]:*group.prices) {
+      std::vector<int> cols;
+      for (size_t j=0;j<ks.size();++j) {
+        const auto &v=z[group.edges[j]];
+        if(ks[j]>=int(v.size()) || v[ks[j]]<0) break;
+        cols.push_back(v[ks[j]]);
+      }
+      if(cols.size()!=group.edges.size()) continue;
+      int choose=m.var(0,1,us,true);one[choose]=1;
+      for(int col:cols) link.at(col)[choose]=-1;
+    }
+    m.row(1,one,1);
+    for(auto &[col,row]:link) m.row(0,row,0);
+  }
+}
+
+void verifyPricedObjective(const Graph &g,const Options &o,const Solution &s) {
+  if (!o.costProfile) return;
+  double us=0; for(const auto &charge:replayPrices(g,*o.costProfile,s)) us+=charge.us;
+  if (!std::isfinite(s.objective) || std::abs(us-s.objective)>1e-7+1e-9*us)
+    throw std::runtime_error("gadget_objective_replay_mismatch");
+}
+
+std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha,
+                              const MeasuredBasis *basis=nullptr) {
   Model m;
   const double inf = kHighsInf;
   double b0 = o.minBase;
@@ -96,6 +139,25 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
                                std::log2(std::max(1., g.edges[i].magnitude))) -
                         .25);
   const bool block = o.blockSearch();
+  const double bitWeight = basis ? 0. : .10;
+  std::set<int64_t> occupied;
+  // Constrain the continuous hint to the measured integer's nearest-prime
+  // rounding cell. Two equal requested P widths may instantiate in the
+  // opposite numeric order; pinning their exact logarithms would lose that
+  // valid candidate. All concrete constraints are still replayed on Q/P.
+  auto pin = [&](int col,int64_t z,double lo,double hi) {
+    for(int direction:{-1,1}) {
+      const int64_t step=direction*2LL*g.n;
+      for(int64_t v=z+step;v>2 && v<(1LL<<60);v+=step) {
+        if(occupied.contains(v) || !prime(v))continue;
+        double midpoint=static_cast<double>(std::log2((static_cast<long double>(v)+z)/2));
+        if(direction<0) lo=std::max(lo,midpoint); else hi=std::min(hi,midpoint);
+        break;
+      }
+    }
+    if(lo>hi) return false;
+    occupied.insert(z);m.row(lo,{{col,1}},hi);return true;
+  };
   if (b0 >= (block ? o.primeWidthMax : 60.))
     return {};
   std::vector<int> q, sc, noise;
@@ -115,18 +177,20 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
       ub.back() = std::min(ub.back(), d + .49);
     }
     if (lb[l] > ub[l]) return {};
-    q.push_back(m.var(lb[l], ub[l], .10));
+    q.push_back(m.var(lb[l], ub[l], bitWeight));
+    if(basis && !pin(q.back(),basis->q.at(l),lb[l],ub[l])) return {};
     total[q.back()] = 1;
   }
   const double plo = block ? std::max(o.primeWidthMin * alpha, double(d+o.auxMarginBits)) : double(d+2);
   const double phi = block ? o.primeWidthMax * alpha : std::min(59.9, double(d+19));
   if (plo >= phi) return {};
   std::vector<int> aux;
-  int p = m.var(plo, phi, block ? 0 : .10);
+  int p = m.var(plo, phi, block ? 0 : bitWeight);
   if (block) {
     Row sum{{p,1}};
     for (int j=0; j<alpha; ++j) {
-      int v=m.var(o.primeWidthMin,o.primeWidthMax,.10);
+      int v=m.var(o.primeWidthMin,o.primeWidthMax,bitWeight);
+      if(basis && !pin(v,basis->p.at(j),o.primeWidthMin,o.primeWidthMax)) return {};
       aux.push_back(v); total[v]=1; sum[v]=-1;
       if (j) m.row(0, {{aux[j-1],1},{v,-1}}, inf);
     }
@@ -257,7 +321,7 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
       }
       m.row(1, one, 1);
       if (block) {
-        auto u = priceBlocks(m,e.level,alpha,z[i],1.);
+        auto u = priceBlocks(m,e.level,alpha,z[i],basis ? 0. : 1.);
         for (int first=0;first<=e.level;first+=alpha) {
           Row eq{{p,-1}};
           double lowQ=0, highQ=0;
@@ -281,6 +345,7 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
     }
     m.row(base, er, inf);
   }
+  if(basis) applyPrices(m,priceGroups(g,*basis),z);
   std::vector<std::string> cuts;
   for (int round = 0; round < 12; ++round) {
     ok(m.h.run());
@@ -298,11 +363,11 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
     std::set<int64_t> used;
     for (auto col : q) {
       s.bits.push_back(v[col]);
-      s.q.push_back(nearestPrime(n, v[col], used));
+      s.q.push_back(basis ? basis->q.at(s.q.size()) : nearestPrime(n, v[col], used));
     }
     for (int col : aux) {
       s.auxBits.push_back(v[col]);
-      s.p.push_back(nearestPrime(n,v[col],used));
+      s.p.push_back(basis ? basis->p.at(s.p.size()) : nearestPrime(n,v[col],used));
     }
     for (int c : sc)
       s.scales.push_back(v[c]);
@@ -315,6 +380,7 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
     }
     auto bad = replay(g, o, s);
     if (bad.reason.empty()) {
+      verifyPricedObjective(g,o,s);
       s.cuts = cuts;
       return s;
     }
@@ -349,7 +415,10 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
 }
 } // namespace
 Solution optimizeAtBoundary(const Graph &g,const Options &o,Solution s){
-  validate(g,o);Model m;auto scales=replayScales(g,s);std::vector<int> err;std::vector<std::vector<int>> flags;
+  validate(g,o);Model m;std::vector<int> err;std::vector<std::vector<int>> flags;
+  std::vector<PriceGroup> prices;
+  if(o.costProfile) prices=priceGroups(g,measuredBasis(*o.costProfile,g.n,s));
+  auto scales=replayScales(g,s);
   double eta=o.tolerance;
   for(int i=0;i<int(g.edges.size());++i){const auto &e=g.edges[i];int n=e.ring?e.ring:g.n;
     double scale=std::exp2(scales[i]),p=double(specialModulus(s.p)),round=rounding(n),S=secretBound(n);
@@ -366,18 +435,39 @@ Solution optimizeAtBoundary(const Graph &g,const Options &o,Solution s){
         if(inc<=8){int z=m.var(0,1,o.blockSearch()?0:double(n)/g.n*activeDigitBlocks(e.level,k,int(s.p.size()))*(e.level+2),true);flags.back().push_back(z);one[z]=1;row[z]-=double(inc);}else flags.back().push_back(-1);
         D*=s.q.at(k);
       }m.row(1,one,1);
-      if (o.blockSearch()) priceBlocks(m,e.level,int(s.p.size()),flags.back(),double(n)/g.n);
+      if (o.blockSearch()) priceBlocks(m,e.level,int(s.p.size()),flags.back(),o.costProfile ? 0. : double(n)/g.n);
     }
     m.row(fixed/eta,row,kHighsInf);err.push_back(y);
   }
+  if(o.costProfile) applyPrices(m,prices,flags);
   ok(m.h.run());if(m.h.getModelStatus()!=HighsModelStatus::kOptimal)throw std::runtime_error("boundary_milp_infeasible");
   auto vals=m.h.getSolution().col_value;s.k.assign(g.edges.size(),0);
   for(size_t i=0;i<flags.size();++i)for(size_t k=0;k<flags[i].size();++k)if(flags[i][k]>=0 && vals[flags[i][k]]>.5)s.k[i]=k;
-  if(auto v=replay(g,o,s);!v.reason.empty())throw std::runtime_error("boundary_concrete_replay: "+v.reason);s.objective=m.h.getObjectiveValue();return s;
+  if(auto v=replay(g,o,s);!v.reason.empty())throw std::runtime_error("boundary_concrete_replay: "+v.reason);
+  s.objective=m.h.getObjectiveValue();verifyPricedObjective(g,o,s);return s;
 }
 Solution optimize(const Graph &g, const Options &o) {
   validate(g, o);
   std::optional<Solution> best;
+  if(o.costProfile) {
+    // Never extrapolate the timing of one concrete key to another basis.
+    // The original MILP is solved on each covered basis, with all physical
+    // constraints and replay intact. This is a finite measured search space.
+    bool covered=false;std::exception_ptr missing;
+    for(const auto &b:o.costProfile->bases()) {
+      if(b.n!=g.n || int(b.q.size())!=g.levels || !o.admits(b.p.size())) continue;
+      try { (void)priceGroups(g,b); } catch(const MissingCost &) {missing=std::current_exception();continue;}
+      covered=true;
+      for(int d=o.minScale;d<=o.maxScale;++d) {
+        auto s=fixed(g,o,d,b.p.size(),&b);
+        if(s && (!best || s->objective<best->objective-1e-8)) best=std::move(s);
+      }
+    }
+    if(!covered) {
+      if(missing)std::rethrow_exception(missing);
+      throw MissingCost("no compatible N, Q count or alpha");
+    }
+  } else
   for (int alpha=1; alpha<=4; ++alpha) if(o.admits(alpha))
   for (int d = o.minScale; d <= o.maxScale; ++d) {
     auto s = fixed(g, o, d, alpha);
