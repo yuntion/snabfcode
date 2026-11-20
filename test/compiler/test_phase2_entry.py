@@ -12,10 +12,18 @@ from unittest.mock import patch
 TOOLS=Path(__file__).resolve().parents[2]/'src/tools'
 sys.path.insert(0,str(TOOLS))
 from security_cache import checked_attacks, digest, measure, request
-from snabf_compile import main
+from snabf_compile import main, scale_search_mode
 
 
 class EntryTests(unittest.TestCase):
+    def test_explicit_narrow_does_not_hide_a_conflicting_legacy_request(self):
+        self.assertEqual(scale_search_mode(None,False),'narrow')
+        self.assertEqual(scale_search_mode('narrow',False),'narrow')
+        self.assertEqual(scale_search_mode(None,True),'heir-anchor')
+        self.assertEqual(scale_search_mode('heir-anchor',False),'heir-anchor')
+        with self.assertRaisesRegex(ValueError,'conflicts'):
+            scale_search_mode('narrow',True)
+
     def test_no_silent_downgrade(self):
         for opts,reason in ((['--security','192'],'SNABF_UNSUPPORTED_SECURITY_TARGET'),
                             (['--certify-failure-bits','40'],'SNABF_PROBABILISTIC_CERT_UNAVAILABLE')):

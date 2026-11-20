@@ -26,7 +26,8 @@ def Pass2Candidates : ModuleStage<"snabf-pass2-candidates", "Certify full activa
     Option<"epsilon","epsilon","double","0.0002","Full activation approximation error in decoded units">,
     Option<"minLevel","min-output-level","int64_t","0","Required suffix output level">,
     Option<"maxError","max-output-error","double","-1","Optional propagated deterministic approximation component at sinks">,
-    Option<"family","template-family","std::string","\"all\"","Allowed template family: all, direct, or composed (explicit ablation)">];
+    Option<"family","template-family","std::string","\"all\"","Allowed template family: all, direct, or composed (explicit ablation)">,
+    Option<"intervalMode","interval-mode","std::string","\"\"","Candidate input enclosure: naive (legacy default) or affine">];
 }
 def Plan : ModuleStage<"snabf-plan","Select candidates over SSA, re-solve violated sink budgets"> {
   let dependentDialects = ["::snabf::ir::SNABF", "::mlir::func::FuncDialect", "::mlir::heir::lattigo::LattigoDialect"];

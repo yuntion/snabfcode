@@ -1,7 +1,8 @@
 # Compile the upstream Lattigo dialect itself; do not weaken memref element
 # verification or model HEIR's backend types as opaque stand-ins.
-get_filename_component(HEIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../extern/heir" ABSOLUTE)
-set(HEIR "${HEIR}" CACHE PATH "Pinned HEIR checkout")
+get_filename_component(default_heir "${CMAKE_CURRENT_SOURCE_DIR}/../../../extern/heir" ABSOLUTE)
+# Do not shadow an existing -DHEIR cache entry during automatic reconfigure.
+set(HEIR "${default_heir}" CACHE PATH "Pinned HEIR checkout")
 set(hgen "${gen}/heir-inc")
 foreach(tree mlir llvm)
   file(MAKE_DIRECTORY "${hgen}/${tree}")

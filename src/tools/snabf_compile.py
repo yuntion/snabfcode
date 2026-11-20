@@ -31,13 +31,19 @@ def write(path, value):
     path.write_text(json.dumps(value, sort_keys=True, allow_nan=False, indent=2)+'\n')
 
 
+def scale_search_mode(mode, legacy_heterogeneous):
+    if mode == 'narrow' and legacy_heterogeneous:
+        raise ValueError('[SNABF_INVALID_OPTIONS] narrow conflicts with --heterogeneous-scales')
+    return mode or ('heir-anchor' if legacy_heterogeneous else 'narrow')
+
+
 def gadget_options(a):
     # Absence is distinct from explicit alpha=1 (the frozen v1 and fixed-block
     # v2 contracts respectively). 0 asks the native solver to search {1, 2}.
     options = []
     if a.gadget_alpha is not None:
         options.append(f'gadget-alpha={a.gadget_alpha}')
-    if a.heterogeneous_scales:
+    if scale_search_mode(a.scale_mode, a.heterogeneous_scales) == 'heir-anchor':
         options.extend(('heterogeneous-scales=true', 'heir-scale-anchor=true'))
     if not (20 <= a.prime_bw_min < a.prime_bw_max <= 59 and 2 <= a.aux_prime_margin_bits <= 59):
         raise ValueError('[SNABF_INVALID_OPTIONS] invalid prime search bounds or block margin')
@@ -89,6 +95,7 @@ def compile_model(a):
     with tempfile.TemporaryDirectory(prefix='.snabf-',dir=out.parent) as tmp:
         staging = Path(tmp); publish = staging/'publish'; publish.mkdir()
         w = publish/'work'; w.mkdir()
+        interval = '' if a.interval_mode is None else ' interval-mode='+a.interval_mode
         def run(*argv, cwd=w, capture=False):
             return subprocess.run(list(map(str,argv)), cwd=cwd,env=env,check=True,text=True,
                                   stdout=subprocess.PIPE if capture else None).stdout
@@ -120,7 +127,7 @@ def compile_model(a):
                 *ckks_pipeline(protect_erf, f'parameter-file=profile.json greedy-modulus-switch-after-mul=true greedy-level-budget={len(profile["Q"])-1} min-slot-count={a.min_slots}'),
                 *GENERIC,'marked.mlir','-o','heir.mlir')
             opt(f'--snabf-import-heir=input-bound={a.input_bound} key-bytes={size}',
-                '--snabf-pass1-candidates',f'--snabf-pass2-candidates=depth={a.q_count-1} epsilon={eps} max-output-error={eps}',
+                '--snabf-pass1-candidates',f'--snabf-pass2-candidates=depth={a.q_count-1} epsilon={eps} max-output-error={eps}'+interval,
                 '--snabf-plan','--snabf-check-plan','heir.mlir','-o','selected.mlir')
             opts = f'--snabf-pass3=epsilon={eps} min-base=20 security-cap={cap} source-arithmetic-fraction={fraction}' + gadget
             opt(opts+' audit=parameters.json','selected.mlir','-o','proposal.mlir')
@@ -176,6 +183,8 @@ def compile_model(a):
                     precision_bits=a.precision_bits,input_bound=a.input_bound,cut_profile=a.cut_profile,
                     verification='conditional' if issued else 'engineering',probabilistic_cert_issued=issued, specialization=history,
                     source_arithmetic_fraction=plan['source_arithmetic_fraction'])
+        if a.interval_mode is not None:
+            result['interval_mode'] = a.interval_mode
         if a.emit_go:
             opt('--snabf-lower-ckks=direct-go=true','checked.mlir','-o','lowered.mlir')
             opt('--snabf-bind-lattigo=ring-go=../model.go audit=../program.json','lowered.mlir','-o',os.devnull)
@@ -194,7 +203,10 @@ def main():
     p.add_argument('--input-bound',type=float,required=True); p.add_argument('--precision-bits',type=int,default=12)
     p.add_argument('--security-bits','--security',type=int,default=128)
     p.add_argument('--gadget-alpha', type=int, choices=range(5), help='explicit fixed-block v2 P count; 0 searches {1,2}; omit for legacy single-P')
+    p.add_argument('--interval-mode',choices=('affine','naive'),help='Pass 2 candidate domains (default: legacy naive)')
     p.add_argument('--heterogeneous-scales', action='store_true', help='v2 heterogeneous search constrained to the pinned HEIR integer rescale bin')
+    p.add_argument('--scale-mode', choices=('narrow','heir-anchor'),
+                   help='narrow by default; heir-anchor is the explicit pinned-HEIR ablation')
     p.add_argument('--prime-bw-min', type=float, default=24, help='continuous width floor for non-base Q and P in v2')
     p.add_argument('--prime-bw-max', type=float, default=59, help='continuous prime width ceiling in v2')
     p.add_argument('--aux-prime-margin-bits', type=int, default=2, help='minimum bits of P headroom over each fixed Q block')

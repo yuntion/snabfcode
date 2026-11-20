@@ -85,7 +85,13 @@ struct Marker : impl::MarkActivationsBase<Marker> {
 struct Pass2 : impl::Pass2CandidatesBase<Pass2> {
   using Base::Base;
   void runOnOperation() override {
-    if (failed(diagnosed(getOperation(), [&] { publishPolynomials(getOperation(),depth,epsilon,minLevel,maxError,family); }))) signalPassFailure();
+    if (failed(diagnosed(getOperation(), [&] {
+      if (!intervalMode.empty()) {
+        require(intervalMode == "naive" || intervalMode == "affine", "invalid snabf.interval_mode");
+        getOperation()->setAttr("snabf.interval_mode", StringAttr::get(&getContext(), intervalMode));
+      }
+      publishPolynomials(getOperation(),depth,epsilon,minLevel,maxError,family);
+    }))) signalPassFailure();
   }
 };
 struct Pass1 : impl::Pass1CandidatesBase<Pass1> {
