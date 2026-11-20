@@ -1,0 +1,29 @@
+28 rejected gate attempts; retained N=16384; observed 165.0054 < 512; crossing=True
+3ba17babf49e6153724b374ebc22232f047121a9094c841fa8512c8c8d3f3102  src/backend/ringswitch/epochs/heirckks/standard.go
+=== RUN   TestSourceEvaluationSharesKeysAndPublicEncoder
+--- PASS: TestSourceEvaluationSharesKeysAndPublicEncoder (0.01s)
+=== RUN   TestRejectUnboundSwitchBeforeKeyGeneration
+=== RUN   TestRejectUnboundSwitchBeforeKeyGeneration/ring
+=== RUN   TestRejectUnboundSwitchBeforeKeyGeneration/domain
+=== RUN   TestRejectUnboundSwitchBeforeKeyGeneration/level
+=== RUN   TestRejectUnboundSwitchBeforeKeyGeneration/scale
+=== RUN   TestRejectUnboundSwitchBeforeKeyGeneration/lane
+=== RUN   TestRejectUnboundSwitchBeforeKeyGeneration/storage
+=== RUN   TestRejectUnboundSwitchBeforeKeyGeneration/crossing
+=== RUN   TestRejectUnboundSwitchBeforeKeyGeneration/basis
+--- PASS: TestRejectUnboundSwitchBeforeKeyGeneration (0.00s)
+    --- PASS: TestRejectUnboundSwitchBeforeKeyGeneration/ring (0.00s)
+    --- PASS: TestRejectUnboundSwitchBeforeKeyGeneration/domain (0.00s)
+    --- PASS: TestRejectUnboundSwitchBeforeKeyGeneration/level (0.00s)
+    --- PASS: TestRejectUnboundSwitchBeforeKeyGeneration/scale (0.00s)
+    --- PASS: TestRejectUnboundSwitchBeforeKeyGeneration/lane (0.00s)
+    --- PASS: TestRejectUnboundSwitchBeforeKeyGeneration/storage (0.00s)
+    --- PASS: TestRejectUnboundSwitchBeforeKeyGeneration/crossing (0.00s)
+    --- PASS: TestRejectUnboundSwitchBeforeKeyGeneration/basis (0.00s)
+=== RUN   TestHEIRErrorIdentifiesSite
+--- PASS: TestHEIRErrorIdentifiesSite (0.00s)
+PASS
+ok  	snabf.local/compiler/src/backend/ringswitch/epochs	0.019s
+?   	snabf.local/compiler/src/backend/ringswitch/epochs/heirckks	[no test files]
+{"sha256": "8287047ed237204835e24ba243f7b3060fccf9b352c2ec2caf71f8de12f272f1", "source": 16384, "target": 16384, "sites": 35, "go_sha256": "913f49abc94fcaab8cedb91f11fd8ecf353143b146b11bbc7bbc1190f8dfd44e", "negative_cases": 9}
+{"sha256": "9dba6f9e54e8af109e2cb84e4d49077b93e66a63c5a0540df4e1dda6065de86e", "source": 16384, "target": 8192, "sites": 34, "go_sha256": "9e67a15bbfdc56b6393c9283136de03091fd2fea3cd8ae20f304fa2112edf172", "negative_cases": 9}

@@ -1,0 +1,28 @@
+=== RUN   Test_control
+    models_test.go:23: control/heir NUMERICAL PASS: 0/256 slots over 0.000244140625; Linf 7.908106224e-05 MSE 3.466926573e-10; hard_precision_gate=true
+    models_test.go:23: control/economy NUMERICAL PASS: 0/256 slots over 0.000244140625; Linf 9.137241162e-05 MSE 1.306558208e-09; hard_precision_gate=true
+    models_test.go:23: control/precision NUMERICAL PASS: 0/256 slots over 0.000244140625; Linf 7.962837282e-05 MSE 7.8720591e-10; hard_precision_gate=true
+--- PASS: Test_control (33.54s)
+=== RUN   Test_strided64
+    models_test.go:31: strided64/heir NUMERICAL PASS: 0/4096 slots over 0.000244140625; Linf 4.255649272e-05 MSE 7.060166991e-11; hard_precision_gate=true
+    models_test.go:31: strided64/economy NUMERICAL PASS: 0/4096 slots over 0.000244140625; Linf 0.000156531945 MSE 1.150271288e-09; hard_precision_gate=true
+    models_test.go:31: strided64/precision NUMERICAL PASS: 0/4096 slots over 0.000244140625; Linf 0.0001460574295 MSE 1.129052931e-09; hard_precision_gate=true
+--- PASS: Test_strided64 (35.30s)
+=== RUN   Test_reuse64
+    models_test.go:39: reuse64/heir NUMERICAL PASS: 0/4096 slots over 0.000244140625; Linf 4.301252557e-05 MSE 6.99544945e-11; hard_precision_gate=true
+    models_test.go:39: reuse64/economy NUMERICAL PASS: 0/4096 slots over 0.000244140625; Linf 0.0001617615542 MSE 1.055993689e-09; hard_precision_gate=true
+    models_test.go:39: reuse64/precision NUMERICAL PASS: 0/4096 slots over 0.000244140625; Linf 0.0001419247274 MSE 1.159832784e-09; hard_precision_gate=true
+--- PASS: Test_reuse64 (35.28s)
+=== RUN   Test_residual
+    models_test.go:47: residual/heir NUMERICAL FAIL: 1098/4096 slots over 0.000244140625; Linf 0.00135714976 MSE 6.992648345e-08; hard_precision_gate=false; first trial 0 slot 1: decrypted -0.140221819281578, true -0.140625, |error| 0.0004031807184
+    models_test.go:47: residual/economy NUMERICAL PASS: 0/4096 slots over 0.000244140625; Linf 0.0001415267761 MSE 9.794087722e-10; hard_precision_gate=true
+    models_test.go:47: residual/precision NUMERICAL PASS: 0/4096 slots over 0.000244140625; Linf 0.0002031726854 MSE 1.153996742e-09; hard_precision_gate=true
+--- PASS: Test_residual (30.98s)
+=== RUN   Test_composite_coverage
+    models_test.go:55: composite_coverage/heir NUMERICAL PASS: 0/256 slots over 0.000244140625; Linf 4.060094473e-05 MSE 1.324449666e-10; hard_precision_gate=true
+    models_test.go:55: composite_coverage/free NUMERICAL PASS: 0/256 slots over 0.000244140625; Linf 0.0001081950569 MSE 1.165094714e-09; hard_precision_gate=true
+    models_test.go:55: composite_coverage/forced_composite NUMERICAL PASS: 0/256 slots over 0.000244140625; Linf 9.672106819e-05 MSE 1.06120933e-09; hard_precision_gate=true
+    models_test.go:55: composite_coverage/forced_composite_tight NUMERICAL PASS: 0/256 slots over 0.000244140625; Linf 0.0001415124025 MSE 2.102228106e-09; hard_precision_gate=true
+--- PASS: Test_composite_coverage (65.37s)
+PASS
+ok  	snabf.local/compiler/build/pass2/accept.7PNPxr6u/experiment/go_test	200.577s

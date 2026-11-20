@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/home/fhecompiler/src/tools/verify_e2e_pass1_4.py", line 185, in <module>
+    result = reuse64_pair(a.run,a.reuse64_pair) if a.reuse64_pair else verify(a.run)
+  File "/home/fhecompiler/src/tools/verify_e2e_pass1_4.py", line 139, in verify
+    observed_key_bytes=keys(program,search,metrics['keys']), measurements=measured(run,corpus,program,metrics),
+  File "/home/fhecompiler/src/tools/verify_e2e_pass1_4.py", line 84, in measured
+    require((metrics['trials'],metrics['logical_outputs'],metrics['physical_encoded_slots_checked'],metrics['misses']) ==
+  File "/home/fhecompiler/src/frontend/snabf_frontend/pass2_evidence.py", line 31, in require
+    raise ValueError(message)
+ValueError: runner totals do not replay

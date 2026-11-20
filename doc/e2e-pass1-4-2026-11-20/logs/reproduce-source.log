@@ -1,0 +1,103 @@
+frozen/checkpoint.mlir: OK
+frozen/corpus.json: OK
+frozen/estimates.json: OK
+frozen/profile.json: OK
+frozen/security.json: OK
+frozen/source.mlir: OK
+PAIR_DIR=/home/fhecompiler/build/e2e-archive-smoke-20261120/pair.9qqhxu8B
+RUN_DIR=/home/fhecompiler/build/e2e-archive-smoke-20261120/pair.9qqhxu8B/128/run.AlwJxAfx
+[configure]
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/fhecompiler/build/e2e-native
+[build]
+Consolidate compiler generated dependencies of target snabf_pass4
+Consolidate compiler generated dependencies of target snabf_planner
+Consolidate compiler generated dependencies of target snabf_pass2
+Consolidate compiler generated dependencies of target snabf_pass3
+[  5%] Built target snabf_pass4
+[ 11%] Built target snabf_pass2
+[ 24%] Built target snabf_planner
+[ 25%] Built target snabf_pass3
+Consolidate compiler generated dependencies of target snabf_ir
+[ 37%] Built target snabf_ir
+Consolidate compiler generated dependencies of target snabf_import
+[ 40%] Built target snabf_import
+Consolidate compiler generated dependencies of target heir_lattigo
+[ 75%] Built target heir_lattigo
+Consolidate compiler generated dependencies of target snabf_pipeline
+[ 97%] Built target snabf_pipeline
+Consolidate compiler generated dependencies of target snabf-opt
+[100%] Built target snabf-opt
+[heir_helpers]
+[key_meter]
+[pass1_3]
+[pass4]
+[check]
+[lower]
+[emit]
+[go_build]
+[encrypted]
+=== RUN   TestEncrypted
+    encrypted_test.go:96: N=8192, 4096 logical outputs, 262144 encoded slots, max=9.897611590453659e-07, mean=156.66 ms
+--- PASS: TestEncrypted (12.19s)
+PASS
+ok  	command-line-arguments	12.222s
+[inputs_recheck]
+inputs/corpus.json: OK
+inputs/estimates.json: OK
+inputs/profile.json: OK
+inputs/security.json: OK
+inputs/source.mlir: OK
+[independent]
+{"outcome": "ring_down", "source_ring": 16384, "target_ring": 8192, "observed_key_bytes": {"galois": 40898336, "down": 3146080, "relin": 18875920, "public": 2359480}, "measurements": {"trials": 64, "logical_outputs": 4096, "slots_per_trial": 4096, "physical_slots": 262144, "misses": 0, "linf": 9.897611590453659e-07, "mse": 2.7078715000575693e-14, "tolerance": 0.000244140625, "actual_level": 1, "actual_ring": 8192, "actual_log_scale_range": [38.00000000000003, 38.00000000000003], "online_mean_ms": 156.660844171875, "online_median_ms": 150.591851}}
+DONE: /home/fhecompiler/build/e2e-archive-smoke-20261120/pair.9qqhxu8B/128/run.AlwJxAfx
+RUN_DIR=/home/fhecompiler/build/e2e-archive-smoke-20261120/pair.9qqhxu8B/512/run.CeRHsJhU
+[configure]
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/fhecompiler/build/e2e-native
+[build]
+Consolidate compiler generated dependencies of target snabf_pass4
+Consolidate compiler generated dependencies of target snabf_pass2
+Consolidate compiler generated dependencies of target snabf_pass3
+Consolidate compiler generated dependencies of target snabf_planner
+[  5%] Built target snabf_pass4
+[ 11%] Built target snabf_pass2
+[ 17%] Built target snabf_pass3
+[ 25%] Built target snabf_planner
+Consolidate compiler generated dependencies of target snabf_ir
+[ 37%] Built target snabf_ir
+Consolidate compiler generated dependencies of target snabf_import
+Consolidate compiler generated dependencies of target heir_lattigo
+[ 40%] Built target snabf_import
+[ 75%] Built target heir_lattigo
+Consolidate compiler generated dependencies of target snabf_pipeline
+[ 97%] Built target snabf_pipeline
+Consolidate compiler generated dependencies of target snabf-opt
+[100%] Built target snabf-opt
+[heir_helpers]
+[key_meter]
+[pass1_3]
+[pass4]
+[check]
+[lower]
+[emit]
+[go_build]
+[encrypted]
+=== RUN   TestEncrypted
+    encrypted_test.go:96: N=16384, 4096 logical outputs, 262144 encoded slots, max=9.944317821697357e-07, mean=194.21 ms
+--- PASS: TestEncrypted (14.58s)
+PASS
+ok  	command-line-arguments	14.631s
+[inputs_recheck]
+inputs/corpus.json: OK
+inputs/estimates.json: OK
+inputs/profile.json: OK
+inputs/security.json: OK
+inputs/source.mlir: OK
+[independent]
+{"outcome": "retain_source_ring", "source_ring": 16384, "target_ring": 16384, "observed_key_bytes": {"galois": 56627808, "down": 0, "relin": 18875920, "public": 2359480}, "measurements": {"trials": 64, "logical_outputs": 4096, "slots_per_trial": 4096, "physical_slots": 262144, "misses": 0, "linf": 9.944317821697357e-07, "mse": 2.7102185613799304e-14, "tolerance": 0.000244140625, "actual_level": 1, "actual_ring": 16384, "actual_log_scale_range": [38.00000000000003, 38.00000000000003], "online_mean_ms": 194.211317140625, "online_median_ms": 188.008383}}
+DONE: /home/fhecompiler/build/e2e-archive-smoke-20261120/pair.9qqhxu8B/512/run.CeRHsJhU
+{"positive_run": "/home/fhecompiler/build/e2e-archive-smoke-20261120/pair.9qqhxu8B/128/run.AlwJxAfx", "strict_run": "/home/fhecompiler/build/e2e-archive-smoke-20261120/pair.9qqhxu8B/512/run.CeRHsJhU", "only_policy_change": "switching_key_security_bits:128->512", "upstream": {"kind": "independent_source_compilations", "concrete_pass3_sha256": "faaed3fdf172832b52df3687661ddef753fc46568ee0051a9470ee7eece6a328", "checkpoint_comparison": "identical modulo private HEIR client.pack symbol and its checker receipt"}, "positive": {"mode": "source", "strategy": "adaptive", "inputs": {"corpus.json": "da7f849b58bd3594d412b5be16718a368ea4e2c3a3f0332c7f6b9d8b2d1a1038", "estimates.json": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a", "profile.json": "59815ca90e794edb96ccadc0a6ec0f6a7112d91b2d7f9cebdf4569bb2adf11ae", "security.json": "c73a1d89c15c425ff4fbdf2ba676c7f8acf94250a77b58ada027b159aeca42aa", "source.mlir": "c87b0bbd03a024e297088e877619003468bca01d50d95b1c99503297cd5ca8e1"}, "policy": {"max_iters": 16, "min_ring": 4096, "source_security_bits": 128, "switch_price": 1, "switching_key_security_bits": 128, "target_security_bits": 128}, "outcome": "ring_down", "source_ring": 16384, "target_ring": 8192, "reasons": ["verified", "boundary_concrete_replay: concrete message/scale headroom at lin1.mask0", "period_mismatch", "period_mismatch"], "precheck_receipts": ["c3555022a48ded2968e173ceed289fc13298cf1ce18b6207208fcdef3d6c8f7a"], "emit_sha256": "5ab64f9e3599e1a7e64e90685a28d5b233d247312d8e24502395e665917929f6", "checkpoint_sha256": "84f5e9832cfdde56817873c023cba1e6aadaeb2510881d4228a389c3faca38a7", "tools_sha256": "c8e8aa169a1544b94a41c61050c4695051ef240cdb8e2df4da89088b529be8ff", "observed_key_bytes": {"galois": 40898336, "down": 3146080, "relin": 18875920, "public": 2359480}, "measurements": {"trials": 64, "logical_outputs": 4096, "slots_per_trial": 4096, "physical_slots": 262144, "misses": 0, "linf": 9.897611590453659e-07, "mse": 2.7078715000575693e-14, "tolerance": 0.000244140625, "actual_level": 1, "actual_ring": 8192, "actual_log_scale_range": [38.00000000000003, 38.00000000000003], "online_mean_ms": 156.660844171875, "online_median_ms": 150.591851}, "evidence_sha256": {"search.json": "8497dc25729de84ceb3e31af0057e2e1d1348bc044355b08782a27a95ca36ce8", "program.json": "81215a6bccbbcffd31403935e7146bdec659c9f5a6f379199fb0429540aa24ec", "model.go": "0cdf1944b8ed71dc58149f550f04cb9bdb60640c691cc1ba1d2ff661698b4b86", "metrics.json": "d700da702b62b55509e9c724d529609c370e8d642de524a17efd2418f5a02a21", "trials.jsonl": "8fca1bc0e3919432acaa6713f122ee448bf1a41ba0e2e9db2ad029bdfcdb85df"}}, "strict": {"mode": "source", "strategy": "adaptive", "inputs": {"corpus.json": "da7f849b58bd3594d412b5be16718a368ea4e2c3a3f0332c7f6b9d8b2d1a1038", "estimates.json": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a", "profile.json": "59815ca90e794edb96ccadc0a6ec0f6a7112d91b2d7f9cebdf4569bb2adf11ae", "security.json": "c73a1d89c15c425ff4fbdf2ba676c7f8acf94250a77b58ada027b159aeca42aa", "source.mlir": "c87b0bbd03a024e297088e877619003468bca01d50d95b1c99503297cd5ca8e1"}, "policy": {"max_iters": 16, "min_ring": 4096, "source_security_bits": 128, "switch_price": 1, "switching_key_security_bits": 512, "target_security_bits": 128}, "outcome": "retain_source_ring", "source_ring": 16384, "target_ring": 16384, "reasons": ["switching_key_ext_modulus_security_rejected", "boundary_concrete_replay: concrete message/scale headroom at lin1.mask0", "period_mismatch", "period_mismatch"], "precheck_receipts": ["9a8ef34783e8b333c87481133d970338c956027c5b5bbba8879b153655414f5d"], "emit_sha256": "ecd43ba8664cebf0511204472ce300417e417f0ccaff8208619969ce01cc0a2a", "checkpoint_sha256": "57a7abe0d22653441392787be58f0e3cbbd5d5fab8ff9e10019be7c54d56f6db", "tools_sha256": "c8e8aa169a1544b94a41c61050c4695051ef240cdb8e2df4da89088b529be8ff", "observed_key_bytes": {"galois": 56627808, "down": 0, "relin": 18875920, "public": 2359480}, "measurements": {"trials": 64, "logical_outputs": 4096, "slots_per_trial": 4096, "physical_slots": 262144, "misses": 0, "linf": 9.944317821697357e-07, "mse": 2.7102185613799304e-14, "tolerance": 0.000244140625, "actual_level": 1, "actual_ring": 16384, "actual_log_scale_range": [38.00000000000003, 38.00000000000003], "online_mean_ms": 194.211317140625, "online_median_ms": 188.008383}, "evidence_sha256": {"search.json": "96c79abd8ad3bee90f39bdfa0126045a4bb3d78f63028fb017f08933b99fc155", "program.json": "227e4f02caba49e7571274c4c8d7d963e671d41f6dc35b2a2bdcfb722539fbc8", "model.go": "4d9ef4b8d5cc9eb5e2f83eb8a0ec1b4f47b8d579607227d87586d146c6f92b60", "metrics.json": "c6f4d6eab7ddb78a44b1a50ba76ffe9533a8a4b9dcbf6dd7b788893b84c991ea", "trials.jsonl": "c99ecf16a0f1ba51c3301d48d816a518d3f5eed5176f4d43a9629000d531f7da"}}}
+PAIRED: /home/fhecompiler/build/e2e-archive-smoke-20261120/pair.9qqhxu8B/pair.json

@@ -1,0 +1,2 @@
+PASS: native Pass 1 Eq. (3), positive/tie/negative/variance/level/layout branches and planning-only boundary
+PASS: native dialect registration, SSA branch, round-trip, fixed point, stale-plan rejection, sink feedback, infeasibility, profile/type checks and IR-guided lowering

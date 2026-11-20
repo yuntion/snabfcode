@@ -1,0 +1,11 @@
+package comparison
+
+import (
+	direct "snabf.local/e2ecase/out"
+	legacy "snabf.local/e2ecase/work/legacy"
+)
+
+var newDirect = direct.New
+var legacyConfigure = legacy.Linear_silu_linear__configure
+var legacyPrepare = legacy.Linear_silu_linear__preprocessing
+var legacyEval = legacy.Linear_silu_linear__preprocessed

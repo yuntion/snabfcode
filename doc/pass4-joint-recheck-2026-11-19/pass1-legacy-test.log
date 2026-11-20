@@ -1,0 +1,9 @@
+test_bootstrap_sites_are_bound_to_ir (test_pass1.RingSwitchTest) ... ok
+test_level_and_layout (test_pass1.RingSwitchTest) ... ok
+test_strict_boundary (test_pass1.RingSwitchTest) ... ok
+test_variance_feedback (test_pass1.RingSwitchTest) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.036s
+
+OK

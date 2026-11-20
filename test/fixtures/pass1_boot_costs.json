@@ -1,0 +1,10 @@
+{
+  "bootstrap:%ct_0": {
+    "units": "normalized regression costs, not measured latency",
+    "slot_period": 4096, "layout_contract": "trace-periodic", "layout_cost": 0,
+    "target_n": 8192, "level": 3, "small_ciphertexts": 1, "live_slots": 4096, "layout_verified": true,
+    "boot_costs": {"16384@3": 80, "8192@2": 40}, "downswitch_cost": 10, "upswitch_cost": 20,
+    "key_variance": 0.000732421875, "gadget_weights": [1,2],
+    "downstream_bins": [{"variance_cap": 5,"extra_cost": 5},{"variance_cap": 20,"extra_cost": 15}]
+  }
+}

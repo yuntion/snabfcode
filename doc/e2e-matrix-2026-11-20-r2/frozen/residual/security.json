@@ -1,0 +1,39 @@
+{
+  "ring": 16384,
+  "estimator": "ae45d740ceb138af87a4f92edc592a0ab0d4f43f",
+  "model": "LWE.estimate.rough/classical ADPS16; GSA uSVP, dual_hybrid",
+  "secret": "iid uniform ternary",
+  "error": "discrete Gaussian sigma=3.2 (estimator model for bounded sampler)",
+  "samples": "unbounded",
+  "inventory": [
+    "public_key:QP",
+    "relinearization_key:QP",
+    "ciphertext:Q",
+    "galois:5:QP",
+    "galois:15625:QP",
+    "galois:30177:QP"
+  ],
+  "instances": {
+    "envelope": {
+      "modulus": "2293498615990071511610820895302086940796564989168281123737588839386922876088484808070018553110125686554624",
+      "attacks_log2_rop": {
+        "usvp": 129.94,
+        "dual_hybrid": 129.6480000003393
+      }
+    },
+    "Q": {
+      "modulus": "222900673803668530109305478250836288332362470051146504456534858177456842764139408721346561",
+      "attacks_log2_rop": {
+        "usvp": 163.51999999999998,
+        "dual_hybrid": 162.93618388665791
+      }
+    },
+    "QP": {
+      "modulus": "12790848765202856874052331617623493387078346252969684850480652747119924321129313574046702753956530618369",
+      "attacks_log2_rop": {
+        "usvp": 134.028,
+        "dual_hybrid": 133.73600000001812
+      }
+    }
+  }
+}

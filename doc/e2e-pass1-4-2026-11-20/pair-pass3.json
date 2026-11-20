@@ -1,0 +1,141 @@
+{
+  "positive_run": "/home/fhecompiler/build/e2e-release-20261120/pass3/128/run.2X7ZlxaM",
+  "strict_run": "/home/fhecompiler/build/e2e-release-20261120/pass3/512/run.yAHWUYuI",
+  "only_policy_change": "switching_key_security_bits:128->512",
+  "upstream": {
+    "kind": "byte_identical_checkpoint",
+    "sha256": "96e2cd0005ea6b41dc41f022eabcdfe42891724289f307aa372aeda78baf6662"
+  },
+  "positive": {
+    "mode": "pass3",
+    "strategy": "adaptive",
+    "inputs": {
+      "checkpoint.mlir": "96e2cd0005ea6b41dc41f022eabcdfe42891724289f307aa372aeda78baf6662",
+      "corpus.json": "da7f849b58bd3594d412b5be16718a368ea4e2c3a3f0332c7f6b9d8b2d1a1038",
+      "estimates.json": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a",
+      "profile.json": "59815ca90e794edb96ccadc0a6ec0f6a7112d91b2d7f9cebdf4569bb2adf11ae",
+      "security.json": "c73a1d89c15c425ff4fbdf2ba676c7f8acf94250a77b58ada027b159aeca42aa",
+      "source.mlir": "c87b0bbd03a024e297088e877619003468bca01d50d95b1c99503297cd5ca8e1"
+    },
+    "policy": {
+      "max_iters": 16,
+      "min_ring": 4096,
+      "source_security_bits": 128,
+      "switch_price": 1,
+      "switching_key_security_bits": 128,
+      "target_security_bits": 128
+    },
+    "outcome": "ring_down",
+    "source_ring": 16384,
+    "target_ring": 8192,
+    "reasons": [
+      "verified",
+      "boundary_concrete_replay: concrete message/scale headroom at lin1.mask0",
+      "period_mismatch",
+      "period_mismatch"
+    ],
+    "precheck_receipts": [
+      "8287047ed237204835e24ba243f7b3060fccf9b352c2ec2caf71f8de12f272f1"
+    ],
+    "emit_sha256": "9dba6f9e54e8af109e2cb84e4d49077b93e66a63c5a0540df4e1dda6065de86e",
+    "checkpoint_sha256": "96e2cd0005ea6b41dc41f022eabcdfe42891724289f307aa372aeda78baf6662",
+    "tools_sha256": "c8e8aa169a1544b94a41c61050c4695051ef240cdb8e2df4da89088b529be8ff",
+    "observed_key_bytes": {
+      "galois": 40898336,
+      "down": 3146080,
+      "relin": 18875920,
+      "public": 2359480
+    },
+    "measurements": {
+      "trials": 64,
+      "logical_outputs": 4096,
+      "slots_per_trial": 4096,
+      "physical_slots": 262144,
+      "misses": 0,
+      "linf": 9.992549632326098e-07,
+      "mse": 2.7069904396507574e-14,
+      "tolerance": 0.000244140625,
+      "actual_level": 1,
+      "actual_ring": 8192,
+      "actual_log_scale_range": [
+        38.00000000000003,
+        38.00000000000003
+      ],
+      "online_mean_ms": 158.7784995,
+      "online_median_ms": 152.3313625
+    },
+    "evidence_sha256": {
+      "search.json": "8497dc25729de84ceb3e31af0057e2e1d1348bc044355b08782a27a95ca36ce8",
+      "program.json": "8938a85596b7a85b047a3e75c4e73815efce7f2a3c1800499b61e238e6a37e4b",
+      "model.go": "9e67a15bbfdc56b6393c9283136de03091fd2fea3cd8ae20f304fa2112edf172",
+      "metrics.json": "db7d958dcf1da18a5a59913e2db979a7b85d8f945791a1e139ffa462573aecb5",
+      "trials.jsonl": "11362f066f2ef43bfa8fb9fb81930839ae4f50c2419c771ccf1aeeca78cba987"
+    }
+  },
+  "strict": {
+    "mode": "pass3",
+    "strategy": "adaptive",
+    "inputs": {
+      "checkpoint.mlir": "96e2cd0005ea6b41dc41f022eabcdfe42891724289f307aa372aeda78baf6662",
+      "corpus.json": "da7f849b58bd3594d412b5be16718a368ea4e2c3a3f0332c7f6b9d8b2d1a1038",
+      "estimates.json": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a",
+      "profile.json": "59815ca90e794edb96ccadc0a6ec0f6a7112d91b2d7f9cebdf4569bb2adf11ae",
+      "security.json": "c73a1d89c15c425ff4fbdf2ba676c7f8acf94250a77b58ada027b159aeca42aa",
+      "source.mlir": "c87b0bbd03a024e297088e877619003468bca01d50d95b1c99503297cd5ca8e1"
+    },
+    "policy": {
+      "max_iters": 16,
+      "min_ring": 4096,
+      "source_security_bits": 128,
+      "switch_price": 1,
+      "switching_key_security_bits": 512,
+      "target_security_bits": 128
+    },
+    "outcome": "retain_source_ring",
+    "source_ring": 16384,
+    "target_ring": 16384,
+    "reasons": [
+      "switching_key_ext_modulus_security_rejected",
+      "boundary_concrete_replay: concrete message/scale headroom at lin1.mask0",
+      "period_mismatch",
+      "period_mismatch"
+    ],
+    "precheck_receipts": [
+      "8287047ed237204835e24ba243f7b3060fccf9b352c2ec2caf71f8de12f272f1"
+    ],
+    "emit_sha256": "72024689a0cb83d0e8fd86101a56869b9186822116e4e422d6907809f2679cce",
+    "checkpoint_sha256": "96e2cd0005ea6b41dc41f022eabcdfe42891724289f307aa372aeda78baf6662",
+    "tools_sha256": "c8e8aa169a1544b94a41c61050c4695051ef240cdb8e2df4da89088b529be8ff",
+    "observed_key_bytes": {
+      "galois": 56627808,
+      "down": 0,
+      "relin": 18875920,
+      "public": 2359480
+    },
+    "measurements": {
+      "trials": 64,
+      "logical_outputs": 4096,
+      "slots_per_trial": 4096,
+      "physical_slots": 262144,
+      "misses": 0,
+      "linf": 9.982956664933429e-07,
+      "mse": 2.709895377389808e-14,
+      "tolerance": 0.000244140625,
+      "actual_level": 1,
+      "actual_ring": 16384,
+      "actual_log_scale_range": [
+        38.00000000000003,
+        38.00000000000003
+      ],
+      "online_mean_ms": 196.2871956875,
+      "online_median_ms": 188.89347149999998
+    },
+    "evidence_sha256": {
+      "search.json": "96c79abd8ad3bee90f39bdfa0126045a4bb3d78f63028fb017f08933b99fc155",
+      "program.json": "5141f6b503bdd580ee693291a84815f1327a0386c76d9c25692949748d7425f7",
+      "model.go": "bc45be37827054f57e06938b9430ee4cd8d004930fc5e49eea81f83bd35eb09b",
+      "metrics.json": "76398c9ea101077bafca313e2be0674a0f13963b6af861d5c60063281186e9d9",
+      "trials.jsonl": "ebfec9dcc228b7a59d09d687d60d5819e18b11a108c92da52270c8dd50bd2e8e"
+    }
+  }
+}

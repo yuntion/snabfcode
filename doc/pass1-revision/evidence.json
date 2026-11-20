@@ -1,0 +1,1226 @@
+{
+  "pass1": [
+    {
+      "arm": "heir",
+      "metrics": {
+        "Linf": 6.198020915113012e-05,
+        "MSE": 2.3301208120287717e-10,
+        "VsHeirLinf": 0,
+        "MeanEvalMs": 152.127631578125,
+        "InputLevel": 7,
+        "OutputLevel": 0,
+        "OutputLogScale": 51.96361603438207,
+        "Galois": [
+          5,
+          25
+        ],
+        "SerializedGaloisBytes": 20973248,
+        "Trials": 64,
+        "Outputs": 256
+      },
+      "workload": "control"
+    },
+    {
+      "arm": "independent",
+      "metrics": {
+        "Linf": 4.9118971044120885e-05,
+        "MSE": 2.291044607980679e-10,
+        "VsHeirLinf": 6.711483001708984e-05,
+        "MeanEvalMs": 151.71234281250005,
+        "InputLevel": 7,
+        "OutputLevel": 0,
+        "OutputLogScale": 51.96361603438207,
+        "Galois": [
+          5,
+          25,
+          125
+        ],
+        "SerializedGaloisBytes": 31459872,
+        "Trials": 64,
+        "Outputs": 256
+      },
+      "workload": "control",
+      "sites": [
+        {
+          "level": 7,
+          "b": 4096,
+          "g": 2,
+          "terms": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+            2,
+            2,
+            0,
+            3,
+            2,
+            1
+          ],
+          "charge": {
+            "amortized_key_bytes": 15729936,
+            "giant_work": 8,
+            "hoist_work": 5,
+            "key_cost": 15.001235961914062
+          }
+        },
+        {
+          "level": 2,
+          "b": 8192,
+          "g": 1,
+          "terms": [
+            0,
+            0,
+            0,
+            1,
+            1,
+            0,
+            3,
+            3,
+            0
+          ],
+          "charge": {
+            "amortized_key_bytes": 15729936,
+            "giant_work": 0,
+            "hoist_work": 3.75,
+            "key_cost": 15.001235961914062
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "choices": [
+            1,
+            2
+          ],
+          "reason": "feasible",
+          "violations": []
+        }
+      ],
+      "program_sha256": "772cc3913e23e71ffee58bfdf8a9b70b5ffe85a7affb6b742e32df8a4c557685"
+    },
+    {
+      "arm": "joint",
+      "metrics": {
+        "Linf": 4.40080656839148e-05,
+        "MSE": 1.846744199253053e-10,
+        "VsHeirLinf": 7.234513759613037e-05,
+        "MeanEvalMs": 153.96550351562493,
+        "InputLevel": 7,
+        "OutputLevel": 0,
+        "OutputLogScale": 51.96361603438207,
+        "Galois": [
+          5,
+          25
+        ],
+        "SerializedGaloisBytes": 20973248,
+        "Trials": 64,
+        "Outputs": 256
+      },
+      "workload": "control",
+      "sites": [
+        {
+          "level": 7,
+          "b": 4096,
+          "g": 2,
+          "terms": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+            2,
+            2,
+            0,
+            3,
+            2,
+            1
+          ],
+          "charge": {
+            "amortized_key_bytes": 10486624,
+            "giant_work": 8,
+            "hoist_work": 5,
+            "key_cost": 10.000823974609375
+          }
+        },
+        {
+          "level": 2,
+          "b": 4096,
+          "g": 2,
+          "terms": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+            3,
+            2,
+            1
+          ],
+          "charge": {
+            "amortized_key_bytes": 10486624,
+            "giant_work": 3,
+            "hoist_work": 1.875,
+            "key_cost": 10.000823974609375
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "choices": [
+            1,
+            1
+          ],
+          "reason": "feasible",
+          "violations": []
+        }
+      ],
+      "program_sha256": "6901ac01419ccdd2b39de364a9adf737d740cc47a5ba65d7254eeb8c1c7ea144"
+    },
+    {
+      "arm": "heir",
+      "metrics": {
+        "Linf": 4.0550435159353304e-05,
+        "MSE": 6.683173234019194e-11,
+        "VsHeirLinf": 0,
+        "MeanEvalMs": 168.43182714062496,
+        "InputLevel": 7,
+        "OutputLevel": 0,
+        "OutputLogScale": 51.96361603438207,
+        "Galois": [
+          5,
+          25,
+          625
+        ],
+        "SerializedGaloisBytes": 31459872,
+        "Trials": 64,
+        "Outputs": 4096
+      },
+      "workload": "strided64"
+    },
+    {
+      "arm": "independent",
+      "metrics": {
+        "Linf": 4.709241129667932e-05,
+        "MSE": 6.941506234163649e-11,
+        "VsHeirLinf": 5.08185476064682e-05,
+        "MeanEvalMs": 140.22731684374997,
+        "InputLevel": 7,
+        "OutputLevel": 0,
+        "OutputLogScale": 51.96361603438207,
+        "Galois": [
+          5,
+          25,
+          625,
+          3125
+        ],
+        "SerializedGaloisBytes": 41946496,
+        "Trials": 64,
+        "Outputs": 4096
+      },
+      "workload": "strided64",
+      "sites": [
+        {
+          "level": 7,
+          "b": 8192,
+          "g": 1,
+          "terms": [
+            0,
+            0,
+            0,
+            1,
+            1,
+            0,
+            2,
+            2,
+            0,
+            5,
+            5,
+            0
+          ],
+          "charge": {
+            "amortized_key_bytes": 31459872,
+            "giant_work": 0,
+            "hoist_work": 15,
+            "key_cost": 30.002471923828125
+          }
+        },
+        {
+          "level": 2,
+          "b": 2048,
+          "g": 1,
+          "terms": [
+            0,
+            0,
+            0,
+            4,
+            4,
+            0
+          ],
+          "charge": {
+            "amortized_key_bytes": 10486624,
+            "giant_work": 0,
+            "hoist_work": 1.875,
+            "key_cost": 10.000823974609375
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "choices": [
+            3,
+            1
+          ],
+          "reason": "feasible",
+          "violations": []
+        }
+      ],
+      "program_sha256": "325b60527416f26340d88701554c97cd08b6133ec8ba9f9a0b74c6ad78d0eb8f"
+    },
+    {
+      "arm": "joint",
+      "metrics": {
+        "Linf": 4.348468865390809e-05,
+        "MSE": 7.505905887034721e-11,
+        "VsHeirLinf": 6.0498714447021484e-05,
+        "MeanEvalMs": 153.40956874999998,
+        "InputLevel": 7,
+        "OutputLevel": 0,
+        "OutputLogScale": 51.96361603438207,
+        "Galois": [
+          5,
+          25,
+          625
+        ],
+        "SerializedGaloisBytes": 31459872,
+        "Trials": 64,
+        "Outputs": 4096
+      },
+      "workload": "strided64",
+      "sites": [
+        {
+          "level": 7,
+          "b": 4096,
+          "g": 2,
+          "terms": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+            2,
+            2,
+            0,
+            5,
+            4,
+            1
+          ],
+          "charge": {
+            "amortized_key_bytes": 26216560,
+            "giant_work": 8,
+            "hoist_work": 10,
+            "key_cost": 25.002059936523438
+          }
+        },
+        {
+          "level": 2,
+          "b": 2048,
+          "g": 1,
+          "terms": [
+            0,
+            0,
+            0,
+            4,
+            4,
+            0
+          ],
+          "charge": {
+            "amortized_key_bytes": 5243312,
+            "giant_work": 0,
+            "hoist_work": 1.875,
+            "key_cost": 5.0004119873046875
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "choices": [
+            2,
+            1
+          ],
+          "reason": "feasible",
+          "violations": []
+        }
+      ],
+      "program_sha256": "adcda7ef82c98f9bbcac343fd99e4002c473bc29d07473ad5d5fdbb7a7435181"
+    },
+    {
+      "arm": "heir",
+      "metrics": {
+        "Linf": 4.2199418797281285e-05,
+        "MSE": 5.725692222685587e-11,
+        "VsHeirLinf": 0,
+        "MeanEvalMs": 173.11365807812496,
+        "InputLevel": 7,
+        "OutputLevel": 0,
+        "OutputLogScale": 51.96361603438207,
+        "Galois": [
+          5,
+          125,
+          625,
+          15625,
+          30177
+        ],
+        "SerializedGaloisBytes": 52433120,
+        "Trials": 64,
+        "Outputs": 4096
+      },
+      "workload": "reuse64"
+    },
+    {
+      "arm": "independent",
+      "metrics": {
+        "Linf": 4.079254713236502e-05,
+        "MSE": 5.681085485541182e-11,
+        "VsHeirLinf": 6.137043237686157e-05,
+        "MeanEvalMs": 135.88780440624998,
+        "InputLevel": 7,
+        "OutputLevel": 0,
+        "OutputLogScale": 51.96361603438207,
+        "Galois": [
+          12589,
+          15625,
+          19813,
+          30177
+        ],
+        "SerializedGaloisBytes": 41946496,
+        "Trials": 64,
+        "Outputs": 4096
+      },
+      "workload": "reuse64",
+      "sites": [
+        {
+          "level": 7,
+          "b": 8192,
+          "g": 1,
+          "terms": [
+            0,
+            0,
+            0,
+            7,
+            7,
+            0,
+            9,
+            9,
+            0
+          ],
+          "charge": {
+            "amortized_key_bytes": 20973248,
+            "giant_work": 0,
+            "hoist_work": 10,
+            "key_cost": 20.00164794921875
+          }
+        },
+        {
+          "level": 2,
+          "b": 4096,
+          "g": 1,
+          "terms": [
+            0,
+            0,
+            0,
+            6,
+            6,
+            0,
+            8,
+            8,
+            0
+          ],
+          "charge": {
+            "amortized_key_bytes": 20973248,
+            "giant_work": 0,
+            "hoist_work": 3.75,
+            "key_cost": 20.00164794921875
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "choices": [
+            4,
+            3
+          ],
+          "reason": "feasible",
+          "violations": []
+        }
+      ],
+      "program_sha256": "ff15c3fd5251e4f4fa74154d2c653e29981cb6f21d4e0cbc0b8a4405c5271c43"
+    },
+    {
+      "arm": "joint",
+      "metrics": {
+        "Linf": 4.435203829614154e-05,
+        "MSE": 5.7302216935130447e-11,
+        "VsHeirLinf": 5.09209930896759e-05,
+        "MeanEvalMs": 157.36959524999997,
+        "InputLevel": 7,
+        "OutputLevel": 0,
+        "OutputLogScale": 51.96361603438207,
+        "Galois": [
+          5,
+          15625,
+          30177
+        ],
+        "SerializedGaloisBytes": 31459872,
+        "Trials": 64,
+        "Outputs": 4096
+      },
+      "workload": "reuse64",
+      "sites": [
+        {
+          "level": 7,
+          "b": 4096,
+          "g": 2,
+          "terms": [
+            0,
+            0,
+            0,
+            7,
+            6,
+            1,
+            9,
+            8,
+            1
+          ],
+          "charge": {
+            "amortized_key_bytes": 20973248,
+            "giant_work": 8,
+            "hoist_work": 10,
+            "key_cost": 20.00164794921875
+          }
+        },
+        {
+          "level": 2,
+          "b": 4096,
+          "g": 1,
+          "terms": [
+            0,
+            0,
+            0,
+            6,
+            6,
+            0,
+            8,
+            8,
+            0
+          ],
+          "charge": {
+            "amortized_key_bytes": 10486624,
+            "giant_work": 0,
+            "hoist_work": 3.75,
+            "key_cost": 10.000823974609375
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "choices": [
+            3,
+            3
+          ],
+          "reason": "feasible",
+          "violations": []
+        }
+      ],
+      "program_sha256": "ab76c3e4bcaff6eb5f1acb9c84bcca1c69e9dd4a116cb6f3bfc0c7ffbbf322c9"
+    },
+    {
+      "arm": "cap2",
+      "metrics": {
+        "Galois": [
+          12589,
+          15625,
+          19813,
+          30177
+        ],
+        "InputLevel": 7,
+        "Linf": 3.0062245739922305e-05,
+        "MSE": 4.544954829794029e-11,
+        "MeanEvalMs": 150.87231549999998,
+        "OutputLevel": 0,
+        "OutputLogScale": 51.96361603438207,
+        "Outputs": 256,
+        "SerializedGaloisBytes": 41946496,
+        "Trials": 4,
+        "VsHeirLinf": 4.2475759983062744e-05
+      },
+      "workload": "reuse64",
+      "sites": [
+        {
+          "level": 7,
+          "b": 8192,
+          "g": 1,
+          "terms": [
+            0,
+            0,
+            0,
+            7,
+            7,
+            0,
+            9,
+            9,
+            0
+          ],
+          "charge": {
+            "amortized_key_bytes": 20973248,
+            "giant_work": 0,
+            "hoist_work": 10,
+            "key_cost": 20.00164794921875
+          }
+        },
+        {
+          "level": 2,
+          "b": 4096,
+          "g": 1,
+          "terms": [
+            0,
+            0,
+            0,
+            6,
+            6,
+            0,
+            8,
+            8,
+            0
+          ],
+          "charge": {
+            "amortized_key_bytes": 20973248,
+            "giant_work": 0,
+            "hoist_work": 3.75,
+            "key_cost": 20.00164794921875
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "choices": [
+            3,
+            3
+          ],
+          "reason": "ssa_rotation_path",
+          "violations": [
+            {
+              "limit": 2,
+              "sites": [
+                0,
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "choices": [
+            4,
+            3
+          ],
+          "reason": "feasible",
+          "violations": []
+        }
+      ],
+      "program_sha256": "ba5545184d4d5c76813af1bb22b331a20969aeb93b732df65a07639213dc7190"
+    }
+  ],
+  "pass2_residual": {
+    "economy": {
+      "candidate": "silu_direct.d3.ps",
+      "level": 2,
+      "terms": [
+        0,
+        0,
+        0,
+        7,
+        7,
+        0,
+        9,
+        9,
+        0
+      ],
+      "keys": [
+        {
+          "galois": 12589,
+          "serialized_bytes": 10486624
+        },
+        {
+          "galois": 15625,
+          "serialized_bytes": 10486624
+        },
+        {
+          "galois": 19813,
+          "serialized_bytes": 10486624
+        },
+        {
+          "galois": 30177,
+          "serialized_bytes": 10486624
+        }
+      ],
+      "accuracy": {
+        "tolerance": 0.000244140625,
+        "logical_slots_checked": 4096,
+        "slots_over_tolerance": 0,
+        "linf": 0.0001516752322308565,
+        "sum_squared_error": 4.644320716605521e-06,
+        "mse": 1.1338673624525198e-09,
+        "precision_passed": true,
+        "hard_precision_gate": true,
+        "accuracy_status": "PASS",
+        "first_failure": null
+      }
+    },
+    "precision": {
+      "candidate": "silu_direct.d7.ps",
+      "level": 1,
+      "terms": [
+        0,
+        0,
+        0,
+        7,
+        6,
+        1,
+        9,
+        8,
+        1
+      ],
+      "keys": [
+        {
+          "galois": 5,
+          "serialized_bytes": 10486624
+        },
+        {
+          "galois": 15625,
+          "serialized_bytes": 10486624
+        },
+        {
+          "galois": 30177,
+          "serialized_bytes": 10486624
+        }
+      ],
+      "accuracy": {
+        "tolerance": 0.000244140625,
+        "logical_slots_checked": 4096,
+        "slots_over_tolerance": 0,
+        "linf": 0.00014539821131620556,
+        "sum_squared_error": 3.90557993361208e-06,
+        "mse": 9.535107259795117e-10,
+        "precision_passed": true,
+        "hard_precision_gate": true,
+        "accuracy_status": "PASS",
+        "first_failure": null
+      }
+    }
+  },
+  "pass3": {
+    "reuse64": {
+      "no_trunc": {
+        "physical_scope": "linear_silu_linear__configure:<>:[16580609, 270155612161, 270155972609, 270155284481, 270156300289, 270154924033, 270154498049, 270157479937]:[122317219102721]:16384",
+        "key_bytes": 56627808,
+        "profiles_in_first_specialization": 2,
+        "metrics": {
+          "Slots": 4096,
+          "Misses": 0,
+          "Trials": 64,
+          "Linf": 9.633718290047444e-07,
+          "MSE": 2.693009006132789e-14,
+          "OnlineMS": 184.59481693750004,
+          "ObservedOutputLogScale": 38.00000000000001,
+          "OutputLevel": 1,
+          "Events": null,
+          "PairedLinf": 0,
+          "PairedMeanSquare": 0
+        }
+      },
+      "joint": {
+        "physical_scope": "linear_silu_linear__configure:<>:[16580609, 270155612161, 270155972609, 270155284481, 270156300289, 270154924033, 270154498049, 270157479937]:[140858119421953]:16384",
+        "key_bytes": 56627808,
+        "profiles_in_first_specialization": 2,
+        "metrics": {
+          "Slots": 4096,
+          "Misses": 0,
+          "Trials": 64,
+          "Linf": 9.633718290047444e-07,
+          "MSE": 2.6923069056270973e-14,
+          "OnlineMS": 185.61994559375,
+          "ObservedOutputLogScale": 38.00000000000001,
+          "OutputLevel": 1,
+          "Events": [
+            {
+              "ID": "lin0.giant1",
+              "Level": 7,
+              "K": 1,
+              "RowsExecuted": 7,
+              "RowsSkipped": 1,
+              "ForwardNTT": 63,
+              "InverseNTT": 8,
+              "Decompositions": 7,
+              "ResidualMax": 8290091,
+              "ResidualMean": 21805.745178222656,
+              "ResidualMeanSquare": 22599829376516.297,
+              "LogScale": 75.97500967064073,
+              "NativeDecompNTT": 80,
+              "NetDecompNTTSaved": 9,
+              "ResidualVariance": 22599353885993.52
+            },
+            {
+              "ID": "poly0.n1.relin",
+              "Level": 6,
+              "K": 1,
+              "RowsExecuted": 6,
+              "RowsSkipped": 1,
+              "ForwardNTT": 48,
+              "InverseNTT": 7,
+              "Decompositions": 6,
+              "ResidualMax": 8290185,
+              "ResidualMean": -67137.78308105469,
+              "ResidualMeanSquare": 22882433668524.125,
+              "LogScale": 76,
+              "NativeDecompNTT": 63,
+              "NetDecompNTTSaved": 8,
+              "ResidualVariance": 22877926186607.086
+            },
+            {
+              "ID": "poly0.n3.relin",
+              "Level": 4,
+              "K": 1,
+              "RowsExecuted": 4,
+              "RowsSkipped": 1,
+              "ForwardNTT": 24,
+              "InverseNTT": 5,
+              "Decompositions": 4,
+              "ResidualMax": 8290094,
+              "ResidualMean": 49146.95361328125,
+              "ResidualMeanSquare": 22933229086853.523,
+              "LogScale": 75.95000131748886,
+              "NativeDecompNTT": 35,
+              "NetDecompNTTSaved": 6,
+              "ResidualVariance": 22930813663804.06
+            },
+            {
+              "ID": "poly0.n5.relin",
+              "Level": 3,
+              "K": 1,
+              "RowsExecuted": 3,
+              "RowsSkipped": 1,
+              "ForwardNTT": 15,
+              "InverseNTT": 4,
+              "Decompositions": 3,
+              "ResidualMax": 8289938,
+              "ResidualMean": -2235.5547485351562,
+              "ResidualMeanSquare": 22580378469142.44,
+              "LogScale": 75.97499794641843,
+              "NativeDecompNTT": 24,
+              "NetDecompNTTSaved": 5,
+              "ResidualVariance": 22580373471437.406
+            }
+          ],
+          "PairedLinf": 6.115248381204634e-08,
+          "PairedMeanSquare": 1.242635446433511e-16
+        }
+      },
+      "matched_exact": {
+        "physical_scope": "linear_silu_linear__configure:<>:[16580609, 270155612161, 270155972609, 270155284481, 270156300289, 270154924033, 270154498049, 270157479937]:[140858119421953]:16384",
+        "key_bytes": 56627808,
+        "profiles_in_first_specialization": 0,
+        "metrics": {
+          "Slots": 4096,
+          "Misses": 0,
+          "Trials": 64,
+          "Linf": 9.633718290047444e-07,
+          "MSE": 2.682677384316567e-14,
+          "OnlineMS": 182.72181510937497,
+          "ObservedOutputLogScale": 38.00000000000001,
+          "OutputLevel": 1,
+          "Events": null,
+          "PairedLinf": 0,
+          "PairedMeanSquare": 0
+        }
+      }
+    },
+    "residual": {
+      "no_trunc": {
+        "physical_scope": "linear_silu_linear__configure:<>:[16580609, 540311683073, 540311912449, 540310405121, 540312272897, 540312862721, 540309553153, 540313583617]:[56830435459073]:16384",
+        "key_bytes": 56627808,
+        "profiles_in_first_specialization": 2,
+        "metrics": {
+          "Slots": 4096,
+          "Misses": 0,
+          "Trials": 64,
+          "Linf": 3.034303989735143e-06,
+          "MSE": 2.0465718186831526e-13,
+          "OnlineMS": 153.77062265625,
+          "ObservedOutputLogScale": 39,
+          "OutputLevel": 1,
+          "Events": null,
+          "PairedLinf": 0,
+          "PairedMeanSquare": 0
+        }
+      },
+      "joint": {
+        "physical_scope": "linear_silu_linear__configure:<>:[16580609, 540311683073, 540311912449, 540310405121, 540312272897, 540312862721, 540309553153, 540313583617]:[57383625392129]:16384",
+        "key_bytes": 56627808,
+        "profiles_in_first_specialization": 3,
+        "metrics": {
+          "Slots": 4096,
+          "Misses": 0,
+          "Trials": 64,
+          "Linf": 3.034303989735143e-06,
+          "MSE": 2.0469094248610808e-13,
+          "OnlineMS": 150.81434871874998,
+          "ObservedOutputLogScale": 39,
+          "OutputLevel": 1,
+          "Events": [
+            {
+              "ID": "poly0.n1.relin",
+              "Level": 6,
+              "K": 1,
+              "RowsExecuted": 6,
+              "RowsSkipped": 1,
+              "ForwardNTT": 48,
+              "InverseNTT": 7,
+              "Decompositions": 6,
+              "ResidualMax": 8290303,
+              "ResidualMean": 47165.376220703125,
+              "ResidualMeanSquare": 23117692069186.664,
+              "LogScale": 78,
+              "NativeDecompNTT": 63,
+              "NetDecompNTTSaved": 8,
+              "ResidualVariance": 23115467496472.625
+            },
+            {
+              "ID": "poly0.n3.relin",
+              "Level": 4,
+              "K": 1,
+              "RowsExecuted": 4,
+              "RowsSkipped": 1,
+              "ForwardNTT": 24,
+              "InverseNTT": 5,
+              "Decompositions": 4,
+              "ResidualMax": 8290095,
+              "ResidualMean": -28154.97235107422,
+              "ResidualMeanSquare": 22788679498325.918,
+              "LogScale": 77.95000000506819,
+              "NativeDecompNTT": 35,
+              "NetDecompNTTSaved": 6,
+              "ResidualVariance": 22787886795857.83
+            },
+            {
+              "ID": "poly0.n5.relin",
+              "Level": 3,
+              "K": 1,
+              "RowsExecuted": 3,
+              "RowsSkipped": 1,
+              "ForwardNTT": 15,
+              "InverseNTT": 4,
+              "Decompositions": 3,
+              "ResidualMax": 8289962,
+              "ResidualMean": 18146.763610839844,
+              "ResidualMeanSquare": 22895027563775.355,
+              "LogScale": 77.97499750894292,
+              "NativeDecompNTT": 24,
+              "NetDecompNTTSaved": 5,
+              "ResidualVariance": 22894698258745.81
+            },
+            {
+              "ID": "lin1.giant1",
+              "Level": 2,
+              "K": 1,
+              "RowsExecuted": 2,
+              "RowsSkipped": 1,
+              "ForwardNTT": 8,
+              "InverseNTT": 3,
+              "Decompositions": 2,
+              "ResidualMax": 8289815,
+              "ResidualMean": 822.6347045898438,
+              "ResidualMeanSquare": 23100294041631.945,
+              "LogScale": 77.97500153368792,
+              "NativeDecompNTT": 15,
+              "NetDecompNTTSaved": 4,
+              "ResidualVariance": 23100293364904.09
+            }
+          ],
+          "PairedLinf": 2.340701222560901e-08,
+          "PairedMeanSquare": 2.54795246134646e-17
+        }
+      },
+      "matched_exact": {
+        "physical_scope": "linear_silu_linear__configure:<>:[16580609, 540311683073, 540311912449, 540310405121, 540312272897, 540312862721, 540309553153, 540313583617]:[57383625392129]:16384",
+        "key_bytes": 56627808,
+        "profiles_in_first_specialization": 0,
+        "metrics": {
+          "Slots": 4096,
+          "Misses": 0,
+          "Trials": 64,
+          "Linf": 3.034303989735143e-06,
+          "MSE": 2.0469106278988477e-13,
+          "OnlineMS": 152.95229174999994,
+          "ObservedOutputLogScale": 39,
+          "OutputLevel": 1,
+          "Events": null,
+          "PairedLinf": 0,
+          "PairedMeanSquare": 0
+        }
+      }
+    }
+  },
+  "periodic_bootstrap": {
+    "binding": {
+      "beta_pack": 1,
+      "down_cost": 10,
+      "downstream_penalty": 5,
+      "enabled": true,
+      "execution": "periodic-n15-v1",
+      "function": "bootstrap",
+      "input_level": 1,
+      "input_variance": 0,
+      "layout_contract": "trace-periodic",
+      "layout_cost": 0,
+      "live_slots": 64,
+      "log_scale": 31,
+      "margin": 5,
+      "min_small_level": 0,
+      "one_up_cost": 20,
+      "output_variance": 5,
+      "p": [
+        72057594038321153,
+        72057594040680449
+      ],
+      "penalty": 35,
+      "q": [
+        1099512938497,
+        2148794369,
+        2150760449,
+        2150891521,
+        2151677953
+      ],
+      "reason": "profitable",
+      "rs_variance": 5,
+      "savings": 40,
+      "small_level": 0,
+      "source_n": 65536,
+      "source_period": 64,
+      "target_n": 32768
+    },
+    "metrics": {
+      "linf": 1.6355247020038988e-06,
+      "mse": 1.8869393221850836e-13,
+      "observations": [
+        {
+          "Rings": [
+            65536,
+            32768,
+            32768,
+            65536
+          ],
+          "Levels": [
+            1,
+            0,
+            4,
+            4
+          ],
+          "LogScales": [
+            31,
+            31,
+            31,
+            31
+          ],
+          "SegmentNS": [
+            20909658,
+            3768142802,
+            67186236
+          ]
+        },
+        {
+          "Rings": [
+            65536,
+            32768,
+            32768,
+            65536
+          ],
+          "Levels": [
+            1,
+            0,
+            4,
+            4
+          ],
+          "LogScales": [
+            31,
+            31,
+            31,
+            31
+          ],
+          "SegmentNS": [
+            19167502,
+            3555337126,
+            75975188
+          ]
+        },
+        {
+          "Rings": [
+            65536,
+            32768,
+            32768,
+            65536
+          ],
+          "Levels": [
+            1,
+            0,
+            4,
+            4
+          ],
+          "LogScales": [
+            31,
+            31,
+            31,
+            31
+          ],
+          "SegmentNS": [
+            20805982,
+            3710816523,
+            62931650
+          ]
+        },
+        {
+          "Rings": [
+            65536,
+            32768,
+            32768,
+            65536
+          ],
+          "Levels": [
+            1,
+            0,
+            4,
+            4
+          ],
+          "LogScales": [
+            31,
+            31,
+            31,
+            31
+          ],
+          "SegmentNS": [
+            23326052,
+            3832133849,
+            81369021
+          ]
+        },
+        {
+          "Rings": [
+            65536,
+            32768,
+            32768,
+            65536
+          ],
+          "Levels": [
+            1,
+            0,
+            4,
+            4
+          ],
+          "LogScales": [
+            31,
+            31,
+            31,
+            31
+          ],
+          "SegmentNS": [
+            22686718,
+            3767260522,
+            67562633
+          ]
+        },
+        {
+          "Rings": [
+            65536,
+            32768,
+            32768,
+            65536
+          ],
+          "Levels": [
+            1,
+            0,
+            4,
+            4
+          ],
+          "LogScales": [
+            31,
+            31,
+            31,
+            31
+          ],
+          "SegmentNS": [
+            20049982,
+            3576919810,
+            61207861
+          ]
+        },
+        {
+          "Rings": [
+            65536,
+            32768,
+            32768,
+            65536
+          ],
+          "Levels": [
+            1,
+            0,
+            4,
+            4
+          ],
+          "LogScales": [
+            31,
+            31,
+            31,
+            31
+          ],
+          "SegmentNS": [
+            19216254,
+            3768229454,
+            70555656
+          ]
+        },
+        {
+          "Rings": [
+            65536,
+            32768,
+            32768,
+            65536
+          ],
+          "Levels": [
+            1,
+            0,
+            4,
+            4
+          ],
+          "LogScales": [
+            31,
+            31,
+            31,
+            31
+          ],
+          "SegmentNS": [
+            21691858,
+            3841005588,
+            78430030
+          ]
+        }
+      ],
+      "slots": 512,
+      "trials": 8
+    }
+  },
+  "pass4": "layout_feedback_interface"
+}

@@ -1,0 +1,117 @@
+{
+  "candidates": [],
+  "independent": {
+    "objective": 0,
+    "key_bytes": 0,
+    "selected": [],
+    "keys": [],
+    "routes": [],
+    "rotation_work": 0.0
+  },
+  "joint": {
+    "objective": 0,
+    "key_bytes": 0,
+    "selected": [],
+    "keys": [],
+    "routes": [],
+    "rotation_work": 0.0
+  },
+  "profile": {
+    "Q": [
+      288230376150630401,
+      68190209,
+      66551809,
+      67731457,
+      66813953,
+      67502081,
+      67043329,
+      67239937
+    ],
+    "P": [
+      1152921504607338497,
+      1152921504608747521
+    ],
+    "logN": 14,
+    "logDefaultScale": 26
+  },
+  "scope": "28fecff1912ea1cd20e43c81c092f2c3bda03af7fa67ef186303d6194c363875",
+  "key_family": {
+    "configuration": "bootstrap__configure",
+    "secret_ssa": "%secretKey",
+    "profile": {
+      "Q": [
+        288230376150630401,
+        68190209,
+        66551809,
+        67731457,
+        66813953,
+        67502081,
+        67043329,
+        67239937
+      ],
+      "P": [
+        1152921504607338497,
+        1152921504608747521
+      ],
+      "logN": 14,
+      "logDefaultScale": 26
+    },
+    "gadget": "lattigo-full-QP-default-uncompressed"
+  },
+  "regions": [],
+  "bootstrap": {
+    "status": "evaluated",
+    "sites": {
+      "bootstrap:%ct_0": {
+        "enabled": true,
+        "reason": "profitable",
+        "small_level": 2,
+        "beta_pack": 1,
+        "rs_variance": 5.0,
+        "downstream_penalty": 5,
+        "savings": 40,
+        "penalty": 35,
+        "margin": 5
+      }
+    },
+    "cost_records": {
+      "bootstrap:%ct_0": {
+        "units": "normalized regression costs, not measured latency",
+        "target_n": 8192,
+        "level": 3,
+        "small_ciphertexts": 1,
+        "live_slots": 4096,
+        "layout_verified": true,
+        "boot_costs": {
+          "16384@3": 80,
+          "8192@2": 40
+        },
+        "downswitch_cost": 10,
+        "upswitch_cost": 20,
+        "key_variance": 0.000732421875,
+        "gadget_weights": [
+          1,
+          2
+        ],
+        "downstream_bins": [
+          {
+            "variance_cap": 5,
+            "extra_cost": 5
+          },
+          {
+            "variance_cap": 20,
+            "extra_cost": 15
+          }
+        ]
+      }
+    }
+  },
+  "bytes_per_key": 10486624,
+  "costs": {
+    "description": "Fixed normalized operation costs (not timings); key bytes are Lattigo serialized sizes.",
+    "hoisted_per_active_limb": 0.625,
+    "giant_per_active_limb": 1.0,
+    "key_units_per_mib": 1.0
+  },
+  "heir_lowered_sha256": "b409919be6662fc0be01f075c345b3d78ce8c913d18e8f56f011a88bd3ce2d12"
+}

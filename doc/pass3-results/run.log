@@ -1,0 +1,85 @@
+Pass 3 experiment: /home/fhecompiler/build/pass3/run.VUfjVOsG
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/fhecompiler/build/pass3/native
+Consolidate compiler generated dependencies of target snabf_planner
+Consolidate compiler generated dependencies of target snabf_pass3
+Consolidate compiler generated dependencies of target snabf_pass2
+[  3%] Built target snabf_planner
+[ 10%] Built target snabf_pass2
+[ 11%] Building CXX object CMakeFiles/snabf_pass3.dir/pass3/GadgetNoiseContract.cpp.o
+[ 12%] Building CXX object CMakeFiles/snabf_pass3.dir/pass3/ParameterMILP.cpp.o
+Consolidate compiler generated dependencies of target snabf_ir
+[ 25%] Built target snabf_ir
+Consolidate compiler generated dependencies of target snabf-pass1
+Consolidate compiler generated dependencies of target heir_lattigo
+[ 27%] Built target snabf-pass1
+[ 63%] Built target heir_lattigo
+Consolidate compiler generated dependencies of target Pass2CertTest
+[ 65%] Built target Pass2CertTest
+Consolidate compiler generated dependencies of target Pass2DPTest
+[ 68%] Built target Pass2DPTest
+Consolidate compiler generated dependencies of target Pass2NoiseTest
+Consolidate compiler generated dependencies of target snabf_planner_test
+[ 70%] Built target Pass2NoiseTest
+[ 72%] Building CXX object CMakeFiles/snabf_pass3.dir/pass3/PrimeInstantiator.cpp.o
+[ 74%] Built target snabf_planner_test
+Consolidate compiler generated dependencies of target snabf_import
+[ 77%] Built target snabf_import
+[ 78%] Building CXX object CMakeFiles/snabf_pass3.dir/pass3/ConcreteVerifier.cpp.o
+[ 79%] Linking CXX static library libsnabf_pass3.a
+[ 79%] Built target snabf_pass3
+Consolidate compiler generated dependencies of target Pass3Test
+[ 81%] Building CXX object CMakeFiles/Pass3Test.dir/home/fhecompiler/test/compiler/Pass3Test.cpp.o
+Consolidate compiler generated dependencies of target snabf_pipeline
+[ 82%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/Lowering.cpp.o
+[ 83%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/Passes.cpp.o
+[ 84%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/Pass3IR.cpp.o
+[ 86%] Linking CXX executable Pass3Test
+[ 86%] Built target Pass3Test
+[ 87%] Linking CXX static library libsnabf_pipeline.a
+[ 97%] Built target snabf_pipeline
+Consolidate compiler generated dependencies of target snabf-opt
+[ 98%] Linking CXX executable snabf-opt
+[100%] Built target snabf-opt
+Internal ctest changing into directory: /home/fhecompiler/build/pass3/native
+Test project /home/fhecompiler/build/pass3/native
+    Start 1: Pass3Test
+1/5 Test #1: Pass3Test ........................   Passed    0.03 sec
+    Start 2: Pass2CertTest
+2/5 Test #2: Pass2CertTest ....................   Passed    0.33 sec
+    Start 3: Pass2DPTest
+3/5 Test #3: Pass2DPTest ......................   Passed    0.27 sec
+    Start 4: Pass2NoiseTest
+4/5 Test #4: Pass2NoiseTest ...................   Passed    0.00 sec
+    Start 5: snabf_planner
+5/5 Test #5: snabf_planner ....................   Passed    0.07 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =   0.70 sec
+=== RUN   TestPrefixProjection
+--- PASS: TestPrefixProjection (0.01s)
+PASS
+ok  	snabf.local/compiler/src/backend/gadget	0.011s
+=== RUN   TestSparseDownConv
+    downconv_test.go:83: DownConv N=16384->8192, slots=8, level=1, log2(scale)=40.0, map L_inf=4.703265878125165e-10, key bytes=1573072
+--- PASS: TestSparseDownConv (0.07s)
+=== RUN   TestCenteredGadget
+    gadget_test.go:79: paired relin slot Linf=3.5036987576838828e-09, event={Site:{ID: Level:3 K:1} RowsExecuted:3 RowsSkipped:1 ForwardNTT:15 InverseNTT:4 Decompositions:3 ResidualMax:1.050097e+06 ResidualMean:-20774.2587890625 ResidualMeanSquare:3.5744496238506934e+11 LogScale:64 NativeDecompNTT:24 NetDecompNTTSaved:5 ResidualVariance:3.570133925568344e+11}
+--- PASS: TestCenteredGadget (0.02s)
+PASS
+ok  	snabf.local/compiler/test/backend	0.099s
+=== RUN   Test_reuse64
+    harness_test.go:191: ../reuse64/no_trunc: 0/4096 misses Linf=9.633718290047444e-07 MSE=2.6902008829941947e-14 mean=186.80ms
+    harness_test.go:191: ../reuse64/joint: 0/4096 misses Linf=9.633718290047444e-07 MSE=2.692373394114966e-14 mean=186.73ms
+    harness_test.go:191: ../reuse64/matched_exact: 0/4096 misses Linf=9.633718290047444e-07 MSE=2.7010327830763553e-14 mean=184.91ms
+--- PASS: Test_reuse64 (41.98s)
+=== RUN   Test_residual
+    harness_test.go:191: ../residual/no_trunc: 0/4096 misses Linf=3.034303989735143e-06 MSE=2.0474633091826916e-13 mean=153.23ms
+    harness_test.go:191: ../residual/joint: 0/4096 misses Linf=3.034303989735143e-06 MSE=2.0465727766603936e-13 mean=151.12ms
+    harness_test.go:191: ../residual/matched_exact: 0/4096 misses Linf=3.034303989735143e-06 MSE=2.0475316828744584e-13 mean=154.01ms
+--- PASS: Test_residual (35.14s)
+PASS
+ok  	snabf.local/compiler/build/pass3/run.VUfjVOsG/go_test	77.165s
+PASS: paired ciphertexts, independent slot and parameter replay, stale-plan rejection, and joint budget sweep

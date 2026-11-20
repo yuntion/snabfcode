@@ -1,0 +1,1554 @@
+{
+  "paired": {
+    "control": {
+      "corpus_sha256": "5802cccb9fed91891936ea89a42bea70c956a465183eab4b6801042cc0a56965",
+      "direct_go_sha256": "0c4031931aadf7df084e9bc4fb2dd38b224bd1c01d3d2da337c6c88022b1de70",
+      "legacy_go_sha256": "36b271632c81436f0cef7844095792bd8922e3847ad45dd32bc8f1886088083c",
+      "actual_output": {
+        "N": 16384,
+        "Level": 1,
+        "LogScale": 39.99999999999999
+      },
+      "gadget_events_direct_legacy": [
+        [
+          {
+            "ID": "lin0.giant1",
+            "Level": 7,
+            "K": 1,
+            "RowsExecuted": 7,
+            "RowsSkipped": 1,
+            "ForwardNTT": 63,
+            "InverseNTT": 8,
+            "Decompositions": 7,
+            "ResidualMax": 573429,
+            "ResidualMean": 4690.775695800781,
+            "ResidualMeanSquare": 108860113089.31647,
+            "LogScale": 79.97500227738823,
+            "NativeDecompNTT": 80,
+            "NetDecompNTTSaved": 9,
+            "ResidualVariance": 108838109712.68816
+          },
+          {
+            "ID": "poly0.n1.relin",
+            "Level": 6,
+            "K": 1,
+            "RowsExecuted": 6,
+            "RowsSkipped": 1,
+            "ForwardNTT": 48,
+            "InverseNTT": 7,
+            "Decompositions": 6,
+            "ResidualMax": 573425,
+            "ResidualMean": 2450.7643432617188,
+            "ResidualMeanSquare": 110477505185.34271,
+            "LogScale": 80,
+            "NativeDecompNTT": 63,
+            "NetDecompNTTSaved": 8,
+            "ResidualVariance": 110471498939.47652
+          },
+          {
+            "ID": "poly0.n3.relin",
+            "Level": 4,
+            "K": 1,
+            "RowsExecuted": 4,
+            "RowsSkipped": 1,
+            "ForwardNTT": 24,
+            "InverseNTT": 5,
+            "Decompositions": 4,
+            "ResidualMax": 573434,
+            "ResidualMean": -3563.7726440429688,
+            "ResidualMeanSquare": 109083524622.70575,
+            "LogScale": 79.95000009256383,
+            "NativeDecompNTT": 35,
+            "NetDecompNTTSaved": 6,
+            "ResidualVariance": 109070824147.24731
+          },
+          {
+            "ID": "poly0.n5.relin",
+            "Level": 3,
+            "K": 1,
+            "RowsExecuted": 3,
+            "RowsSkipped": 1,
+            "ForwardNTT": 15,
+            "InverseNTT": 4,
+            "Decompositions": 3,
+            "ResidualMax": 573423,
+            "ResidualMean": 2583.3843383789062,
+            "ResidualMeanSquare": 109504279564.8963,
+            "LogScale": 79.97499925883209,
+            "NativeDecompNTT": 24,
+            "NetDecompNTTSaved": 5,
+            "ResidualVariance": 109497605690.25652
+          },
+          {
+            "ID": "lin1.giant1",
+            "Level": 2,
+            "K": 1,
+            "RowsExecuted": 2,
+            "RowsSkipped": 1,
+            "ForwardNTT": 8,
+            "InverseNTT": 3,
+            "Decompositions": 2,
+            "ResidualMax": 573418,
+            "ResidualMean": -3074.986083984375,
+            "ResidualMeanSquare": 110726395577.63892,
+            "LogScale": 79.97499969630438,
+            "NativeDecompNTT": 15,
+            "NetDecompNTTSaved": 4,
+            "ResidualVariance": 110716940038.22221
+          }
+        ],
+        [
+          {
+            "ID": "lin0.giant1",
+            "Level": 7,
+            "K": 1,
+            "RowsExecuted": 7,
+            "RowsSkipped": 1,
+            "ForwardNTT": 63,
+            "InverseNTT": 8,
+            "Decompositions": 7,
+            "ResidualMax": 573429,
+            "ResidualMean": 4690.775695800781,
+            "ResidualMeanSquare": 108860113089.31647,
+            "LogScale": 79.97500227738823,
+            "NativeDecompNTT": 80,
+            "NetDecompNTTSaved": 9,
+            "ResidualVariance": 108838109712.68816
+          },
+          {
+            "ID": "poly0.n1.relin",
+            "Level": 6,
+            "K": 1,
+            "RowsExecuted": 6,
+            "RowsSkipped": 1,
+            "ForwardNTT": 48,
+            "InverseNTT": 7,
+            "Decompositions": 6,
+            "ResidualMax": 573425,
+            "ResidualMean": 2450.7643432617188,
+            "ResidualMeanSquare": 110477505185.34271,
+            "LogScale": 80,
+            "NativeDecompNTT": 63,
+            "NetDecompNTTSaved": 8,
+            "ResidualVariance": 110471498939.47652
+          },
+          {
+            "ID": "poly0.n3.relin",
+            "Level": 4,
+            "K": 1,
+            "RowsExecuted": 4,
+            "RowsSkipped": 1,
+            "ForwardNTT": 24,
+            "InverseNTT": 5,
+            "Decompositions": 4,
+            "ResidualMax": 573396,
+            "ResidualMean": -2298.6759033203125,
+            "ResidualMeanSquare": 110121775018.13477,
+            "LogScale": 79.95000009256383,
+            "NativeDecompNTT": 35,
+            "NetDecompNTTSaved": 6,
+            "ResidualVariance": 110116491107.22626
+          },
+          {
+            "ID": "poly0.n5.relin",
+            "Level": 3,
+            "K": 1,
+            "RowsExecuted": 3,
+            "RowsSkipped": 1,
+            "ForwardNTT": 15,
+            "InverseNTT": 4,
+            "Decompositions": 3,
+            "ResidualMax": 573430,
+            "ResidualMean": 583.2214965820312,
+            "ResidualMeanSquare": 108704497439.93451,
+            "LogScale": 79.9749992588321,
+            "NativeDecompNTT": 24,
+            "NetDecompNTTSaved": 5,
+            "ResidualVariance": 108704157292.62044
+          },
+          {
+            "ID": "lin1.giant1",
+            "Level": 2,
+            "K": 1,
+            "RowsExecuted": 2,
+            "RowsSkipped": 1,
+            "ForwardNTT": 8,
+            "InverseNTT": 3,
+            "Decompositions": 2,
+            "ResidualMax": 573377,
+            "ResidualMean": 2135.7727661132812,
+            "ResidualMeanSquare": 110247546674.79437,
+            "LogScale": 79.9749996963044,
+            "NativeDecompNTT": 15,
+            "NetDecompNTTSaved": 4,
+            "ResidualVariance": 110242985149.4859
+          }
+        ]
+      ],
+      "galois_bytes_by_id": {
+        "25": 18875936,
+        "5": 18875936
+      },
+      "linf_direct_legacy": [
+        3.279052065666144e-05,
+        3.297692159792698e-05
+      ],
+      "mse_direct_legacy": [
+        8.508272266439671e-11,
+        8.527695718780796e-11
+      ],
+      "online_ms_direct_legacy": [
+        189.17173043750003,
+        179.80894012499996
+      ],
+      "paired_linf": 2.3224713008307418e-07,
+      "paired_mse": 2.3386320099098745e-15,
+      "same_ciphertext_and_keys": true,
+      "slots_per_arm": 262144,
+      "trials": 64
+    },
+    "strided64": {
+      "corpus_sha256": "53344dc2a346edab638d2a3c2e03548ea720d0a51b3280e527fa19c97fc4ab1c",
+      "direct_go_sha256": "95e4646d8ca693f6e787098e4fa44de0722fec0b72571c18a6bfc184030d0074",
+      "legacy_go_sha256": "56fb70fd852f25b1a90e7c890f53dc9de772d88d74cde109734c431bfc45b5a4",
+      "actual_output": {
+        "N": 16384,
+        "Level": 1,
+        "LogScale": 38.00000000000003
+      },
+      "gadget_events_direct_legacy": [
+        [
+          {
+            "ID": "lin0.giant1",
+            "Level": 7,
+            "K": 1,
+            "RowsExecuted": 7,
+            "RowsSkipped": 1,
+            "ForwardNTT": 63,
+            "InverseNTT": 8,
+            "Decompositions": 7,
+            "ResidualMax": 8290200,
+            "ResidualMean": 3582.9926147460938,
+            "ResidualMeanSquare": 22966552213025.94,
+            "LogScale": 75.97500967064073,
+            "NativeDecompNTT": 80,
+            "NetDecompNTTSaved": 9,
+            "ResidualVariance": 22966539375189.863
+          },
+          {
+            "ID": "poly0.n1.relin",
+            "Level": 6,
+            "K": 1,
+            "RowsExecuted": 6,
+            "RowsSkipped": 1,
+            "ForwardNTT": 48,
+            "InverseNTT": 7,
+            "Decompositions": 6,
+            "ResidualMax": 8290296,
+            "ResidualMean": 14220.998779296875,
+            "ResidualMeanSquare": 23124486472047.277,
+            "LogScale": 76.00000000000001,
+            "NativeDecompNTT": 63,
+            "NetDecompNTTSaved": 8,
+            "ResidualVariance": 23124284235240.996
+          },
+          {
+            "ID": "poly0.n3.relin",
+            "Level": 4,
+            "K": 1,
+            "RowsExecuted": 4,
+            "RowsSkipped": 1,
+            "ForwardNTT": 24,
+            "InverseNTT": 5,
+            "Decompositions": 4,
+            "ResidualMax": 8290071,
+            "ResidualMean": 39335.974182128906,
+            "ResidualMeanSquare": 22654575230451.457,
+            "LogScale": 75.95000131748887,
+            "NativeDecompNTT": 35,
+            "NetDecompNTTSaved": 6,
+            "ResidualVariance": 22653027911586.6
+          },
+          {
+            "ID": "poly0.n5.relin",
+            "Level": 3,
+            "K": 1,
+            "RowsExecuted": 3,
+            "RowsSkipped": 1,
+            "ForwardNTT": 15,
+            "InverseNTT": 4,
+            "Decompositions": 3,
+            "ResidualMax": 8289926,
+            "ResidualMean": -4534.000671386719,
+            "ResidualMeanSquare": 22773680990868.105,
+            "LogScale": 75.97499794641844,
+            "NativeDecompNTT": 24,
+            "NetDecompNTTSaved": 5,
+            "ResidualVariance": 22773660433706.016
+          }
+        ],
+        [
+          {
+            "ID": "lin0.giant1",
+            "Level": 7,
+            "K": 1,
+            "RowsExecuted": 7,
+            "RowsSkipped": 1,
+            "ForwardNTT": 63,
+            "InverseNTT": 8,
+            "Decompositions": 7,
+            "ResidualMax": 8290200,
+            "ResidualMean": 3582.9926147460938,
+            "ResidualMeanSquare": 22966552213025.94,
+            "LogScale": 75.97500967064073,
+            "NativeDecompNTT": 80,
+            "NetDecompNTTSaved": 9,
+            "ResidualVariance": 22966539375189.863
+          },
+          {
+            "ID": "poly0.n1.relin",
+            "Level": 6,
+            "K": 1,
+            "RowsExecuted": 6,
+            "RowsSkipped": 1,
+            "ForwardNTT": 48,
+            "InverseNTT": 7,
+            "Decompositions": 6,
+            "ResidualMax": 8290296,
+            "ResidualMean": 14220.998779296875,
+            "ResidualMeanSquare": 23124486472047.277,
+            "LogScale": 76,
+            "NativeDecompNTT": 63,
+            "NetDecompNTTSaved": 8,
+            "ResidualVariance": 23124284235240.996
+          },
+          {
+            "ID": "poly0.n3.relin",
+            "Level": 4,
+            "K": 1,
+            "RowsExecuted": 4,
+            "RowsSkipped": 1,
+            "ForwardNTT": 24,
+            "InverseNTT": 5,
+            "Decompositions": 4,
+            "ResidualMax": 8289926,
+            "ResidualMean": -17457.755920410156,
+            "ResidualMeanSquare": 22778798077044.867,
+            "LogScale": 75.95000131748886,
+            "NativeDecompNTT": 35,
+            "NetDecompNTTSaved": 6,
+            "ResidualVariance": 22778493303803.09
+          },
+          {
+            "ID": "poly0.n5.relin",
+            "Level": 3,
+            "K": 1,
+            "RowsExecuted": 3,
+            "RowsSkipped": 1,
+            "ForwardNTT": 15,
+            "InverseNTT": 4,
+            "Decompositions": 3,
+            "ResidualMax": 8289206,
+            "ResidualMean": 63343.70928955078,
+            "ResidualMeanSquare": 22815874238283.957,
+            "LogScale": 75.97499794641843,
+            "NativeDecompNTT": 24,
+            "NetDecompNTTSaved": 5,
+            "ResidualVariance": 22811861812777.4
+          }
+        ]
+      ],
+      "galois_bytes_by_id": {
+        "25": 18875936,
+        "5": 18875936,
+        "625": 18875936
+      },
+      "linf_direct_legacy": [
+        1.8353334765991436e-06,
+        1.8030704857507907e-06
+      ],
+      "mse_direct_legacy": [
+        9.083480097057998e-14,
+        9.052808045946147e-14
+      ],
+      "online_ms_direct_legacy": [
+        194.63322229687503,
+        180.899857765625
+      ],
+      "paired_linf": 9.365915217452066e-08,
+      "paired_mse": 1.5731930506813437e-16,
+      "same_ciphertext_and_keys": true,
+      "slots_per_arm": 262144,
+      "trials": 64
+    },
+    "reuse64": {
+      "corpus_sha256": "da7f849b58bd3594d412b5be16718a368ea4e2c3a3f0332c7f6b9d8b2d1a1038",
+      "direct_go_sha256": "b6c9fc652b60c63f9323d625641ff171e255efcbc1fc611f4836f2d6d890bdd6",
+      "legacy_go_sha256": "283c216295c54432e54d5a7b9c2dd8473fb577cbb2ba0d9aa13de8ce5272ec05",
+      "actual_output": {
+        "N": 16384,
+        "Level": 1,
+        "LogScale": 38.00000000000003
+      },
+      "gadget_events_direct_legacy": [
+        [
+          {
+            "ID": "lin0.giant1",
+            "Level": 7,
+            "K": 1,
+            "RowsExecuted": 7,
+            "RowsSkipped": 1,
+            "ForwardNTT": 63,
+            "InverseNTT": 8,
+            "Decompositions": 7,
+            "ResidualMax": 8289603,
+            "ResidualMean": 10491.921081542969,
+            "ResidualMeanSquare": 22889253553687.98,
+            "LogScale": 75.97500967064073,
+            "NativeDecompNTT": 80,
+            "NetDecompNTTSaved": 9,
+            "ResidualVariance": 22889143473280
+          },
+          {
+            "ID": "poly0.n1.relin",
+            "Level": 6,
+            "K": 1,
+            "RowsExecuted": 6,
+            "RowsSkipped": 1,
+            "ForwardNTT": 48,
+            "InverseNTT": 7,
+            "Decompositions": 6,
+            "ResidualMax": 8290169,
+            "ResidualMean": -42931.60754394531,
+            "ResidualMeanSquare": 22964779841760.543,
+            "LogScale": 76.00000000000001,
+            "NativeDecompNTT": 63,
+            "NetDecompNTTSaved": 8,
+            "ResidualVariance": 22962936718834.234
+          },
+          {
+            "ID": "poly0.n3.relin",
+            "Level": 4,
+            "K": 1,
+            "RowsExecuted": 4,
+            "RowsSkipped": 1,
+            "ForwardNTT": 24,
+            "InverseNTT": 5,
+            "Decompositions": 4,
+            "ResidualMax": 8290185,
+            "ResidualMean": 39563.863708496094,
+            "ResidualMeanSquare": 23079595731783.31,
+            "LogScale": 75.95000131748887,
+            "NativeDecompNTT": 35,
+            "NetDecompNTTSaved": 6,
+            "ResidualVariance": 23078030432471.766
+          },
+          {
+            "ID": "poly0.n5.relin",
+            "Level": 3,
+            "K": 1,
+            "RowsExecuted": 3,
+            "RowsSkipped": 1,
+            "ForwardNTT": 15,
+            "InverseNTT": 4,
+            "Decompositions": 3,
+            "ResidualMax": 8290037,
+            "ResidualMean": -12150.704956054688,
+            "ResidualMeanSquare": 22939223504002.465,
+            "LogScale": 75.97499794641844,
+            "NativeDecompNTT": 24,
+            "NetDecompNTTSaved": 5,
+            "ResidualVariance": 22939075864371.535
+          }
+        ],
+        [
+          {
+            "ID": "lin0.giant1",
+            "Level": 7,
+            "K": 1,
+            "RowsExecuted": 7,
+            "RowsSkipped": 1,
+            "ForwardNTT": 63,
+            "InverseNTT": 8,
+            "Decompositions": 7,
+            "ResidualMax": 8289603,
+            "ResidualMean": 10491.921081542969,
+            "ResidualMeanSquare": 22889253553687.98,
+            "LogScale": 75.97500967064073,
+            "NativeDecompNTT": 80,
+            "NetDecompNTTSaved": 9,
+            "ResidualVariance": 22889143473280
+          },
+          {
+            "ID": "poly0.n1.relin",
+            "Level": 6,
+            "K": 1,
+            "RowsExecuted": 6,
+            "RowsSkipped": 1,
+            "ForwardNTT": 48,
+            "InverseNTT": 7,
+            "Decompositions": 6,
+            "ResidualMax": 8290169,
+            "ResidualMean": -42931.60754394531,
+            "ResidualMeanSquare": 22964779841760.543,
+            "LogScale": 76,
+            "NativeDecompNTT": 63,
+            "NetDecompNTTSaved": 8,
+            "ResidualVariance": 22962936718834.234
+          },
+          {
+            "ID": "poly0.n3.relin",
+            "Level": 4,
+            "K": 1,
+            "RowsExecuted": 4,
+            "RowsSkipped": 1,
+            "ForwardNTT": 24,
+            "InverseNTT": 5,
+            "Decompositions": 4,
+            "ResidualMax": 8289931,
+            "ResidualMean": 17715.369506835938,
+            "ResidualMeanSquare": 22876468202753.258,
+            "LogScale": 75.95000131748886,
+            "NativeDecompNTT": 35,
+            "NetDecompNTTSaved": 6,
+            "ResidualVariance": 22876154368436.492
+          },
+          {
+            "ID": "poly0.n5.relin",
+            "Level": 3,
+            "K": 1,
+            "RowsExecuted": 3,
+            "RowsSkipped": 1,
+            "ForwardNTT": 15,
+            "InverseNTT": 4,
+            "Decompositions": 3,
+            "ResidualMax": 8290121,
+            "ResidualMean": 32637.623779296875,
+            "ResidualMeanSquare": 23020927353155.29,
+            "LogScale": 75.97499794641843,
+            "NativeDecompNTT": 24,
+            "NetDecompNTTSaved": 5,
+            "ResidualVariance": 23019862138669.332
+          }
+        ]
+      ],
+      "galois_bytes_by_id": {
+        "15625": 18875936,
+        "30177": 18875936,
+        "5": 18875936
+      },
+      "linf_direct_legacy": [
+        9.93381696234863e-07,
+        9.82732956233967e-07
+      ],
+      "mse_direct_legacy": [
+        2.7098698318803525e-14,
+        2.6892163693000978e-14
+      ],
+      "online_ms_direct_legacy": [
+        189.26142893749997,
+        182.3817880312501
+      ],
+      "paired_linf": 1.0949518743086362e-07,
+      "paired_mse": 1.4286670310507847e-16,
+      "same_ciphertext_and_keys": true,
+      "slots_per_arm": 262144,
+      "trials": 64
+    },
+    "residual": {
+      "corpus_sha256": "be075e087f3f54e6b3f7de63da802c56213a62c131fc81d8f5ef1b8ff0bdfd2e",
+      "direct_go_sha256": "cbfaa8e56eb7798490be8e573a88cf39d8a73b7fcdc0fbb68f8f7234b0e1df86",
+      "legacy_go_sha256": "1b88a894675c5959104bf8d5aca1ca33f39151295678dc1e612a513ea7ecd351",
+      "actual_output": {
+        "N": 16384,
+        "Level": 1,
+        "LogScale": 39.00000000000001
+      },
+      "gadget_events_direct_legacy": [
+        [
+          {
+            "ID": "poly0.n1.relin",
+            "Level": 6,
+            "K": 1,
+            "RowsExecuted": 6,
+            "RowsSkipped": 1,
+            "ForwardNTT": 48,
+            "InverseNTT": 7,
+            "Decompositions": 6,
+            "ResidualMax": 8290137,
+            "ResidualMean": 16288.200561523438,
+            "ResidualMeanSquare": 23146892582179.36,
+            "LogScale": 78,
+            "NativeDecompNTT": 63,
+            "NetDecompNTTSaved": 8,
+            "ResidualVariance": 23146627276701.83
+          },
+          {
+            "ID": "poly0.n3.relin",
+            "Level": 4,
+            "K": 1,
+            "RowsExecuted": 4,
+            "RowsSkipped": 1,
+            "ForwardNTT": 24,
+            "InverseNTT": 5,
+            "Decompositions": 4,
+            "ResidualMax": 8289084,
+            "ResidualMean": -37418.57989501953,
+            "ResidualMeanSquare": 22898194814546.574,
+            "LogScale": 77.95000000506819,
+            "NativeDecompNTT": 35,
+            "NetDecompNTTSaved": 6,
+            "ResidualVariance": 22896794664425.215
+          },
+          {
+            "ID": "poly0.n5.relin",
+            "Level": 3,
+            "K": 1,
+            "RowsExecuted": 3,
+            "RowsSkipped": 1,
+            "ForwardNTT": 15,
+            "InverseNTT": 4,
+            "Decompositions": 3,
+            "ResidualMax": 8289697,
+            "ResidualMean": -17013.32177734375,
+            "ResidualMeanSquare": 22984405763911.34,
+            "LogScale": 77.97499750894292,
+            "NativeDecompNTT": 24,
+            "NetDecompNTTSaved": 5,
+            "ResidualVariance": 22984116310793.44
+          },
+          {
+            "ID": "lin1.giant1",
+            "Level": 2,
+            "K": 1,
+            "RowsExecuted": 2,
+            "RowsSkipped": 1,
+            "ForwardNTT": 8,
+            "InverseNTT": 3,
+            "Decompositions": 2,
+            "ResidualMax": 8290154,
+            "ResidualMean": -57494.17205810547,
+            "ResidualMeanSquare": 22776887577066.715,
+            "LogScale": 77.97500153368792,
+            "NativeDecompNTT": 15,
+            "NetDecompNTTSaved": 4,
+            "ResidualVariance": 22773581997246.066
+          }
+        ],
+        [
+          {
+            "ID": "poly0.n1.relin",
+            "Level": 6,
+            "K": 1,
+            "RowsExecuted": 6,
+            "RowsSkipped": 1,
+            "ForwardNTT": 48,
+            "InverseNTT": 7,
+            "Decompositions": 6,
+            "ResidualMax": 8290137,
+            "ResidualMean": 16288.200561523438,
+            "ResidualMeanSquare": 23146892582179.36,
+            "LogScale": 78,
+            "NativeDecompNTT": 63,
+            "NetDecompNTTSaved": 8,
+            "ResidualVariance": 23146627276701.83
+          },
+          {
+            "ID": "poly0.n3.relin",
+            "Level": 4,
+            "K": 1,
+            "RowsExecuted": 4,
+            "RowsSkipped": 1,
+            "ForwardNTT": 24,
+            "InverseNTT": 5,
+            "Decompositions": 4,
+            "ResidualMax": 8290231,
+            "ResidualMean": -7005.419738769531,
+            "ResidualMeanSquare": 22702296970173.348,
+            "LogScale": 77.95000000506819,
+            "NativeDecompNTT": 35,
+            "NetDecompNTTSaved": 6,
+            "ResidualVariance": 22702247894267.633
+          },
+          {
+            "ID": "poly0.n5.relin",
+            "Level": 3,
+            "K": 1,
+            "RowsExecuted": 3,
+            "RowsSkipped": 1,
+            "ForwardNTT": 15,
+            "InverseNTT": 4,
+            "Decompositions": 3,
+            "ResidualMax": 8290176,
+            "ResidualMean": -23775.1943359375,
+            "ResidualMeanSquare": 22999172840098.598,
+            "LogScale": 77.97499750894292,
+            "NativeDecompNTT": 24,
+            "NetDecompNTTSaved": 5,
+            "ResidualVariance": 22998607580232.887
+          },
+          {
+            "ID": "lin1.giant1",
+            "Level": 2,
+            "K": 1,
+            "RowsExecuted": 2,
+            "RowsSkipped": 1,
+            "ForwardNTT": 8,
+            "InverseNTT": 3,
+            "Decompositions": 2,
+            "ResidualMax": 8290284,
+            "ResidualMean": -28490.474670410156,
+            "ResidualMeanSquare": 22871884649596.953,
+            "LogScale": 77.97500153368792,
+            "NativeDecompNTT": 15,
+            "NetDecompNTTSaved": 4,
+            "ResidualVariance": 22871072942450.008
+          }
+        ]
+      ],
+      "galois_bytes_by_id": {
+        "15625": 18875936,
+        "30177": 18875936,
+        "5": 18875936
+      },
+      "linf_direct_legacy": [
+        2.9481248353946388e-06,
+        3.0607680414629357e-06
+      ],
+      "mse_direct_legacy": [
+        2.0249404547143865e-13,
+        2.0476608838506385e-13
+      ],
+      "online_ms_direct_legacy": [
+        167.46935390625003,
+        155.75901175000007
+      ],
+      "paired_linf": 1.1531184260227256e-07,
+      "paired_mse": 1.715459727581181e-16,
+      "same_ciphertext_and_keys": true,
+      "slots_per_arm": 262144,
+      "trials": 64
+    }
+  },
+  "boundary": {
+    "positive": {
+      "cache_sha256": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a",
+      "cut": {
+        "boundary_op": "snabf.lintrans",
+        "ciphertext_use_count": 1,
+        "live_values": [
+          {
+            "active_level": 2,
+            "ciphertext_basis": "Q",
+            "edge_id": "poly0.n6.add",
+            "id": "op10.r0",
+            "key_domain": "linear_silu_linear__configure:<>",
+            "layout": {
+              "active_lanes": [
+                0
+              ],
+              "active_level": 2,
+              "lane_count": 1,
+              "log2_scale": 38.00000000000001,
+              "logical_width": 64,
+              "mask_signature": [],
+              "num_slots": 8192,
+              "offsets": [
+                0
+              ],
+              "packing_mode": "periodic_single",
+              "period": 4096,
+              "ring_dim": 16384,
+              "stride": 1
+            },
+            "p": [
+              140858119421953
+            ],
+            "physical_log_scale": 38.00000000000001,
+            "producer": "snabf.poly_eval",
+            "profile": "e01",
+            "q": [
+              16580609,
+              270155612161,
+              270155972609
+            ],
+            "ring_dim": 16384,
+            "uses": [
+              {
+                "operand": 0,
+                "operand_key_domain": "linear_silu_linear__configure:<>",
+                "role": "main",
+                "user": "snabf.lintrans",
+                "user_index": 12
+              }
+            ]
+          }
+        ],
+        "output_abi_storage": [],
+        "public_values": [
+          {
+            "id": "op11.r0",
+            "producer": "preprocessing.load",
+            "type": "!kernel.prepared_linear_transform<level = 2, slots = 4096, log_bsgs_ratio = 0>",
+            "uses": [
+              {
+                "operand": 1,
+                "role": "public",
+                "user": "snabf.lintrans",
+                "user_index": 12
+              }
+            ]
+          },
+          {
+            "id": "op0.r0",
+            "producer": "arith.constant",
+            "type": "index",
+            "uses": [
+              {
+                "operand": 2,
+                "role": "public",
+                "user": "tensor.insert",
+                "user_index": 15
+              }
+            ]
+          }
+        ],
+        "site": 1
+      },
+      "policy": {
+        "max_iters": 16,
+        "min_ring": 4096,
+        "source_security_bits": 128,
+        "switch_price": 1,
+        "switching_key_security_bits": 128,
+        "target_security_bits": 128
+      },
+      "reasons": [
+        "boundary_concrete_replay: concrete message/scale headroom at lin1.mask0",
+        "period_mismatch",
+        "verified"
+      ],
+      "actual_level": 1,
+      "actual_log_scale": 38.00000000000003,
+      "actual_output_ring": 8192,
+      "keys": [
+        {
+          "Role": "galois",
+          "N": 8192,
+          "LevelQ": 2,
+          "LevelP": 0,
+          "Bytes": 1573232,
+          "Galois": 13793,
+          "KeyID": "linear_silu_linear__configure:<>/N8192"
+        },
+        {
+          "Role": "galois",
+          "N": 8192,
+          "LevelQ": 2,
+          "LevelP": 0,
+          "Bytes": 1573232,
+          "Galois": 15625,
+          "KeyID": "linear_silu_linear__configure:<>/N8192"
+        },
+        {
+          "Role": "public",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 2359480,
+          "Galois": 0,
+          "KeyID": "linear_silu_linear__configure:<>"
+        },
+        {
+          "Role": "relin",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875920,
+          "Galois": 0,
+          "KeyID": "linear_silu_linear__configure:<>"
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 12589,
+          "KeyID": "linear_silu_linear__configure:<>"
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 19813,
+          "KeyID": "linear_silu_linear__configure:<>"
+        },
+        {
+          "Role": "down",
+          "N": 16384,
+          "LevelQ": 2,
+          "LevelP": 0,
+          "Bytes": 3146080,
+          "Galois": 0,
+          "KeyID": "linear_silu_linear__configure:<>",
+          "TargetKeyID": "linear_silu_linear__configure:<>/N8192"
+        }
+      ],
+      "linf": 9.991348663002109e-07,
+      "logical_outputs": 4096,
+      "misses": 0,
+      "mse": 2.708392481296557e-14,
+      "online_ms": 157.14118009375002,
+      "physical_encoded_slots_checked": 262144,
+      "trials": 64
+    },
+    "bypass": {
+      "cache_sha256": "1a921108ddfe0d87cd25078d06ccccbc5418acd0930cbe6b652fd18ba28c17a8",
+      "cut": {
+        "boundary_op": "snabf.lintrans",
+        "ciphertext_use_count": 2,
+        "live_values": [
+          {
+            "active_level": 2,
+            "ciphertext_basis": "Q",
+            "edge_id": "poly0.n6.add",
+            "id": "op8.r0",
+            "key_domain": "linear_silu_linear__configure:<>",
+            "layout": {
+              "active_lanes": [
+                0
+              ],
+              "active_level": 2,
+              "lane_count": 1,
+              "log2_scale": 39,
+              "logical_width": 64,
+              "mask_signature": [],
+              "num_slots": 8192,
+              "offsets": [
+                0
+              ],
+              "packing_mode": "periodic_single",
+              "period": 4096,
+              "ring_dim": 16384,
+              "stride": 1
+            },
+            "p": [
+              109150806048769
+            ],
+            "physical_log_scale": 39,
+            "producer": "snabf.poly_eval",
+            "profile": "e01",
+            "q": [
+              16580609,
+              540311683073,
+              540311912449
+            ],
+            "ring_dim": 16384,
+            "uses": [
+              {
+                "operand": 0,
+                "operand_key_domain": "linear_silu_linear__configure:<>",
+                "role": "main",
+                "user": "snabf.lintrans",
+                "user_index": 10
+              }
+            ]
+          },
+          {
+            "active_level": 6,
+            "ciphertext_basis": "Q",
+            "edge_id": "lin0.rescale",
+            "id": "op6.r0",
+            "key_domain": "linear_silu_linear__configure:<>",
+            "layout": {
+              "active_lanes": [
+                0
+              ],
+              "active_level": 6,
+              "lane_count": 1,
+              "log2_scale": 39,
+              "logical_width": 64,
+              "mask_signature": [],
+              "num_slots": 8192,
+              "offsets": [
+                0
+              ],
+              "packing_mode": "periodic_single",
+              "period": 4096,
+              "ring_dim": 16384,
+              "stride": 1
+            },
+            "p": [
+              109150806048769
+            ],
+            "physical_log_scale": 39,
+            "producer": "snabf.lintrans",
+            "profile": "e01",
+            "q": [
+              16580609,
+              540311683073,
+              540311912449,
+              540310405121,
+              540312272897,
+              540312862721,
+              540309553153
+            ],
+            "ring_dim": 16384,
+            "uses": [
+              {
+                "kind": "ckks.add",
+                "operand": 1,
+                "operand_key_domain": "linear_silu_linear__configure:<>",
+                "role": "unconverted",
+                "user": "snabf.ckks_step",
+                "user_index": 13
+              }
+            ]
+          }
+        ],
+        "output_abi_storage": [],
+        "public_values": [
+          {
+            "id": "op9.r0",
+            "producer": "preprocessing.load",
+            "type": "!kernel.prepared_linear_transform<level = 1, slots = 4096, log_bsgs_ratio = 0>",
+            "uses": [
+              {
+                "operand": 1,
+                "role": "public",
+                "user": "snabf.lintrans",
+                "user_index": 10
+              }
+            ]
+          },
+          {
+            "id": "arg1",
+            "producer": "block_argument",
+            "type": "!preprocessing.storage<!kernel.prepared_linear_transform<level = 6, slots = 4096, log_bsgs_ratio = 0>, !lwe.lwe_plaintext<plaintext_space = <ring = <coefficientType = f64, polynomialModulus = <1 + x**16384>>, encoding = #lwe.inverse_canonical_encoding<scaling_factor = 39>>>, !kernel.prepared_linear_transform<level = 1, slots = 4096, log_bsgs_ratio = 0>>",
+            "uses": [
+              {
+                "literal_table_site": 3,
+                "operand": 0,
+                "role": "public",
+                "user": "preprocessing.load",
+                "user_index": 11
+              }
+            ]
+          },
+          {
+            "id": "op0.r0",
+            "producer": "arith.constant",
+            "type": "index",
+            "uses": [
+              {
+                "operand": 2,
+                "role": "public",
+                "user": "tensor.insert",
+                "user_index": 15
+              }
+            ]
+          }
+        ],
+        "site": 1
+      },
+      "policy": {
+        "max_iters": 16,
+        "min_ring": 4096,
+        "source_security_bits": 128,
+        "switch_price": 1,
+        "switching_key_security_bits": 128,
+        "target_security_bits": 128
+      },
+      "reasons": [
+        "residual_bypass_crosses_cut_unconverted"
+      ],
+      "actual_level": 1,
+      "actual_log_scale": 39.00000000000001,
+      "actual_output_ring": 16384,
+      "keys": [
+        {
+          "Role": "public",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 2359480,
+          "Galois": 0,
+          "KeyID": "linear_silu_linear__configure:<>"
+        },
+        {
+          "Role": "relin",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875920,
+          "Galois": 0,
+          "KeyID": "linear_silu_linear__configure:<>"
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 5,
+          "KeyID": "linear_silu_linear__configure:<>"
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 15625,
+          "KeyID": "linear_silu_linear__configure:<>"
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 30177,
+          "KeyID": "linear_silu_linear__configure:<>"
+        }
+      ],
+      "linf": 9.933851494725587e-07,
+      "logical_outputs": 4096,
+      "misses": 0,
+      "mse": 2.7063820796719008e-14,
+      "online_ms": 191.91413289062498,
+      "physical_encoded_slots_checked": 262144,
+      "trials": 64
+    },
+    "security": {
+      "cache_sha256": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a",
+      "cut": {
+        "boundary_op": "snabf.lintrans",
+        "ciphertext_use_count": 1,
+        "live_values": [
+          {
+            "active_level": 2,
+            "ciphertext_basis": "Q",
+            "edge_id": "poly0.n6.add",
+            "id": "op10.r0",
+            "key_domain": "linear_silu_linear__configure:<>",
+            "layout": {
+              "active_lanes": [
+                0
+              ],
+              "active_level": 2,
+              "lane_count": 1,
+              "log2_scale": 38.00000000000001,
+              "logical_width": 64,
+              "mask_signature": [],
+              "num_slots": 8192,
+              "offsets": [
+                0
+              ],
+              "packing_mode": "periodic_single",
+              "period": 4096,
+              "ring_dim": 16384,
+              "stride": 1
+            },
+            "p": [
+              140858119421953
+            ],
+            "physical_log_scale": 38.00000000000001,
+            "producer": "snabf.poly_eval",
+            "profile": "e01",
+            "q": [
+              16580609,
+              270155612161,
+              270155972609
+            ],
+            "ring_dim": 16384,
+            "uses": [
+              {
+                "operand": 0,
+                "operand_key_domain": "linear_silu_linear__configure:<>",
+                "role": "main",
+                "user": "snabf.lintrans",
+                "user_index": 12
+              }
+            ]
+          }
+        ],
+        "output_abi_storage": [],
+        "public_values": [
+          {
+            "id": "op11.r0",
+            "producer": "preprocessing.load",
+            "type": "!kernel.prepared_linear_transform<level = 2, slots = 4096, log_bsgs_ratio = 0>",
+            "uses": [
+              {
+                "operand": 1,
+                "role": "public",
+                "user": "snabf.lintrans",
+                "user_index": 12
+              }
+            ]
+          },
+          {
+            "id": "op0.r0",
+            "producer": "arith.constant",
+            "type": "index",
+            "uses": [
+              {
+                "operand": 2,
+                "role": "public",
+                "user": "tensor.insert",
+                "user_index": 15
+              }
+            ]
+          }
+        ],
+        "site": 1
+      },
+      "policy": {
+        "max_iters": 16,
+        "min_ring": 4096,
+        "source_security_bits": 128,
+        "switch_price": 1,
+        "switching_key_security_bits": 512,
+        "target_security_bits": 128
+      },
+      "reasons": [
+        "boundary_concrete_replay: concrete message/scale headroom at lin1.mask0",
+        "period_mismatch",
+        "switching_key_ext_modulus_security_rejected"
+      ],
+      "actual_level": 1,
+      "actual_log_scale": 38.00000000000003,
+      "actual_output_ring": 16384,
+      "keys": [
+        {
+          "Role": "public",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 2359480,
+          "Galois": 0,
+          "KeyID": "linear_silu_linear__configure:<>"
+        },
+        {
+          "Role": "relin",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875920,
+          "Galois": 0,
+          "KeyID": "linear_silu_linear__configure:<>"
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 5,
+          "KeyID": "linear_silu_linear__configure:<>"
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 15625,
+          "KeyID": "linear_silu_linear__configure:<>"
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 30177,
+          "KeyID": "linear_silu_linear__configure:<>"
+        }
+      ],
+      "linf": 1.0046720958500899e-06,
+      "logical_outputs": 4096,
+      "misses": 0,
+      "mse": 2.7097301450671e-14,
+      "online_ms": 190.8050811875,
+      "physical_encoded_slots_checked": 262144,
+      "trials": 64
+    }
+  },
+  "negatives": [
+    {
+      "arm": "positive",
+      "case": "live_key",
+      "gate": "--snabf-check-plan",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "arm": "positive",
+      "case": "live_key",
+      "gate": "--snabf-lower-ckks",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "arm": "positive",
+      "case": "switch_qp",
+      "gate": "--snabf-check-plan",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "arm": "positive",
+      "case": "switch_qp",
+      "gate": "--snabf-lower-ckks",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "arm": "positive",
+      "case": "missing_check",
+      "gate": "--snabf-lower-ckks",
+      "reason": "builtin.module: missing or invalid snabf.emit_sha256"
+    },
+    {
+      "arm": "positive",
+      "case": "stale_seal",
+      "gate": "--snabf-bind-lattigo",
+      "reason": "stale_emit_fingerprint"
+    },
+    {
+      "arm": "positive",
+      "case": "hardened_environment",
+      "gate": "--snabf-check-plan",
+      "reason": "stale_or_weakened_pass4_policy"
+    },
+    {
+      "arm": "bypass",
+      "case": "live_key",
+      "gate": "--snabf-check-plan",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "arm": "bypass",
+      "case": "live_key",
+      "gate": "--snabf-lower-ckks",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "arm": "bypass",
+      "case": "missing_check",
+      "gate": "--snabf-lower-ckks",
+      "reason": "builtin.module: missing or invalid snabf.emit_sha256"
+    },
+    {
+      "arm": "bypass",
+      "case": "stale_seal",
+      "gate": "--snabf-bind-lattigo",
+      "reason": "stale_emit_fingerprint"
+    },
+    {
+      "arm": "security",
+      "case": "live_key",
+      "gate": "--snabf-check-plan",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "arm": "security",
+      "case": "live_key",
+      "gate": "--snabf-lower-ckks",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "arm": "security",
+      "case": "refusal",
+      "gate": "--snabf-check-plan",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "arm": "security",
+      "case": "refusal",
+      "gate": "--snabf-lower-ckks",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "arm": "security",
+      "case": "missing_check",
+      "gate": "--snabf-lower-ckks",
+      "reason": "builtin.module: missing or invalid snabf.emit_sha256"
+    },
+    {
+      "arm": "security",
+      "case": "stale_seal",
+      "gate": "--snabf-bind-lattigo",
+      "reason": "stale_emit_fingerprint"
+    }
+  ],
+  "native_gates": {
+    "direct": {
+      "sha256": "8287047ed237204835e24ba243f7b3060fccf9b352c2ec2caf71f8de12f272f1",
+      "source": 16384,
+      "target": 16384,
+      "sites": 35,
+      "go_sha256": "913f49abc94fcaab8cedb91f11fd8ecf353143b146b11bbc7bbc1190f8dfd44e",
+      "negative_cases": 9
+    },
+    "mixed": {
+      "sha256": "9dba6f9e54e8af109e2cb84e4d49077b93e66a63c5a0540df4e1dda6065de86e",
+      "source": 16384,
+      "target": 8192,
+      "sites": 34,
+      "go_sha256": "9e67a15bbfdc56b6393c9283136de03091fd2fea3cd8ae20f304fa2112edf172",
+      "negative_cases": 9
+    },
+    "replay": {
+      "positive": 8192,
+      "strict": 16384,
+      "switch_min_bits": 165.00535491432623,
+      "estimator_sha256": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a",
+      "checked_crossing": true,
+      "checked_output_shell": true,
+      "denied": [
+        {
+          "input": "positive.mlir",
+          "gate": "--snabf-check-plan",
+          "reason": "stale_or_weakened_pass4_policy"
+        },
+        {
+          "input": "positive.mlir",
+          "gate": "--snabf-lower-ckks",
+          "reason": "stale_or_weakened_pass4_policy"
+        },
+        {
+          "input": "changed-live-scale.mlir",
+          "gate": "--snabf-check-plan",
+          "reason": "stale_or_forged_ring_search"
+        },
+        {
+          "input": "changed-live-scale.mlir",
+          "gate": "--snabf-lower-ckks",
+          "reason": "stale_or_forged_ring_search"
+        },
+        {
+          "input": "changed-use.mlir",
+          "gate": "--snabf-check-plan",
+          "reason": "stale_or_unprofitable_ring_decision"
+        },
+        {
+          "input": "changed-use.mlir",
+          "gate": "--snabf-lower-ckks",
+          "reason": "stale_or_unprofitable_ring_decision"
+        },
+        {
+          "input": "changed-switch-basis.mlir",
+          "gate": "--snabf-check-plan",
+          "reason": "stale_or_unprofitable_ring_decision"
+        },
+        {
+          "input": "changed-switch-basis.mlir",
+          "gate": "--snabf-lower-ckks",
+          "reason": "stale_or_unprofitable_ring_decision"
+        },
+        {
+          "input": "fake-rejection.mlir",
+          "gate": "--snabf-check-plan",
+          "reason": "stale_or_forged_ring_search"
+        },
+        {
+          "input": "fake-rejection.mlir",
+          "gate": "--snabf-lower-ckks",
+          "reason": "stale_or_forged_ring_search"
+        },
+        {
+          "input": "weak-trace.mlir",
+          "gate": "--snabf-check-plan",
+          "reason": "stale_or_forged_ring_search"
+        },
+        {
+          "input": "weak-trace.mlir",
+          "gate": "--snabf-lower-ckks",
+          "reason": "stale_or_forged_ring_search"
+        },
+        {
+          "input": "weak-anchor.mlir",
+          "gate": "--snabf-check-plan",
+          "reason": "stale_or_weakened_pass4_policy"
+        },
+        {
+          "input": "weak-anchor.mlir",
+          "gate": "--snabf-lower-ckks",
+          "reason": "stale_or_weakened_pass4_policy"
+        },
+        {
+          "input": "missing-search.mlir",
+          "gate": "--snabf-check-plan",
+          "reason": "missing_ring_search_or_policy"
+        },
+        {
+          "input": "missing-search.mlir",
+          "gate": "--snabf-lower-ckks",
+          "reason": "missing_ring_search_or_policy"
+        },
+        {
+          "input": "false-attack.mlir",
+          "gate": "--snabf-check-plan",
+          "reason": "stale_or_forged_ring_search"
+        },
+        {
+          "input": "false-attack.mlir",
+          "gate": "--snabf-lower-ckks",
+          "reason": "stale_or_forged_ring_search"
+        },
+        {
+          "input": "strict.mlir",
+          "gate": "--snabf-check-plan",
+          "reason": "missing_external_estimator_evidence"
+        },
+        {
+          "input": "fake-bypass.mlir",
+          "gate": "--snabf-check-plan",
+          "reason": "stale_or_forged_ring_search"
+        },
+        {
+          "input": "fake-bypass.mlir",
+          "gate": "--snabf-lower-ckks",
+          "reason": "stale_or_forged_ring_search"
+        },
+        {
+          "input": "unknown-public-load.mlir",
+          "gate": "--snabf-pass4",
+          "reason": "unclassified_live_nonpublic_value"
+        },
+        {
+          "input": "shell-read.mlir",
+          "gate": "--snabf-pass4",
+          "reason": "unclassified_live_nonpublic_value"
+        },
+        {
+          "input": "shell-read.mlir",
+          "gate": "--snabf-pass4=min-ring=16384",
+          "reason": "unclassified_live_nonpublic_value"
+        },
+        {
+          "input": "shell-not-zero.mlir",
+          "gate": "--snabf-pass4",
+          "reason": "unclassified_live_nonpublic_value"
+        },
+        {
+          "input": "shell-not-zero.mlir",
+          "gate": "--snabf-pass4=min-ring=16384",
+          "reason": "unclassified_live_nonpublic_value"
+        },
+        {
+          "input": "raw-ct-capture.mlir",
+          "gate": "--snabf-pass4",
+          "reason": "unclassified_live_nonpublic_value"
+        },
+        {
+          "input": "raw-ct-capture.mlir",
+          "gate": "--snabf-pass4=min-ring=16384",
+          "reason": "unclassified_live_nonpublic_value"
+        }
+      ]
+    }
+  }
+}

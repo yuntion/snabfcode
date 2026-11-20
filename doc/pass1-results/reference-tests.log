@@ -1,0 +1,10 @@
+=== RUN   TestSparseDownConv
+    downconv_test.go:83: DownConv N=16384->8192, slots=8, level=1, log2(scale)=40.0, map L_inf=6.786766881477509e-10, key bytes=1573072
+--- PASS: TestSparseDownConv (0.07s)
+PASS
+ok  	snabf.local/compiler/test/backend	0.080s
+=== RUN   TestLinearSiLULinear
+    experiment_test.go:141: SNABF_METRICS {"input_level":7,"input_log2_scale":26,"linf":0.00005034292478124647,"log_qp":360.02783872496906,"mean_evaluation_ms":158.4618455625,"mse":1.6254735301902765e-10,"output_level":0,"output_log2_scale":51.96361603438207,"outputs_checked":256,"outputs_outside_tolerance":0,"p":[1152921504607338497,1152921504608747521],"q":[288230376150630401,68190209,66551809,67731457,66813953,67502081,67043329,67239937],"ring_n":16384,"test":"heir_lattigo_reference","tolerance":0.000244140625,"trials":64,"trials_passing":64}
+--- PASS: TestLinearSiLULinear (11.83s)
+PASS
+ok  	snabf.local/compiler/test/ckks	11.885s

@@ -1,0 +1,22 @@
+[
+  {
+    "case": "old-audit",
+    "reason": "cannot_publish_output",
+    "rc": 1,
+    "old_model_preserved": true,
+    "old_model_sha256": "913f49abc94fcaab8cedb91f11fd8ecf353143b146b11bbc7bbc1190f8dfd44e",
+    "audit_after_sha256": "1b8348eba149153bd705b8fa5250c388f544e8a05fd81b57fc0a2d0745338227",
+    "audit_restored_as_new_inode": true,
+    "temp_files": 0
+  },
+  {
+    "case": "no-audit",
+    "reason": "cannot_publish_output",
+    "rc": 1,
+    "old_model_preserved": true,
+    "old_model_sha256": "913f49abc94fcaab8cedb91f11fd8ecf353143b146b11bbc7bbc1190f8dfd44e",
+    "audit_after_sha256": null,
+    "audit_restored_as_new_inode": false,
+    "temp_files": 0
+  }
+]

@@ -1,0 +1,14 @@
+#pragma once
+#include "mlir/IR/Dialect.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/SymbolTable.h"
+#include "Dialect.h.inc"
+#define GET_TYPEDEF_CLASSES
+#include "Types.h.inc"
+#define GET_ATTRDEF_CLASSES
+#include "Attrs.h.inc"
+#define GET_OP_CLASSES
+#include "Ops.h.inc"

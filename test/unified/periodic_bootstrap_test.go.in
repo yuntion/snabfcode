@@ -1,0 +1,68 @@
+package periodicboot
+
+import (
+	"encoding/json"
+	"github.com/tuneinsight/lattigo/v6/schemes/ckks"
+	"math"
+	"os"
+	"testing"
+)
+
+func TestPeriodicRoundTrip(t *testing.T) {
+	e, ev, p, enc, en, de := Bootstrap__configure()
+	observations := []any{}
+	maxErr, sse := 0., 0.
+	for trial := 0; trial < 8; trial++ {
+		x := make([]float64, 64)
+		for i := range x {
+			x[i] = 0.42 * math.Sin(float64((trial+1)*(i+1)))
+		}
+		pt := ckks.NewPlaintext(p, 1)
+		pt.LogDimensions.Cols = 6
+		if err := enc.Encode(x, pt); err != nil {
+			t.Fatal(err)
+		}
+		ct, err := en.EncryptNew(pt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := Bootstrap(e, ev, p, enc, ct)
+		obs := e.Last
+		if obs.Rings != [4]int{65536, 32768, 32768, 65536} || obs.Levels != [4]int{1, 0, 4, 4} || out.LogDimensions != pt.LogDimensions {
+			t.Fatalf("unexpected actual metadata: %+v", obs)
+		}
+		for _, s := range obs.LogScales {
+			if math.IsNaN(s) || math.IsInf(s, 0) || math.Abs(s-31) > 0.25 {
+				t.Fatalf("scale %g", s)
+			}
+		}
+		y := make([]float64, len(x))
+		if err = enc.Decode(de.DecryptNew(out), y); err != nil {
+			t.Fatal(err)
+		}
+		for i := range y {
+			d := math.Abs(x[i] - y[i])
+			if !(d <= math.Ldexp(1, -12)) {
+				t.Fatalf("trial %d slot %d: |error| %g", trial, i, d)
+			}
+			maxErr = math.Max(maxErr, d)
+			sse += d * d
+		}
+		observations = append(observations, obs)
+		if trial == 0 {
+			bad := ct.CopyNew()
+			bad.LogDimensions.Cols++
+			if _, err = e.Bootstrap(bad); err == nil {
+				t.Fatal("accepted incompatible runtime layout")
+			}
+		}
+	}
+	raw, err := json.MarshalIndent(map[string]any{"trials": 8, "slots": 512, "linf": maxErr, "mse": sse / 512, "observations": observations}, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile("metrics.json", raw, 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("real cross-ring refresh: 8 x 64; Linf=%g, MSE=%g", maxErr, sse/512)
+}

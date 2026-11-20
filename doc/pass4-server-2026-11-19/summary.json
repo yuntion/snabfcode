@@ -1,0 +1,621 @@
+{
+  "rows": [
+    {
+      "network": "reuse64",
+      "arm": "baseline",
+      "actual_level": 1,
+      "actual_log_scale": 38.00000000000003,
+      "actual_output_ring": 16384,
+      "keys": [
+        {
+          "Role": "public",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 2359480,
+          "Galois": 0
+        },
+        {
+          "Role": "relin",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875920,
+          "Galois": 0
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 5
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 15625
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 30177
+        }
+      ],
+      "linf": 9.88827496217759e-07,
+      "logical_outputs": 4096,
+      "misses": 0,
+      "mse": 2.7106374154176165e-14,
+      "online_ms": 198.36017878125,
+      "physical_encoded_slots_checked": 262144,
+      "trials": 64,
+      "predicted_work": 95661260.80000001,
+      "baseline_work": 95661260.80000001,
+      "galois_bytes": 56627808,
+      "switch_bytes": 0
+    },
+    {
+      "network": "reuse64",
+      "arm": "adaptive",
+      "actual_level": 1,
+      "actual_log_scale": 38.00000000000003,
+      "actual_output_ring": 8192,
+      "keys": [
+        {
+          "Role": "public",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 2359480,
+          "Galois": 0
+        },
+        {
+          "Role": "relin",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875920,
+          "Galois": 0
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 12589
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 19813
+        },
+        {
+          "Role": "galois",
+          "N": 8192,
+          "LevelQ": 2,
+          "LevelP": 0,
+          "Bytes": 1573232,
+          "Galois": 13793
+        },
+        {
+          "Role": "galois",
+          "N": 8192,
+          "LevelQ": 2,
+          "LevelP": 0,
+          "Bytes": 1573232,
+          "Galois": 15625
+        },
+        {
+          "Role": "down",
+          "N": 16384,
+          "LevelQ": 2,
+          "LevelP": 0,
+          "Bytes": 3146080,
+          "Galois": 0
+        }
+      ],
+      "linf": 1.0033526381403313e-06,
+      "logical_outputs": 4096,
+      "misses": 0,
+      "mse": 2.708176519470668e-14,
+      "online_ms": 167.72723112500003,
+      "physical_encoded_slots_checked": 262144,
+      "trials": 64,
+      "predicted_work": 79331737.60000001,
+      "baseline_work": 95661260.80000001,
+      "galois_bytes": 40898336,
+      "switch_bytes": 3146080
+    },
+    {
+      "network": "reuse64",
+      "arm": "expensive",
+      "actual_level": 1,
+      "actual_log_scale": 38.00000000000003,
+      "actual_output_ring": 16384,
+      "keys": [
+        {
+          "Role": "public",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 2359480,
+          "Galois": 0
+        },
+        {
+          "Role": "relin",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875920,
+          "Galois": 0
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 5
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 15625
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 30177
+        }
+      ],
+      "linf": 9.969481248317535e-07,
+      "logical_outputs": 4096,
+      "misses": 0,
+      "mse": 2.7102023679701316e-14,
+      "online_ms": 200.49889087499994,
+      "physical_encoded_slots_checked": 262144,
+      "trials": 64,
+      "predicted_work": 95661260.80000001,
+      "baseline_work": 95661260.80000001,
+      "galois_bytes": 56627808,
+      "switch_bytes": 0
+    },
+    {
+      "network": "residual",
+      "arm": "baseline",
+      "actual_level": 1,
+      "actual_log_scale": 39.00000000000001,
+      "actual_output_ring": 16384,
+      "keys": [
+        {
+          "Role": "public",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 2359480,
+          "Galois": 0
+        },
+        {
+          "Role": "relin",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875920,
+          "Galois": 0
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 5
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 15625
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 30177
+        }
+      ],
+      "linf": 2.9524572154604467e-06,
+      "logical_outputs": 4096,
+      "misses": 0,
+      "mse": 2.024900969900572e-13,
+      "online_ms": 165.61939965625004,
+      "physical_encoded_slots_checked": 262144,
+      "trials": 64,
+      "predicted_work": 82976768.00000001,
+      "baseline_work": 82976768.00000001,
+      "galois_bytes": 56627808,
+      "switch_bytes": 0
+    },
+    {
+      "network": "residual",
+      "arm": "adaptive",
+      "actual_level": 1,
+      "actual_log_scale": 39.00000000000001,
+      "actual_output_ring": 8192,
+      "keys": [
+        {
+          "Role": "public",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 2359480,
+          "Galois": 0
+        },
+        {
+          "Role": "relin",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875920,
+          "Galois": 0
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 15625
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 30177
+        },
+        {
+          "Role": "galois",
+          "N": 8192,
+          "LevelQ": 2,
+          "LevelP": 0,
+          "Bytes": 1573232,
+          "Galois": 3429
+        },
+        {
+          "Role": "galois",
+          "N": 8192,
+          "LevelQ": 2,
+          "LevelP": 0,
+          "Bytes": 1573232,
+          "Galois": 12589
+        },
+        {
+          "Role": "down",
+          "N": 16384,
+          "LevelQ": 2,
+          "LevelP": 0,
+          "Bytes": 3146080,
+          "Galois": 0
+        }
+      ],
+      "linf": 2.9449350934518392e-06,
+      "logical_outputs": 4096,
+      "misses": 0,
+      "mse": 2.0248596447015885e-13,
+      "online_ms": 157.759959578125,
+      "physical_encoded_slots_checked": 262144,
+      "trials": 64,
+      "predicted_work": 79434956.80000001,
+      "baseline_work": 82976768.00000001,
+      "galois_bytes": 40898336,
+      "switch_bytes": 3146080
+    },
+    {
+      "network": "residual",
+      "arm": "expensive",
+      "actual_level": 1,
+      "actual_log_scale": 39.00000000000001,
+      "actual_output_ring": 16384,
+      "keys": [
+        {
+          "Role": "public",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 2359480,
+          "Galois": 0
+        },
+        {
+          "Role": "relin",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875920,
+          "Galois": 0
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 5
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 15625
+        },
+        {
+          "Role": "galois",
+          "N": 16384,
+          "LevelQ": 7,
+          "LevelP": 0,
+          "Bytes": 18875936,
+          "Galois": 30177
+        }
+      ],
+      "linf": 2.94968321157274e-06,
+      "logical_outputs": 4096,
+      "misses": 0,
+      "mse": 2.0249877666370585e-13,
+      "online_ms": 160.86877634375003,
+      "physical_encoded_slots_checked": 262144,
+      "trials": 64,
+      "predicted_work": 82976768.00000001,
+      "baseline_work": 82976768.00000001,
+      "galois_bytes": 56627808,
+      "switch_bytes": 0
+    }
+  ],
+  "decisions": {
+    "reuse64": {
+      "baseline_cost": 95661260.80000001,
+      "compatibility_status": "adaptable_via_op",
+      "consumed_levels": 0,
+      "cost": 79331737.60000001,
+      "cut_edges": 1,
+      "emittable": true,
+      "inventory": {
+        "bytes": 40898336,
+        "keys": [
+          {
+            "galois": 13793,
+            "refs": 1,
+            "scope": "linear_silu_linear__configure:<>/N8192:[16580609, 270155612161, 270155972609]:[140858119421953]:8192"
+          },
+          {
+            "galois": 15625,
+            "refs": 1,
+            "scope": "linear_silu_linear__configure:<>/N8192:[16580609, 270155612161, 270155972609]:[140858119421953]:8192"
+          },
+          {
+            "galois": 12589,
+            "refs": 1,
+            "scope": "linear_silu_linear__configure:<>:[16580609, 270155612161, 270155972609, 270155284481, 270156300289, 270154924033, 270154498049, 270157479937]:[140858119421953]:16384"
+          },
+          {
+            "galois": 19813,
+            "refs": 1,
+            "scope": "linear_silu_linear__configure:<>:[16580609, 270155612161, 270155972609, 270155284481, 270156300289, 270154924033, 270154498049, 270157479937]:[140858119421953]:16384"
+          }
+        ],
+        "objective": 52.753692626953125
+      },
+      "op_kind": "ring_down",
+      "parallel_factor": 1,
+      "provided": {
+        "active_lanes": [
+          0
+        ],
+        "active_level": 2,
+        "lane_count": 1,
+        "log2_scale": 38.00000000000001,
+        "logical_width": 64,
+        "mask_signature": [],
+        "num_slots": 8192,
+        "offsets": [
+          0
+        ],
+        "packing_mode": "periodic_single",
+        "period": 4096,
+        "ring_dim": 16384,
+        "stride": 1
+      },
+      "required": {
+        "active_lanes": [
+          0
+        ],
+        "active_level": 2,
+        "lane_count": 1,
+        "log2_scale": 38.00000000000001,
+        "logical_width": 64,
+        "mask_signature": [],
+        "num_slots": 4096,
+        "offsets": [
+          0
+        ],
+        "packing_mode": "periodic_single",
+        "period": 4096,
+        "ring_dim": 8192,
+        "stride": 1
+      },
+      "security_min_bits": 136.94800000000254,
+      "source_key": "linear_silu_linear__configure:<>",
+      "source_min_bits": 136.94800000000254,
+      "switch_bytes": 3146080,
+      "switch_level_p": 0,
+      "switch_level_q": 2,
+      "target_and_switch_min_bits": 165.00535491432623,
+      "target_key": "linear_silu_linear__configure:<>/N8192",
+      "target_p": [
+        140858119421953
+      ],
+      "target_q": [
+        16580609,
+        270155612161,
+        270155972609
+      ],
+      "transition": {
+        "ID": "ring_down",
+        "K": 0,
+        "Level": 2,
+        "conditional_centered_proxy": 7371111638880927,
+        "conditional_mean_abs_canonical": 85855178.28809702,
+        "decoded_arithmetic_bound": 0.00031233931909117603,
+        "gains": [
+          1
+        ],
+        "inputs": [
+          25
+        ],
+        "kernel_ring": 16384,
+        "magnitude": 0.3137527102342149,
+        "moddown_or_rescale_rounding": 13074011.461175082,
+        "op": "ring_down",
+        "ordinary_switch_key_error": 10297115.853823854,
+        "physical_log_scale": 38.00000000000001,
+        "truncation_absolute_canonical": 0,
+        "truncation_centered_proxy": 0
+      },
+      "transition_work": 2752512
+    },
+    "residual": {
+      "baseline_cost": 82976768.00000001,
+      "compatibility_status": "adaptable_via_op",
+      "consumed_levels": 0,
+      "cost": 79434956.80000001,
+      "cut_edges": 1,
+      "emittable": true,
+      "inventory": {
+        "bytes": 40898336,
+        "keys": [
+          {
+            "galois": 3429,
+            "refs": 1,
+            "scope": "linear_silu_linear__configure:<>/N8192:[16580609, 540311683073, 540311912449]:[57383625392129]:8192"
+          },
+          {
+            "galois": 12589,
+            "refs": 1,
+            "scope": "linear_silu_linear__configure:<>/N8192:[16580609, 540311683073, 540311912449]:[57383625392129]:8192"
+          },
+          {
+            "galois": 15625,
+            "refs": 1,
+            "scope": "linear_silu_linear__configure:<>:[16580609, 540311683073, 540311912449, 540310405121, 540312272897, 540312862721, 540309553153, 540313583617]:[57383625392129]:16384"
+          },
+          {
+            "galois": 30177,
+            "refs": 1,
+            "scope": "linear_silu_linear__configure:<>:[16580609, 540311683073, 540311912449, 540310405121, 540312272897, 540312862721, 540309553153, 540313583617]:[57383625392129]:16384"
+          }
+        ],
+        "objective": 23.50092315673828
+      },
+      "op_kind": "ring_down",
+      "parallel_factor": 1,
+      "provided": {
+        "active_lanes": [
+          0
+        ],
+        "active_level": 2,
+        "lane_count": 1,
+        "log2_scale": 39,
+        "logical_width": 64,
+        "mask_signature": [],
+        "num_slots": 8192,
+        "offsets": [
+          0
+        ],
+        "packing_mode": "periodic_single",
+        "period": 4096,
+        "ring_dim": 16384,
+        "stride": 1
+      },
+      "required": {
+        "active_lanes": [
+          0
+        ],
+        "active_level": 2,
+        "lane_count": 1,
+        "log2_scale": 39,
+        "logical_width": 64,
+        "mask_signature": [],
+        "num_slots": 4096,
+        "offsets": [
+          0
+        ],
+        "packing_mode": "periodic_single",
+        "period": 4096,
+        "ring_dim": 8192,
+        "stride": 1
+      },
+      "security_min_bits": 133.73600000001812,
+      "source_key": "linear_silu_linear__configure:<>",
+      "source_min_bits": 133.73600000001812,
+      "switch_bytes": 3146080,
+      "switch_level_p": 0,
+      "switch_level_q": 2,
+      "target_and_switch_min_bits": 164.10400828078505,
+      "target_key": "linear_silu_linear__configure:<>/N8192",
+      "target_p": [
+        57383625392129
+      ],
+      "target_q": [
+        16580609,
+        540311683073,
+        540311912449
+      ],
+      "transition": {
+        "ID": "ring_down",
+        "K": 0,
+        "Level": 2,
+        "conditional_centered_proxy": 53171177375775272,
+        "conditional_mean_abs_canonical": 230588762.46637708,
+        "decoded_arithmetic_bound": 0.0004194385155030924,
+        "gains": [
+          1
+        ],
+        "inputs": [
+          27
+        ],
+        "kernel_ring": 16384,
+        "magnitude": 1.0381498831821883,
+        "moddown_or_rescale_rounding": 13074011.461175082,
+        "op": "ring_down",
+        "ordinary_switch_key_error": 50551378.807139575,
+        "physical_log_scale": 39,
+        "truncation_absolute_canonical": 0,
+        "truncation_centered_proxy": 0
+      },
+      "transition_work": 2752512
+    }
+  },
+  "rejected_checks": 46
+}

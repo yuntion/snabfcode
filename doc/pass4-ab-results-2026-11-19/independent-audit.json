@@ -1,0 +1,11 @@
+{
+  "archive_sha256": "8719432a5469c0b66c76b5bc3c258f2b917230b09f212ffc801365d1ea99cedd",
+  "members_verified": 289,
+  "model_evaluations": 704,
+  "logical_outputs": 37376,
+  "physical_slots": 2883584,
+  "threshold": 0.000244140625,
+  "misses": 0,
+  "max_error": 3.297692159792698e-05,
+  "max_paired_error": 2.3224713008307418e-07
+}

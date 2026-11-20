@@ -1,0 +1,106 @@
+Pass 4 A/B evidence: /home/fhecompiler/build/pass4-ab-release-20261119/run.POAcXfhz
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/fhecompiler/build/pass4-ab-release-20261119/native
+Consolidate compiler generated dependencies of target snabf_pass4
+Consolidate compiler generated dependencies of target snabf_pass2
+[  4%] Built target snabf_pass4
+[  9%] Built target snabf_pass2
+Consolidate compiler generated dependencies of target snabf_ir
+Consolidate compiler generated dependencies of target Pass2CertTest
+Consolidate compiler generated dependencies of target snabf_planner
+Consolidate compiler generated dependencies of target snabf_pass3
+[ 11%] Built target Pass2CertTest
+[ 21%] Built target snabf_ir
+[ 26%] Built target snabf_pass3
+[ 32%] Built target snabf_planner
+Consolidate compiler generated dependencies of target Pass2DPTest
+Consolidate compiler generated dependencies of target Pass2NoiseTest
+[ 35%] Built target Pass2DPTest
+[ 37%] Built target Pass2NoiseTest
+Consolidate compiler generated dependencies of target snabf_import
+Consolidate compiler generated dependencies of target snabf-pass1
+Consolidate compiler generated dependencies of target Pass4Test
+Consolidate compiler generated dependencies of target heir_lattigo
+Consolidate compiler generated dependencies of target Pass1MechanicsTest
+Consolidate compiler generated dependencies of target SSACutTest
+[ 39%] Built target snabf_import
+[ 41%] Built target Pass4Test
+[ 43%] Built target Pass1MechanicsTest
+[ 45%] Built target snabf-pass1
+[ 74%] Built target heir_lattigo
+[ 76%] Built target SSACutTest
+Consolidate compiler generated dependencies of target Pass3Test
+Consolidate compiler generated dependencies of target snabf_planner_test
+[ 79%] Built target snabf_planner_test
+[ 80%] Built target Pass3Test
+Consolidate compiler generated dependencies of target snabf_pipeline
+[ 81%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/Pass4IR.cpp.o
+[ 82%] Linking CXX static library libsnabf_pipeline.a
+[ 97%] Built target snabf_pipeline
+Consolidate compiler generated dependencies of target snabf-opt
+[ 98%] Linking CXX executable snabf-opt
+[100%] Built target snabf-opt
+Internal ctest changing into directory: /home/fhecompiler/build/pass4-ab-release-20261119/native
+Test project /home/fhecompiler/build/pass4-ab-release-20261119/native
+    Start 1: SSACutTest
+1/8 Test #1: SSACutTest .......................   Passed    0.03 sec
+    Start 2: Pass4Test
+2/8 Test #2: Pass4Test ........................   Passed    0.00 sec
+    Start 3: Pass1MechanicsTest
+3/8 Test #3: Pass1MechanicsTest ...............   Passed    0.03 sec
+    Start 4: Pass3Test
+4/8 Test #4: Pass3Test ........................   Passed    0.03 sec
+    Start 5: Pass2CertTest
+5/8 Test #5: Pass2CertTest ....................   Passed    0.33 sec
+    Start 6: Pass2DPTest
+6/8 Test #6: Pass2DPTest ......................   Passed    0.28 sec
+    Start 7: Pass2NoiseTest
+7/8 Test #7: Pass2NoiseTest ...................   Passed    0.00 sec
+    Start 8: snabf_planner
+8/8 Test #8: snabf_planner ....................   Passed    0.03 sec
+
+100% tests passed, 0 tests failed out of 8
+
+Total Test time (real) =   0.74 sec
+ok  	snabf.local/compiler/test/backend	0.105s
+ok  	snabf.local/compiler/src/backend/gadget	0.012s
+ok  	snabf.local/compiler/src/backend/ringswitch/epochs	0.018s
+?   	snabf.local/compiler/src/backend/ringswitch/epochs/heirckks	[no test files]
+=== RUN   TestPairedCiphertexts
+    paired_test.go:183: 64 paired inferences, 262144 slots per arm, max vs truth 3.279052065666144e-05/3.297692159792698e-05, max paired 2.3224713008307418e-07
+--- PASS: TestPairedCiphertexts (26.90s)
+PASS
+ok  	snabf.local/compiler/build/pass4-ab-release-20261119/run.POAcXfhz/control/paired	26.935s
+=== RUN   TestPairedCiphertexts
+    paired_test.go:183: 64 paired inferences, 262144 slots per arm, max vs truth 1.8353334765991436e-06/1.8030704857507907e-06, max paired 9.365915217452066e-08
+--- PASS: TestPairedCiphertexts (27.43s)
+PASS
+ok  	snabf.local/compiler/build/pass4-ab-release-20261119/run.POAcXfhz/strided64/paired	27.465s
+=== RUN   TestPairedCiphertexts
+    paired_test.go:183: 64 paired inferences, 262144 slots per arm, max vs truth 9.93381696234863e-07/9.82732956233967e-07, max paired 1.0949518743086362e-07
+--- PASS: TestPairedCiphertexts (27.10s)
+PASS
+ok  	snabf.local/compiler/build/pass4-ab-release-20261119/run.POAcXfhz/reuse64/paired	27.127s
+=== RUN   TestPairedCiphertexts
+    paired_test.go:183: 64 paired inferences, 262144 slots per arm, max vs truth 2.9481248353946388e-06/3.0607680414629357e-06, max paired 1.1531184260227256e-07
+--- PASS: TestPairedCiphertexts (24.08s)
+PASS
+ok  	snabf.local/compiler/build/pass4-ab-release-20261119/run.POAcXfhz/residual/paired	24.105s
+=== RUN   TestEncrypted
+    encrypted_test.go:96: N=8192, 4096 logical outputs, 262144 encoded slots, max=9.991348663002109e-07, mean=157.14 ms
+--- PASS: TestEncrypted (12.14s)
+PASS
+ok  	command-line-arguments	12.186s
+=== RUN   TestEncrypted
+    encrypted_test.go:96: N=16384, 4096 logical outputs, 262144 encoded slots, max=9.933851494725587e-07, mean=191.91 ms
+--- PASS: TestEncrypted (14.55s)
+PASS
+ok  	command-line-arguments	14.578s
+=== RUN   TestEncrypted
+    encrypted_test.go:96: N=16384, 4096 logical outputs, 262144 encoded slots, max=1.0046720958500899e-06, mean=190.81 ms
+--- PASS: TestEncrypted (14.36s)
+PASS
+ok  	command-line-arguments	14.400s
+28 rejected gate attempts; retained N=16384; observed 165.0054 < 512; crossing=True
+Verified: /home/fhecompiler/build/pass4-ab-release-20261119/run.POAcXfhz

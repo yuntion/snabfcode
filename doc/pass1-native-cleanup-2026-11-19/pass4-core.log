@@ -1,0 +1,7 @@
+6/6 frozen inputs matched
+ok  	snabf.local/compiler/src/backend/ringswitch/epochs	0.017s
+?   	snabf.local/compiler/src/backend/ringswitch/epochs/heirckks	[no test files]
+28 rejected gate attempts; retained N=16384; observed 165.0054 < 512; crossing=True
+{"sha256": "8287047ed237204835e24ba243f7b3060fccf9b352c2ec2caf71f8de12f272f1", "source": 16384, "target": 16384, "sites": 35, "go_sha256": "913f49abc94fcaab8cedb91f11fd8ecf353143b146b11bbc7bbc1190f8dfd44e", "negative_cases": 9}
+{"sha256": "9dba6f9e54e8af109e2cb84e4d49077b93e66a63c5a0540df4e1dda6065de86e", "source": 16384, "target": 8192, "sites": 34, "go_sha256": "9e67a15bbfdc56b6393c9283136de03091fd2fea3cd8ae20f304fa2112edf172", "negative_cases": 9}
+PASS: native Pass 4 gates; both comparison records unchanged

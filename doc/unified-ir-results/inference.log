@@ -1,0 +1,22 @@
+=== RUN   TestControl
+    inference_test.go:254: SNABF_PASS1 {"arm":"heir","metrics":{"Linf":0.00006938320821145427,"MSE":3.106364784695128e-10,"VsHeirLinf":0,"MeanEvalMs":153.26152867187497,"Galois":[5,25],"SerializedGaloisBytes":20973248,"Trials":64,"Outputs":256},"workload":"control"}
+    inference_test.go:254: SNABF_PASS1 {"arm":"independent","metrics":{"Linf":0.00005722562382824703,"MSE":1.9305135627661173e-10,"VsHeirLinf":0.00007864832878112793,"MeanEvalMs":149.92483368750004,"Galois":[5,25,125],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":256},"workload":"control"}
+    inference_test.go:254: SNABF_PASS1 {"arm":"joint","metrics":{"Linf":0.00006293372639298855,"MSE":2.0521418291465843e-10,"VsHeirLinf":0.00007478892803192139,"MeanEvalMs":154.39035273437497,"Galois":[5,25],"SerializedGaloisBytes":20973248,"Trials":64,"Outputs":256},"workload":"control"}
+--- PASS: TestControl (34.14s)
+=== RUN   TestStrided64
+    inference_test.go:260: SNABF_PASS1 {"arm":"heir","metrics":{"Linf":0.00004186865040932408,"MSE":7.883722434494326e-11,"VsHeirLinf":0,"MeanEvalMs":169.71798490625002,"Galois":[5,25,625],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":4096},"workload":"strided64"}
+    inference_test.go:260: SNABF_PASS1 {"arm":"independent","metrics":{"Linf":0.000048164492909563705,"MSE":6.140357440980237e-11,"VsHeirLinf":0.00005248561501502991,"MeanEvalMs":143.2124764218751,"Galois":[5,25,625,3125],"SerializedGaloisBytes":41946496,"Trials":64,"Outputs":4096},"workload":"strided64"}
+    inference_test.go:260: SNABF_PASS1 {"arm":"joint","metrics":{"Linf":0.000046044678912178505,"MSE":7.163402351438883e-11,"VsHeirLinf":0.00005910545587539673,"MeanEvalMs":155.53100754687503,"Galois":[5,25,625],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":4096},"workload":"strided64"}
+--- PASS: TestStrided64 (34.86s)
+=== RUN   TestReuse64
+    inference_test.go:266: SNABF_PASS1 {"arm":"heir","metrics":{"Linf":0.000040109454857883975,"MSE":6.737696695241873e-11,"VsHeirLinf":0,"MeanEvalMs":174.00598492187504,"Galois":[5,125,625,15625,30177],"SerializedGaloisBytes":52433120,"Trials":64,"Outputs":4096},"workload":"reuse64"}
+    inference_test.go:266: SNABF_PASS1 {"arm":"independent","metrics":{"Linf":0.00005285887476481205,"MSE":5.995516750091315e-11,"VsHeirLinf":0.00006784498691558838,"MeanEvalMs":135.67242953125,"Galois":[12589,15625,19813,30177],"SerializedGaloisBytes":41946496,"Trials":64,"Outputs":4096},"workload":"reuse64"}
+    inference_test.go:266: SNABF_PASS1 {"arm":"joint","metrics":{"Linf":0.00005807066419967477,"MSE":6.243083645901021e-11,"VsHeirLinf":0.000058360397815704346,"MeanEvalMs":159.85872578124997,"Galois":[5,15625,30177],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":4096},"workload":"reuse64"}
+--- PASS: TestReuse64 (35.06s)
+PASS
+ok  	snabf.local/compiler/test/pass1	104.114s
+=== RUN   TestSinkFeedbackExecution
+    feedback_test.go:74: sink cap 2: 4 keys, 41946496 serialized bytes; 4 inputs, 256 outputs, max |cap2 - stock HEIR| 3.3995137e-05
+--- PASS: TestSinkFeedbackExecution (2.20s)
+PASS
+ok  	snabf.local/compiler/test/unified	2.250s

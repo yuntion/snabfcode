@@ -1,0 +1,9 @@
+{
+  "guard": 1,
+  "max_k": 1,
+  "max_scale": 46,
+  "min_base": 20,
+  "min_scale": 36,
+  "security_cap": 350,
+  "tolerance": 0.000244140625
+}

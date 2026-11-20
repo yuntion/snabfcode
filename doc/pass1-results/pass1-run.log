@@ -1,0 +1,67 @@
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/fhecompiler/build/compiler
+Consolidate compiler generated dependencies of target snabf_planner
+[ 14%] Building CXX object CMakeFiles/snabf_planner.dir/RouteSelection.cpp.o
+[ 28%] Building CXX object CMakeFiles/snabf_planner.dir/Orchestrator.cpp.o
+[ 42%] Linking CXX static library libsnabf_planner.a
+[ 42%] Built target snabf_planner
+Consolidate compiler generated dependencies of target snabf-pass1
+Consolidate compiler generated dependencies of target snabf_planner_test
+[ 57%] Building CXX object CMakeFiles/snabf-pass1.dir/pass1/Planner.cpp.o
+[ 71%] Building CXX object CMakeFiles/snabf_planner_test.dir/home/fhecompiler/test/compiler/OrchestratorTest.cpp.o
+In file included from /usr/include/boost/bind.hpp:30,
+                 from /usr/include/boost/property_tree/json_parser/detail/parser.hpp:7,
+                 from /usr/include/boost/property_tree/json_parser/detail/read.hpp:13,
+                 from /usr/include/boost/property_tree/json_parser.hpp:16,
+                 from /home/fhecompiler/src/compiler/pass1/Planner.cpp:4:
+/usr/include/boost/bind.hpp:36:1: note: '#pragma message: The practice of declaring the Bind placeholders (_1, _2, ...) in the global namespace is deprecated. Please use <boost/bind/bind.hpp> + using namespace boost::placeholders, or define BOOST_BIND_GLOBAL_PLACEHOLDERS to retain the current behavior.'
+   36 | BOOST_PRAGMA_MESSAGE(
+      | ^~~~~~~~~~~~~~~~~~~~
+[ 85%] Linking CXX executable snabf_planner_test
+[ 85%] Built target snabf_planner_test
+[100%] Linking CXX executable snabf-pass1
+[100%] Built target snabf-pass1
+Internal ctest changing into directory: /home/fhecompiler/build/compiler
+Test project /home/fhecompiler/build/compiler
+    Start 1: snabf_planner
+1/1 Test #1: snabf_planner ....................   Passed    0.08 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.08 sec
+test_bootstrap_sites_are_bound_to_ir (test_pass1.RingSwitchTest) ... ok
+test_level_and_layout (test_pass1.RingSwitchTest) ... ok
+test_strict_boundary (test_pass1.RingSwitchTest) ... ok
+test_variance_feedback (test_pass1.RingSwitchTest) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.004s
+
+OK
+independent: rungs=[12, 13], Galois keys=[5, 25, 125], bytes=31459872, cost=46.752472
+joint: rungs=[12, 12], Galois keys=[5, 25], bytes=20973248, cost=37.876648
+independent: rungs=[13, 11], Galois keys=[5, 25, 625, 3125], bytes=41946496, cost=56.878296
+joint: rungs=[12, 11], Galois keys=[5, 25, 625], bytes=31459872, cost=49.877472
+independent: rungs=[13, 12], Galois keys=[12589, 15625, 19813, 30177], bytes=41946496, cost=53.753296
+joint: rungs=[12, 12], Galois keys=[5, 15625, 30177], bytes=31459872, cost=51.752472
+independent: rungs=[], Galois keys=[], bytes=0, cost=0.000000
+joint: rungs=[], Galois keys=[], bytes=0, cost=0.000000
+=== RUN   TestControl
+    inference_test.go:254: SNABF_PASS1 {"arm":"heir","metrics":{"Linf":0.0000611594994221476,"MSE":1.8696408721836455e-10,"VsHeirLinf":0,"MeanEvalMs":158.16447226562497,"Galois":[5,25],"SerializedGaloisBytes":20973248,"Trials":64,"Outputs":256},"workload":"control"}
+    inference_test.go:254: SNABF_PASS1 {"arm":"independent","metrics":{"Linf":0.000052052430332349964,"MSE":1.8360851481204976e-10,"VsHeirLinf":0.00009156018495559692,"MeanEvalMs":154.17956489062496,"Galois":[5,25,125],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":256},"workload":"control"}
+    inference_test.go:254: SNABF_PASS1 {"arm":"joint","metrics":{"Linf":0.00006781317309871582,"MSE":2.0522301026470155e-10,"VsHeirLinf":0.0000605657696723938,"MeanEvalMs":157.89740917187498,"Galois":[5,25],"SerializedGaloisBytes":20973248,"Trials":64,"Outputs":256},"workload":"control"}
+--- PASS: TestControl (35.01s)
+=== RUN   TestStrided64
+    inference_test.go:260: SNABF_PASS1 {"arm":"heir","metrics":{"Linf":0.0000503643285482136,"MSE":7.130865943066044e-11,"VsHeirLinf":0,"MeanEvalMs":170.34174154687497,"Galois":[5,25,625],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":4096},"workload":"strided64"}
+    inference_test.go:260: SNABF_PASS1 {"arm":"independent","metrics":{"Linf":0.000039404897456053745,"MSE":7.224092204716003e-11,"VsHeirLinf":0.00005776435136795044,"MeanEvalMs":143.28111396875002,"Galois":[5,25,625,3125],"SerializedGaloisBytes":41946496,"Trials":64,"Outputs":4096},"workload":"strided64"}
+    inference_test.go:260: SNABF_PASS1 {"arm":"joint","metrics":{"Linf":0.00005321934976158099,"MSE":7.933215371364698e-11,"VsHeirLinf":0.00005567818880081177,"MeanEvalMs":155.19756168749993,"Galois":[5,25,625],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":4096},"workload":"strided64"}
+--- PASS: TestStrided64 (34.96s)
+=== RUN   TestReuse64
+    inference_test.go:266: SNABF_PASS1 {"arm":"heir","metrics":{"Linf":0.00003908556836532129,"MSE":6.357143296188955e-11,"VsHeirLinf":0,"MeanEvalMs":176.739377875,"Galois":[5,125,625,15625,30177],"SerializedGaloisBytes":52433120,"Trials":64,"Outputs":4096},"workload":"reuse64"}
+    inference_test.go:266: SNABF_PASS1 {"arm":"independent","metrics":{"Linf":0.00003570190453204558,"MSE":5.511775875878458e-11,"VsHeirLinf":0.00005934387445449829,"MeanEvalMs":137.97837885937497,"Galois":[12589,15625,19813,30177],"SerializedGaloisBytes":41946496,"Trials":64,"Outputs":4096},"workload":"reuse64"}
+    inference_test.go:266: SNABF_PASS1 {"arm":"joint","metrics":{"Linf":0.000045061455829997765,"MSE":6.255075394139017e-11,"VsHeirLinf":0.00006264448165893555,"MeanEvalMs":161.67362625000007,"Galois":[5,15625,30177],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":4096},"workload":"reuse64"}
+--- PASS: TestReuse64 (35.58s)
+PASS
+ok  	snabf.local/compiler/test/pass1	105.641s
+Saved 9 encrypted runs and the HEIR bootstrap decision to build/pass1/metrics.json

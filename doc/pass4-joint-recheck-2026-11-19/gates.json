@@ -1,0 +1,150 @@
+{
+  "positive": 8192,
+  "strict": 16384,
+  "switch_min_bits": 165.00535491432623,
+  "estimator_sha256": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a",
+  "checked_crossing": true,
+  "checked_output_shell": true,
+  "denied": [
+    {
+      "input": "positive.mlir",
+      "gate": "--snabf-check-plan",
+      "reason": "stale_or_weakened_pass4_policy"
+    },
+    {
+      "input": "positive.mlir",
+      "gate": "--snabf-lower-ckks",
+      "reason": "stale_or_weakened_pass4_policy"
+    },
+    {
+      "input": "changed-live-scale.mlir",
+      "gate": "--snabf-check-plan",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "input": "changed-live-scale.mlir",
+      "gate": "--snabf-lower-ckks",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "input": "changed-use.mlir",
+      "gate": "--snabf-check-plan",
+      "reason": "stale_or_unprofitable_ring_decision"
+    },
+    {
+      "input": "changed-use.mlir",
+      "gate": "--snabf-lower-ckks",
+      "reason": "stale_or_unprofitable_ring_decision"
+    },
+    {
+      "input": "changed-switch-basis.mlir",
+      "gate": "--snabf-check-plan",
+      "reason": "stale_or_unprofitable_ring_decision"
+    },
+    {
+      "input": "changed-switch-basis.mlir",
+      "gate": "--snabf-lower-ckks",
+      "reason": "stale_or_unprofitable_ring_decision"
+    },
+    {
+      "input": "fake-rejection.mlir",
+      "gate": "--snabf-check-plan",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "input": "fake-rejection.mlir",
+      "gate": "--snabf-lower-ckks",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "input": "weak-trace.mlir",
+      "gate": "--snabf-check-plan",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "input": "weak-trace.mlir",
+      "gate": "--snabf-lower-ckks",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "input": "weak-anchor.mlir",
+      "gate": "--snabf-check-plan",
+      "reason": "stale_or_weakened_pass4_policy"
+    },
+    {
+      "input": "weak-anchor.mlir",
+      "gate": "--snabf-lower-ckks",
+      "reason": "stale_or_weakened_pass4_policy"
+    },
+    {
+      "input": "missing-search.mlir",
+      "gate": "--snabf-check-plan",
+      "reason": "missing_ring_search_or_policy"
+    },
+    {
+      "input": "missing-search.mlir",
+      "gate": "--snabf-lower-ckks",
+      "reason": "missing_ring_search_or_policy"
+    },
+    {
+      "input": "false-attack.mlir",
+      "gate": "--snabf-check-plan",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "input": "false-attack.mlir",
+      "gate": "--snabf-lower-ckks",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "input": "strict.mlir",
+      "gate": "--snabf-check-plan",
+      "reason": "missing_external_estimator_evidence"
+    },
+    {
+      "input": "fake-bypass.mlir",
+      "gate": "--snabf-check-plan",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "input": "fake-bypass.mlir",
+      "gate": "--snabf-lower-ckks",
+      "reason": "stale_or_forged_ring_search"
+    },
+    {
+      "input": "unknown-public-load.mlir",
+      "gate": "--snabf-pass4",
+      "reason": "unclassified_live_nonpublic_value"
+    },
+    {
+      "input": "shell-read.mlir",
+      "gate": "--snabf-pass4",
+      "reason": "unclassified_live_nonpublic_value"
+    },
+    {
+      "input": "shell-read.mlir",
+      "gate": "--snabf-pass4=min-ring=16384",
+      "reason": "unclassified_live_nonpublic_value"
+    },
+    {
+      "input": "shell-not-zero.mlir",
+      "gate": "--snabf-pass4",
+      "reason": "unclassified_live_nonpublic_value"
+    },
+    {
+      "input": "shell-not-zero.mlir",
+      "gate": "--snabf-pass4=min-ring=16384",
+      "reason": "unclassified_live_nonpublic_value"
+    },
+    {
+      "input": "raw-ct-capture.mlir",
+      "gate": "--snabf-pass4",
+      "reason": "unclassified_live_nonpublic_value"
+    },
+    {
+      "input": "raw-ct-capture.mlir",
+      "gate": "--snabf-pass4=min-ring=16384",
+      "reason": "unclassified_live_nonpublic_value"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "replica_index": 64,
+  "replica": "runner totals do not replay",
+  "external_evidence": "estimator_context_mismatch",
+  "failed_stage": "pass4",
+  "go_published": false,
+  "cli_floor": 128,
+  "environment_floor": 512,
+  "effective_process_floor": 512
+}

@@ -1,0 +1,7 @@
+{target_n = 8192 : i64, multiplicity = 1 : i64, layout_verified = true,
+ layout_contract = "trace-periodic", layout_cost = 0.0 : f64,
+ key_variance = 0.000732421875 : f64, gadget_weights = array<f64: 1.0, 2.0>,
+ downstream_bins = array<f64: 5.0, 5.0, 20.0, 15.0>,
+ down_cost = 10.0 : f64, up_cost = 20.0 : f64,
+ boot_costs = [{n = 16384 : i64, level = 3 : i64, cost = 80.0 : f64},
+               {n = 8192 : i64, level = 2 : i64, cost = 40.0 : f64}]}

@@ -1,0 +1,1248 @@
+{
+  "source": {
+    "schema": "snabf.e2e.matrix.v1",
+    "mode": "source",
+    "reuse64_upstream": {
+      "kind": "independent_source_compilations",
+      "concrete_pass3_sha256": "faaed3fdf172832b52df3687661ddef753fc46568ee0051a9470ee7eece6a328",
+      "checkpoint_comparison": "identical modulo private HEIR client.pack symbol and its checker receipt"
+    },
+    "planning": {
+      "reuse64-128": {
+        "mode": "source",
+        "strategy": "adaptive",
+        "scenario": "reuse64-128",
+        "workload": "reuse64",
+        "decode_domain": "target",
+        "live_ciphertexts": 1,
+        "conversion_keys": 1,
+        "inputs": {
+          "corpus.json": "da7f849b58bd3594d412b5be16718a368ea4e2c3a3f0332c7f6b9d8b2d1a1038",
+          "estimates.json": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a",
+          "pass3-options.json": "797b1086e5ab3ba5f0a182d367e39b8501edafca4fede605066ef225788b814e",
+          "profile.json": "59815ca90e794edb96ccadc0a6ec0f6a7112d91b2d7f9cebdf4569bb2adf11ae",
+          "security.json": "c73a1d89c15c425ff4fbdf2ba676c7f8acf94250a77b58ada027b159aeca42aa",
+          "source.mlir": "c87b0bbd03a024e297088e877619003468bca01d50d95b1c99503297cd5ca8e1"
+        },
+        "policy": {
+          "max_iters": 16,
+          "min_ring": 4096,
+          "source_security_bits": 128,
+          "switch_price": 1,
+          "switching_key_security_bits": 128,
+          "target_security_bits": 128
+        },
+        "outcome": "ring_down",
+        "source_ring": 16384,
+        "target_ring": 8192,
+        "reasons": [
+          "verified",
+          "boundary_concrete_replay: concrete message/scale headroom at lin1.mask0",
+          "period_mismatch",
+          "period_mismatch"
+        ],
+        "precheck_receipts": [
+          "d7090cde4331ea4c56e09cbea75ab66b9b04236745e61f58c07df7a46558a04c"
+        ],
+        "emit_sha256": "1fbf1e65cbc94dc29845217ba5dd37a209fb30ff711d19107338035e2b2d24f5",
+        "checkpoint_sha256": "d4860bfd432a15d8250151aaa77e250e8e05c9c05872f7e81a041aa52e8d0e8d",
+        "tools_sha256": "dc7a49919effa548b456d420751711f4488e01faebf3b08c9fcfb41f9d5b750c",
+        "observed_key_bytes": {
+          "galois": 40898336,
+          "down": 3146080,
+          "relin": 18875920,
+          "public": 2359480
+        },
+        "measurements": {
+          "trials": 64,
+          "logical_outputs": 4096,
+          "slots_per_trial": 4096,
+          "physical_slots": 262144,
+          "misses": 0,
+          "linf": 1.0028582051735402e-06,
+          "mse": 2.7079883030509415e-14,
+          "tolerance": 0.000244140625,
+          "actual_level": 1,
+          "actual_ring": 8192,
+          "actual_log_scale_range": [
+            38.00000000000003,
+            38.00000000000003
+          ],
+          "online_mean_ms": 157.001692578125,
+          "online_median_ms": 152.2210495
+        },
+        "evidence_sha256": {
+          "search.json": "8497dc25729de84ceb3e31af0057e2e1d1348bc044355b08782a27a95ca36ce8",
+          "program.json": "2282319981cbc0c2342cc74138e9460aa7c7c17f26fcf01c86fdcb5633de6903",
+          "model.go": "55544aad970bc939929bcfbaac6985a43c09349a675ce30c7a7679cc2b1e79bf",
+          "metrics.json": "bcb8901a98ddb8fdd616bf24361e3c49b1866ed0e0e38f71608799b0b129842c",
+          "trials.jsonl": "5ec6d271193430ef66e12a08c59205850146e5ceb62052e97c85d05d27660e45"
+        },
+        "run": "reuse64-128/run.nKZIxoL2"
+      },
+      "reuse64-512": {
+        "mode": "source",
+        "strategy": "adaptive",
+        "scenario": "reuse64-512",
+        "workload": "reuse64",
+        "decode_domain": "source",
+        "live_ciphertexts": 1,
+        "conversion_keys": 0,
+        "inputs": {
+          "corpus.json": "da7f849b58bd3594d412b5be16718a368ea4e2c3a3f0332c7f6b9d8b2d1a1038",
+          "estimates.json": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a",
+          "pass3-options.json": "797b1086e5ab3ba5f0a182d367e39b8501edafca4fede605066ef225788b814e",
+          "profile.json": "59815ca90e794edb96ccadc0a6ec0f6a7112d91b2d7f9cebdf4569bb2adf11ae",
+          "security.json": "c73a1d89c15c425ff4fbdf2ba676c7f8acf94250a77b58ada027b159aeca42aa",
+          "source.mlir": "c87b0bbd03a024e297088e877619003468bca01d50d95b1c99503297cd5ca8e1"
+        },
+        "policy": {
+          "max_iters": 16,
+          "min_ring": 4096,
+          "source_security_bits": 128,
+          "switch_price": 1,
+          "switching_key_security_bits": 512,
+          "target_security_bits": 128
+        },
+        "outcome": "retain_source_ring",
+        "source_ring": 16384,
+        "target_ring": 16384,
+        "reasons": [
+          "switching_key_ext_modulus_security_rejected",
+          "boundary_concrete_replay: concrete message/scale headroom at lin1.mask0",
+          "period_mismatch",
+          "period_mismatch"
+        ],
+        "precheck_receipts": [
+          "9283575e1447f76b5f715b234bc5e73619ff3137403b23497de9f492c5fb59e8"
+        ],
+        "emit_sha256": "30c386dd4e3c4df640e96052ae91cd74086b3d95faf002aef150a23d3bb428b0",
+        "checkpoint_sha256": "1e30ccf08eac8eb1ba9ebed22409e98f5fe95d0d47aa98ffb67ee01fe6cc61b9",
+        "tools_sha256": "dc7a49919effa548b456d420751711f4488e01faebf3b08c9fcfb41f9d5b750c",
+        "observed_key_bytes": {
+          "galois": 56627808,
+          "down": 0,
+          "relin": 18875920,
+          "public": 2359480
+        },
+        "measurements": {
+          "trials": 64,
+          "logical_outputs": 4096,
+          "slots_per_trial": 4096,
+          "physical_slots": 262144,
+          "misses": 0,
+          "linf": 9.949961030097931e-07,
+          "mse": 2.7110058157765163e-14,
+          "tolerance": 0.000244140625,
+          "actual_level": 1,
+          "actual_ring": 16384,
+          "actual_log_scale_range": [
+            38.00000000000003,
+            38.00000000000003
+          ],
+          "online_mean_ms": 190.54122040625,
+          "online_median_ms": 185.91995300000002
+        },
+        "evidence_sha256": {
+          "search.json": "96c79abd8ad3bee90f39bdfa0126045a4bb3d78f63028fb017f08933b99fc155",
+          "program.json": "0b2fe67c2e98ba32e93f81678fb2566f49c29775845bb12d7aed279c4710429a",
+          "model.go": "617ef767bec244873854d258b0c922472dc6abc6b432b37aee1f09f3e98308ba",
+          "metrics.json": "c52a75f4ddb9a5806a8e342a772007c27f7e3b0124ae94913dd721052333cbff",
+          "trials.jsonl": "4882018c01ba83fa44ae3fce5893d7df5a5c781bf6abddff3f82cdca07edadd1"
+        },
+        "run": "reuse64-512/run.T6r2fTqa"
+      },
+      "cross-residual": {
+        "mode": "source",
+        "strategy": "adaptive",
+        "scenario": "cross-residual",
+        "workload": "cross_residual",
+        "decode_domain": "source",
+        "live_ciphertexts": 2,
+        "conversion_keys": 0,
+        "inputs": {
+          "corpus.json": "cdace4edbdcdd1da391c6a6f141912ee26527696fadda0496f7b69e1b4949990",
+          "estimates.json": "1a921108ddfe0d87cd25078d06ccccbc5418acd0930cbe6b652fd18ba28c17a8",
+          "pass3-options.json": "797b1086e5ab3ba5f0a182d367e39b8501edafca4fede605066ef225788b814e",
+          "profile.json": "5581b2131387b0a6313ff17fbbd51613a163819575445078252de7c615e816c0",
+          "security.json": "f5f7d7e77607b8af9fb97c4a2ea9d87d707851335f40e39cfc7a12dc527961e2",
+          "source.mlir": "8dcbe72b6f9b6950206bec2d8c4252214b7d1c8c28b3ab85e283baaf701992e7"
+        },
+        "policy": {
+          "max_iters": 16,
+          "min_ring": 4096,
+          "source_security_bits": 128,
+          "switch_price": 1,
+          "switching_key_security_bits": 128,
+          "target_security_bits": 128
+        },
+        "outcome": "retain_source_ring",
+        "source_ring": 16384,
+        "target_ring": 16384,
+        "reasons": [
+          "residual_bypass_crosses_cut_unconverted",
+          "residual_bypass_crosses_cut_unconverted",
+          "residual_bypass_crosses_cut_unconverted",
+          "residual_bypass_crosses_cut_unconverted"
+        ],
+        "precheck_receipts": [
+          "8b373a5bc1ff100148ba7ea7438326ebfe57b81cbaaa48d3b0b5ffa2b2c48a5d"
+        ],
+        "emit_sha256": "459e85ca63137fdecc8475f0c92b671ad516c10b001f879268505aab34a47f15",
+        "checkpoint_sha256": "13da0a41740596c9538f3f1bc078f7fe8ca52ec923b4f493d2edee89cb1e9f0d",
+        "tools_sha256": "dc7a49919effa548b456d420751711f4488e01faebf3b08c9fcfb41f9d5b750c",
+        "observed_key_bytes": {
+          "galois": 56627808,
+          "down": 0,
+          "relin": 18875920,
+          "public": 2359480
+        },
+        "measurements": {
+          "trials": 64,
+          "logical_outputs": 4096,
+          "slots_per_trial": 4096,
+          "physical_slots": 262144,
+          "misses": 0,
+          "linf": 9.946534615945524e-07,
+          "mse": 2.7069237046608768e-14,
+          "tolerance": 0.000244140625,
+          "actual_level": 1,
+          "actual_ring": 16384,
+          "actual_log_scale_range": [
+            39.00000000000001,
+            39.00000000000001
+          ],
+          "online_mean_ms": 191.73578453125,
+          "online_median_ms": 186.2773965
+        },
+        "evidence_sha256": {
+          "search.json": "042b01d6756ea6fabe72f9e2b5a000cc3686348a1adf219e7fe863c4e6601650",
+          "program.json": "088457bee816bd4937c9aa69b6826107c143b43944dc655a66a0820dcd1f60ef",
+          "model.go": "2e00390bce1754c1bdfe03e97b9a06a3d2ece0e72ca932951d2c761cd3cbe4b0",
+          "metrics.json": "27d1cc6aaf9f0df16cd54d5ef5bc39757330484e43003a47922f8236bf48384a",
+          "trials.jsonl": "982c53d7770768d6132ac4307ec7473b1afd696e132d4b0c6be0c8fa6d13ee9c"
+        },
+        "run": "cross-residual/run.YSEf4KUu"
+      }
+    },
+    "single_ring": {
+      "control": {
+        "mode": "source",
+        "strategy": "baseline",
+        "scenario": "equiv-single-ring",
+        "workload": "control",
+        "decode_domain": "source",
+        "live_ciphertexts": 1,
+        "conversion_keys": 0,
+        "inputs": {
+          "corpus.json": "5802cccb9fed91891936ea89a42bea70c956a465183eab4b6801042cc0a56965",
+          "estimates.json": "dbd4b8a7426d5747edb9ea0291457088103e8a92ab9297f422d5f6ff2bc02356",
+          "pass3-options.json": "7a07ef80ebc88929d2ea8ff0f3398b181a24dadaeb72d84711484917b1bb913f",
+          "profile.json": "2d2febaa763a03258a90b059095d8f43449e876700bd7f3bacfc6b924d53cfb4",
+          "security.json": "50fc963a453f4c48a67b48ac0c423103e99357aa9a3f64c482cf511bb8b44707",
+          "source.mlir": "43942bfec60718bf347f28247542e6ba090260e04fdbb3a56ce75b8b0239d4c7"
+        },
+        "policy": {
+          "max_iters": 16,
+          "min_ring": 16384,
+          "source_security_bits": 128,
+          "switch_price": 1,
+          "switching_key_security_bits": 128,
+          "target_security_bits": 128
+        },
+        "outcome": "retain_source_ring",
+        "source_ring": 16384,
+        "target_ring": 16384,
+        "reasons": [],
+        "precheck_receipts": [
+          "37a3a50a4c581a79b734a88f06d74f4f3ca1cabd408c4a93712f17aa025f3bf8"
+        ],
+        "emit_sha256": "6325ddfcde604e4efea5ed47a34ceb84427bd43d8da54823f2ceb834fa2f272e",
+        "checkpoint_sha256": "f26ff6be1829b5054968f0f883b1df3f5ff25fee048c4d459ebf889a9b5dabf7",
+        "tools_sha256": "dc7a49919effa548b456d420751711f4488e01faebf3b08c9fcfb41f9d5b750c",
+        "observed_key_bytes": {
+          "galois": 37751872,
+          "down": 0,
+          "relin": 18875920,
+          "public": 2359480
+        },
+        "measurements": {
+          "trials": 64,
+          "measured_evaluations": 128,
+          "untimed_probe_evaluations": 2,
+          "slots_per_trial": 4096,
+          "physical_slots_per_arm": 262144,
+          "logical_outputs_per_arm": 256,
+          "tolerance": 0.000244140625,
+          "actual_ring": 16384,
+          "actual_level": 1,
+          "actual_log_scale_ranges": [
+            [
+              39.99999999999999,
+              39.99999999999999
+            ],
+            [
+              40,
+              40
+            ]
+          ],
+          "online_mean_ms_direct_legacy": [
+            187.41238603125,
+            178.218977953125
+          ],
+          "truth_linf_direct_legacy": [
+            3.278988026761409e-05,
+            3.2974429767795854e-05
+          ],
+          "truth_mse_direct_legacy": [
+            8.508270086359465e-11,
+            8.527692856109716e-11
+          ],
+          "truth_misses_direct_legacy": [
+            0,
+            0
+          ],
+          "paired_linf": 2.3067379528729504e-07,
+          "paired_mse": 2.337411460345921e-15,
+          "paired_misses": 0,
+          "encryption_count": 64,
+          "shared_eval_keys_sha256": "73dfb96c34d7a335d1efd46c7f311b747fa5bd5049425c61b96469b983ee7103"
+        },
+        "evidence_sha256": {
+          "search.json": "1b1387e35f5795822a8bc543dc32dfe0cca2f8d638512158f5c09e01b8268ef2",
+          "program.json": "e645da7183a4399e48ab256dd550e6be4f6c0561d0db89957fb0ba4c66435cc7",
+          "model.go": "3dd105bc8648fa3c1768748e2bbee432b670e2f826e93ba9d17d71e3cbc17919",
+          "metrics.json": "89d5d3cc8e779dc4af582aa2dd2e58ef11e5fc0d1897697dd433dfb0eca6039d",
+          "trials.jsonl": "fa75b25bc6f2e0d1defc1326331f24897c2e2685b7a6523b9f45c763b866a32f",
+          "legacy/model.go": "36b271632c81436f0cef7844095792bd8922e3847ad45dd32bc8f1886088083c",
+          "legacy/audit.json": "bdc2e9315d9d06198abfe4d747b0d8040f97967e01c390176e5d569c4135f4b7",
+          "legacy/checked.mlir": "f26ff6be1829b5054968f0f883b1df3f5ff25fee048c4d459ebf889a9b5dabf7",
+          "legacy/translated.go.txt": "d5dbbeeb3f9a2e2b34c737706b450eb46bea06948f006cbaf489b3ef46f7aa6c"
+        },
+        "run": "equiv-control/run.2tHMACv0"
+      },
+      "strided64": {
+        "mode": "source",
+        "strategy": "baseline",
+        "scenario": "equiv-single-ring",
+        "workload": "strided64",
+        "decode_domain": "source",
+        "live_ciphertexts": 1,
+        "conversion_keys": 0,
+        "inputs": {
+          "corpus.json": "53344dc2a346edab638d2a3c2e03548ea720d0a51b3280e527fa19c97fc4ab1c",
+          "estimates.json": "1b8bd1083e750282978f51989be1af7e74da73dbbfef1c11d1d518e4e59f7efd",
+          "pass3-options.json": "797b1086e5ab3ba5f0a182d367e39b8501edafca4fede605066ef225788b814e",
+          "profile.json": "5f2e627862b5a5518d5bfba18b97b9c698f8621636ab9949aae7156d80d743b4",
+          "security.json": "de317b28ee817c60d13284da50f5e047931a11dd4d86b2c011b3ba2cedc84919",
+          "source.mlir": "c328a9900f27187299e03c372adcc796b7e6e426bbe8b0e11cda8cc39f852662"
+        },
+        "policy": {
+          "max_iters": 16,
+          "min_ring": 16384,
+          "source_security_bits": 128,
+          "switch_price": 1,
+          "switching_key_security_bits": 128,
+          "target_security_bits": 128
+        },
+        "outcome": "retain_source_ring",
+        "source_ring": 16384,
+        "target_ring": 16384,
+        "reasons": [],
+        "precheck_receipts": [
+          "14b1809ac3ae0aa76e542e833c872877802e6eb24127468687ab77644c1a43c5"
+        ],
+        "emit_sha256": "1273d52f14c9b8707ac6259a0040067949ea9f77d46257852de9d48b3e109ef2",
+        "checkpoint_sha256": "c9fa62602177a3cd1cfa908e447de913fc38474bc347bbcb9c015d60f9be4e1b",
+        "tools_sha256": "dc7a49919effa548b456d420751711f4488e01faebf3b08c9fcfb41f9d5b750c",
+        "observed_key_bytes": {
+          "galois": 56627808,
+          "down": 0,
+          "relin": 18875920,
+          "public": 2359480
+        },
+        "measurements": {
+          "trials": 64,
+          "measured_evaluations": 128,
+          "untimed_probe_evaluations": 2,
+          "slots_per_trial": 4096,
+          "physical_slots_per_arm": 262144,
+          "logical_outputs_per_arm": 4096,
+          "tolerance": 0.000244140625,
+          "actual_ring": 16384,
+          "actual_level": 1,
+          "actual_log_scale_ranges": [
+            [
+              38.00000000000003,
+              38.00000000000003
+            ],
+            [
+              38.00000000000001,
+              38.00000000000001
+            ]
+          ],
+          "online_mean_ms_direct_legacy": [
+            196.127031078125,
+            185.7743640625
+          ],
+          "truth_linf_direct_legacy": [
+            1.8418950908510867e-06,
+            1.8086677427697762e-06
+          ],
+          "truth_mse_direct_legacy": [
+            9.083221856284809e-14,
+            9.052589062012524e-14
+          ],
+          "truth_misses_direct_legacy": [
+            0,
+            0
+          ],
+          "paired_linf": 1.0882085173283629e-07,
+          "paired_mse": 1.5632610665241647e-16,
+          "paired_misses": 0,
+          "encryption_count": 64,
+          "shared_eval_keys_sha256": "7ba6b9d3622ac3a18133eac1319f610f2ff42e82a666384ac1bcf999c6faa3ee"
+        },
+        "evidence_sha256": {
+          "search.json": "24a5ae73dac62ca497ea1e4da11904c969abe4cac2ab49ba4860f3d5b446a2f6",
+          "program.json": "a0d29d2abcda73ed6e0dc4a9296a4ab2ad1873bc2ffcdb54be46d6b5bc963418",
+          "model.go": "128c6da6a3e40e8195eb27a1aab6a30a7fd76393acdde31f6a99115ecf0de0cb",
+          "metrics.json": "619305ca4f4c647ac60905b85c28c4d15759ec6d39297cd4eed1f02a117143d0",
+          "trials.jsonl": "a22fa1d2636a6ad3ff4dabb0da8c362f548f9b0f767ea62cc89a39f6a80620e4",
+          "legacy/model.go": "56fb70fd852f25b1a90e7c890f53dc9de772d88d74cde109734c431bfc45b5a4",
+          "legacy/audit.json": "f3952d020361bf496325615b41b7379bf67cb35ed356cb84888dbb32cc1a22e5",
+          "legacy/checked.mlir": "c9fa62602177a3cd1cfa908e447de913fc38474bc347bbcb9c015d60f9be4e1b",
+          "legacy/translated.go.txt": "1a04de973f10d3eb830835a28959b82a9f42ed2c85b56bb3ef768d045de423e4"
+        },
+        "run": "equiv-strided64/run.QZAuSXQb"
+      },
+      "reuse64": {
+        "mode": "source",
+        "strategy": "baseline",
+        "scenario": "equiv-single-ring",
+        "workload": "reuse64",
+        "decode_domain": "source",
+        "live_ciphertexts": 1,
+        "conversion_keys": 0,
+        "inputs": {
+          "corpus.json": "da7f849b58bd3594d412b5be16718a368ea4e2c3a3f0332c7f6b9d8b2d1a1038",
+          "estimates.json": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a",
+          "pass3-options.json": "797b1086e5ab3ba5f0a182d367e39b8501edafca4fede605066ef225788b814e",
+          "profile.json": "59815ca90e794edb96ccadc0a6ec0f6a7112d91b2d7f9cebdf4569bb2adf11ae",
+          "security.json": "c73a1d89c15c425ff4fbdf2ba676c7f8acf94250a77b58ada027b159aeca42aa",
+          "source.mlir": "c87b0bbd03a024e297088e877619003468bca01d50d95b1c99503297cd5ca8e1"
+        },
+        "policy": {
+          "max_iters": 16,
+          "min_ring": 16384,
+          "source_security_bits": 128,
+          "switch_price": 1,
+          "switching_key_security_bits": 128,
+          "target_security_bits": 128
+        },
+        "outcome": "retain_source_ring",
+        "source_ring": 16384,
+        "target_ring": 16384,
+        "reasons": [],
+        "precheck_receipts": [
+          "817ef25a9a17f9263b2bf61a005c86a537479ffbd0318a84e2b0dd7974ed05b4"
+        ],
+        "emit_sha256": "4651c4fc2e76a3d462cce622f20fd6d0269ac96cddae8f55694325ebda2c7724",
+        "checkpoint_sha256": "336912cb15256eed8a317faabf7ae4c4b3ad02e212feb201c3a2ce7073f316ff",
+        "tools_sha256": "dc7a49919effa548b456d420751711f4488e01faebf3b08c9fcfb41f9d5b750c",
+        "observed_key_bytes": {
+          "galois": 56627808,
+          "down": 0,
+          "relin": 18875920,
+          "public": 2359480
+        },
+        "measurements": {
+          "trials": 64,
+          "measured_evaluations": 128,
+          "untimed_probe_evaluations": 2,
+          "slots_per_trial": 4096,
+          "physical_slots_per_arm": 262144,
+          "logical_outputs_per_arm": 4096,
+          "tolerance": 0.000244140625,
+          "actual_ring": 16384,
+          "actual_level": 1,
+          "actual_log_scale_ranges": [
+            [
+              38.00000000000003,
+              38.00000000000003
+            ],
+            [
+              38.00000000000001,
+              38.00000000000001
+            ]
+          ],
+          "online_mean_ms_direct_legacy": [
+            200.844440703125,
+            190.2434829375
+          ],
+          "truth_linf_direct_legacy": [
+            9.96067458181038e-07,
+            9.81849746589658e-07
+          ],
+          "truth_mse_direct_legacy": [
+            2.7109572725027384e-14,
+            2.6880776867827113e-14
+          ],
+          "truth_misses_direct_legacy": [
+            0,
+            0
+          ],
+          "paired_linf": 9.195678079025257e-08,
+          "paired_mse": 1.4264793997628974e-16,
+          "paired_misses": 0,
+          "encryption_count": 64,
+          "shared_eval_keys_sha256": "5c52f9ebc36b528668cd656dbcea1dd0edecf1ee0005861428e49c69a7fcef34"
+        },
+        "evidence_sha256": {
+          "search.json": "578dabe7ad083a85c1f2e4c5b06acb8ff478302d2cbb8c8c8027f4c9b9f5e873",
+          "program.json": "ce7c59bfa35b75ccb50fc88e218334af1f2a7ec547312e4e79e15035d263ba05",
+          "model.go": "00c9163cf0eff27d32637cf707127130fa376a56c13dd364903800698b656f6c",
+          "metrics.json": "87769dcb21bd4101d6b3a4d63f4e6aadaa1f716f9b6e3af3b74908a197580af4",
+          "trials.jsonl": "0eb53133d857086929784a977b1dc9b1675e124d9293ce2589d9b9a1ca8f5533",
+          "legacy/model.go": "283c216295c54432e54d5a7b9c2dd8473fb577cbb2ba0d9aa13de8ce5272ec05",
+          "legacy/audit.json": "af8ac066cf07af1be3224e5bb1b093083ae3c485508b10e9ba01e9c268dc5c98",
+          "legacy/checked.mlir": "336912cb15256eed8a317faabf7ae4c4b3ad02e212feb201c3a2ce7073f316ff",
+          "legacy/translated.go.txt": "58db653886aa05302c3a11abe6d95f51d7757161619b484e3c0f07638afdee4b"
+        },
+        "run": "equiv-reuse64/run.YSgVNJAm"
+      },
+      "residual": {
+        "mode": "source",
+        "strategy": "baseline",
+        "scenario": "equiv-single-ring",
+        "workload": "residual",
+        "decode_domain": "source",
+        "live_ciphertexts": 1,
+        "conversion_keys": 0,
+        "inputs": {
+          "corpus.json": "be075e087f3f54e6b3f7de63da802c56213a62c131fc81d8f5ef1b8ff0bdfd2e",
+          "estimates.json": "2a5cdb5dfad8eb72b3c737fdec67c7d6c1bf05fd3adfd30cc77552f4e2c6e6ff",
+          "pass3-options.json": "797b1086e5ab3ba5f0a182d367e39b8501edafca4fede605066ef225788b814e",
+          "profile.json": "3a6ffd5ad68f38e8ac6a32dfabda9879cb30ec559d3985f3f0db0ee80417a6e8",
+          "security.json": "6877f0985573b3998f9aefde4b3bcba9468a609d5404a48156ac06f238b926e7",
+          "source.mlir": "c7e8e778ac39fbca30002d7ab4af7b57d130e9fdfe4be8ad491920b07348e1f2"
+        },
+        "policy": {
+          "max_iters": 16,
+          "min_ring": 16384,
+          "source_security_bits": 128,
+          "switch_price": 1,
+          "switching_key_security_bits": 128,
+          "target_security_bits": 128
+        },
+        "outcome": "retain_source_ring",
+        "source_ring": 16384,
+        "target_ring": 16384,
+        "reasons": [],
+        "precheck_receipts": [
+          "63a43cd9b98526660a15cc8169e6b2d53ffbd69bb8867c38666fb9c67fb170af"
+        ],
+        "emit_sha256": "2a718b65eba8bda9e1a2bbb01bef0eadab583ac24bcec7ed334685585a41226d",
+        "checkpoint_sha256": "f0549bd694137701046200583674026442d58e5afc7b99607ef3f38380cdfc28",
+        "tools_sha256": "dc7a49919effa548b456d420751711f4488e01faebf3b08c9fcfb41f9d5b750c",
+        "observed_key_bytes": {
+          "galois": 56627808,
+          "down": 0,
+          "relin": 18875920,
+          "public": 2359480
+        },
+        "measurements": {
+          "trials": 64,
+          "measured_evaluations": 128,
+          "untimed_probe_evaluations": 2,
+          "slots_per_trial": 4096,
+          "physical_slots_per_arm": 262144,
+          "logical_outputs_per_arm": 4096,
+          "tolerance": 0.000244140625,
+          "actual_ring": 16384,
+          "actual_level": 1,
+          "actual_log_scale_ranges": [
+            [
+              39.00000000000001,
+              39.00000000000001
+            ],
+            [
+              39,
+              39
+            ]
+          ],
+          "online_mean_ms_direct_legacy": [
+            161.453559890625,
+            153.624937171875
+          ],
+          "truth_linf_direct_legacy": [
+            2.94970758937807e-06,
+            3.0484317858348042e-06
+          ],
+          "truth_mse_direct_legacy": [
+            2.0250642586405724e-13,
+            2.0476048924983988e-13
+          ],
+          "truth_misses_direct_legacy": [
+            0,
+            0
+          ],
+          "paired_linf": 1.1230154051133923e-07,
+          "paired_mse": 1.710023931936959e-16,
+          "paired_misses": 0,
+          "encryption_count": 64,
+          "shared_eval_keys_sha256": "c1d571fd1af33905bdcb610206b938d1098432d17b310ad0dc7c8f09b91680e3"
+        },
+        "evidence_sha256": {
+          "search.json": "7f6036762d066ba151b7cd609fbefbcb5c9e392fc02e13be3635a3d0bb617349",
+          "program.json": "6f97fe147302945b39d2c3f0879ba0551cc6879f00c55d922ebdda5a17d6f40b",
+          "model.go": "b319c6cdcc4256ce151cae1ca1816c37b45101b8fcee756ea8c18d5ea7b898ff",
+          "metrics.json": "e84c4d8d62adf973bfc12a7ce145fdae6d0b7ed34651bec4ee467501f2c3390f",
+          "trials.jsonl": "a8086fa0dc3ee6ca8e5d65350e3cddc6a4b506f36cbc10e59d3a72971fa1bd96",
+          "legacy/model.go": "1b88a894675c5959104bf8d5aca1ca33f39151295678dc1e612a513ea7ecd351",
+          "legacy/audit.json": "9ad5f5c3eb9a3037d725745943a240c692b35771cdb1e7d719470548c4dda17c",
+          "legacy/checked.mlir": "f0549bd694137701046200583674026442d58e5afc7b99607ef3f38380cdfc28",
+          "legacy/translated.go.txt": "11f9a71f607e829d74434ff399499838ef09565084883235ef699139878053f7"
+        },
+        "run": "equiv-residual/run.IK60gW2z"
+      }
+    },
+    "equivalence": {
+      "inputs": 256,
+      "timed_evaluations": 512,
+      "untimed_probe_evaluations": 8,
+      "physical_slot_pairs": 1048576,
+      "truth_slot_checks": 2097152,
+      "paired_linf": 2.3067379528729504e-07,
+      "paired_mse": 7.018469750420808e-16,
+      "truth_misses": 0,
+      "paired_misses": 0
+    }
+  },
+  "pass3": {
+    "schema": "snabf.e2e.matrix.v1",
+    "mode": "pass3",
+    "reuse64_upstream": {
+      "kind": "byte_identical_checkpoint",
+      "sha256": "96e2cd0005ea6b41dc41f022eabcdfe42891724289f307aa372aeda78baf6662"
+    },
+    "planning": {
+      "reuse64-128": {
+        "mode": "pass3",
+        "strategy": "adaptive",
+        "scenario": "reuse64-128",
+        "workload": "reuse64",
+        "decode_domain": "target",
+        "live_ciphertexts": 1,
+        "conversion_keys": 1,
+        "inputs": {
+          "checkpoint.mlir": "96e2cd0005ea6b41dc41f022eabcdfe42891724289f307aa372aeda78baf6662",
+          "corpus.json": "da7f849b58bd3594d412b5be16718a368ea4e2c3a3f0332c7f6b9d8b2d1a1038",
+          "estimates.json": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a",
+          "pass3-options.json": "797b1086e5ab3ba5f0a182d367e39b8501edafca4fede605066ef225788b814e",
+          "profile.json": "59815ca90e794edb96ccadc0a6ec0f6a7112d91b2d7f9cebdf4569bb2adf11ae",
+          "security.json": "c73a1d89c15c425ff4fbdf2ba676c7f8acf94250a77b58ada027b159aeca42aa",
+          "source.mlir": "c87b0bbd03a024e297088e877619003468bca01d50d95b1c99503297cd5ca8e1"
+        },
+        "policy": {
+          "max_iters": 16,
+          "min_ring": 4096,
+          "source_security_bits": 128,
+          "switch_price": 1,
+          "switching_key_security_bits": 128,
+          "target_security_bits": 128
+        },
+        "outcome": "ring_down",
+        "source_ring": 16384,
+        "target_ring": 8192,
+        "reasons": [
+          "verified",
+          "boundary_concrete_replay: concrete message/scale headroom at lin1.mask0",
+          "period_mismatch",
+          "period_mismatch"
+        ],
+        "precheck_receipts": [
+          "8287047ed237204835e24ba243f7b3060fccf9b352c2ec2caf71f8de12f272f1"
+        ],
+        "emit_sha256": "9dba6f9e54e8af109e2cb84e4d49077b93e66a63c5a0540df4e1dda6065de86e",
+        "checkpoint_sha256": "96e2cd0005ea6b41dc41f022eabcdfe42891724289f307aa372aeda78baf6662",
+        "tools_sha256": "dc7a49919effa548b456d420751711f4488e01faebf3b08c9fcfb41f9d5b750c",
+        "observed_key_bytes": {
+          "galois": 40898336,
+          "down": 3146080,
+          "relin": 18875920,
+          "public": 2359480
+        },
+        "measurements": {
+          "trials": 64,
+          "logical_outputs": 4096,
+          "slots_per_trial": 4096,
+          "physical_slots": 262144,
+          "misses": 0,
+          "linf": 9.86211997705544e-07,
+          "mse": 2.707834672472675e-14,
+          "tolerance": 0.000244140625,
+          "actual_level": 1,
+          "actual_ring": 8192,
+          "actual_log_scale_range": [
+            38.00000000000003,
+            38.00000000000003
+          ],
+          "online_mean_ms": 156.158598125,
+          "online_median_ms": 152.1796375
+        },
+        "evidence_sha256": {
+          "search.json": "8497dc25729de84ceb3e31af0057e2e1d1348bc044355b08782a27a95ca36ce8",
+          "program.json": "8938a85596b7a85b047a3e75c4e73815efce7f2a3c1800499b61e238e6a37e4b",
+          "model.go": "9e67a15bbfdc56b6393c9283136de03091fd2fea3cd8ae20f304fa2112edf172",
+          "metrics.json": "aa5d836843e36595315d280b7f600d76d100ee1e8d58e97f6b86a119c7615d56",
+          "trials.jsonl": "567bfda20a3cffe3f0dc2990267f0b121b35af49a1f29e8a5471f7de1c28204b"
+        },
+        "run": "reuse64-128/run.pYNEdQaJ"
+      },
+      "reuse64-512": {
+        "mode": "pass3",
+        "strategy": "adaptive",
+        "scenario": "reuse64-512",
+        "workload": "reuse64",
+        "decode_domain": "source",
+        "live_ciphertexts": 1,
+        "conversion_keys": 0,
+        "inputs": {
+          "checkpoint.mlir": "96e2cd0005ea6b41dc41f022eabcdfe42891724289f307aa372aeda78baf6662",
+          "corpus.json": "da7f849b58bd3594d412b5be16718a368ea4e2c3a3f0332c7f6b9d8b2d1a1038",
+          "estimates.json": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a",
+          "pass3-options.json": "797b1086e5ab3ba5f0a182d367e39b8501edafca4fede605066ef225788b814e",
+          "profile.json": "59815ca90e794edb96ccadc0a6ec0f6a7112d91b2d7f9cebdf4569bb2adf11ae",
+          "security.json": "c73a1d89c15c425ff4fbdf2ba676c7f8acf94250a77b58ada027b159aeca42aa",
+          "source.mlir": "c87b0bbd03a024e297088e877619003468bca01d50d95b1c99503297cd5ca8e1"
+        },
+        "policy": {
+          "max_iters": 16,
+          "min_ring": 4096,
+          "source_security_bits": 128,
+          "switch_price": 1,
+          "switching_key_security_bits": 512,
+          "target_security_bits": 128
+        },
+        "outcome": "retain_source_ring",
+        "source_ring": 16384,
+        "target_ring": 16384,
+        "reasons": [
+          "switching_key_ext_modulus_security_rejected",
+          "boundary_concrete_replay: concrete message/scale headroom at lin1.mask0",
+          "period_mismatch",
+          "period_mismatch"
+        ],
+        "precheck_receipts": [
+          "8287047ed237204835e24ba243f7b3060fccf9b352c2ec2caf71f8de12f272f1"
+        ],
+        "emit_sha256": "72024689a0cb83d0e8fd86101a56869b9186822116e4e422d6907809f2679cce",
+        "checkpoint_sha256": "96e2cd0005ea6b41dc41f022eabcdfe42891724289f307aa372aeda78baf6662",
+        "tools_sha256": "dc7a49919effa548b456d420751711f4488e01faebf3b08c9fcfb41f9d5b750c",
+        "observed_key_bytes": {
+          "galois": 56627808,
+          "down": 0,
+          "relin": 18875920,
+          "public": 2359480
+        },
+        "measurements": {
+          "trials": 64,
+          "logical_outputs": 4096,
+          "slots_per_trial": 4096,
+          "physical_slots": 262144,
+          "misses": 0,
+          "linf": 9.976087309016002e-07,
+          "mse": 2.7107714656249183e-14,
+          "tolerance": 0.000244140625,
+          "actual_level": 1,
+          "actual_ring": 16384,
+          "actual_log_scale_range": [
+            38.00000000000003,
+            38.00000000000003
+          ],
+          "online_mean_ms": 190.024171453125,
+          "online_median_ms": 184.89363
+        },
+        "evidence_sha256": {
+          "search.json": "96c79abd8ad3bee90f39bdfa0126045a4bb3d78f63028fb017f08933b99fc155",
+          "program.json": "5141f6b503bdd580ee693291a84815f1327a0386c76d9c25692949748d7425f7",
+          "model.go": "bc45be37827054f57e06938b9430ee4cd8d004930fc5e49eea81f83bd35eb09b",
+          "metrics.json": "3bd56af64ab2e7613b21b5e0ccdde653dfc8b38d7573a8e9ce9ad211a4fad2c7",
+          "trials.jsonl": "b88bed9b74cee403ccc37dc8a50df5ffc8202cfbc5e2bcc0bcdb05240877e329"
+        },
+        "run": "reuse64-512/run.72C173nt"
+      },
+      "cross-residual": {
+        "mode": "pass3",
+        "strategy": "adaptive",
+        "scenario": "cross-residual",
+        "workload": "cross_residual",
+        "decode_domain": "source",
+        "live_ciphertexts": 2,
+        "conversion_keys": 0,
+        "inputs": {
+          "checkpoint.mlir": "44ea9571af3f9f507ffa2f6c5191113ed4a94c7d68ffd53315f2f6e54818bfd6",
+          "corpus.json": "cdace4edbdcdd1da391c6a6f141912ee26527696fadda0496f7b69e1b4949990",
+          "estimates.json": "1a921108ddfe0d87cd25078d06ccccbc5418acd0930cbe6b652fd18ba28c17a8",
+          "pass3-options.json": "797b1086e5ab3ba5f0a182d367e39b8501edafca4fede605066ef225788b814e",
+          "profile.json": "5581b2131387b0a6313ff17fbbd51613a163819575445078252de7c615e816c0",
+          "security.json": "f5f7d7e77607b8af9fb97c4a2ea9d87d707851335f40e39cfc7a12dc527961e2",
+          "source.mlir": "8dcbe72b6f9b6950206bec2d8c4252214b7d1c8c28b3ab85e283baaf701992e7"
+        },
+        "policy": {
+          "max_iters": 16,
+          "min_ring": 4096,
+          "source_security_bits": 128,
+          "switch_price": 1,
+          "switching_key_security_bits": 128,
+          "target_security_bits": 128
+        },
+        "outcome": "retain_source_ring",
+        "source_ring": 16384,
+        "target_ring": 16384,
+        "reasons": [
+          "residual_bypass_crosses_cut_unconverted",
+          "residual_bypass_crosses_cut_unconverted",
+          "residual_bypass_crosses_cut_unconverted",
+          "residual_bypass_crosses_cut_unconverted"
+        ],
+        "precheck_receipts": [
+          "9037fd8cfaf5beefb5fac0731af4be3fd47325fc3bad9b014382a06d62138525"
+        ],
+        "emit_sha256": "e89f0eeff1b55339b1dfbfb4eced319d7c453bc9d17c62be06199f0dd1627539",
+        "checkpoint_sha256": "44ea9571af3f9f507ffa2f6c5191113ed4a94c7d68ffd53315f2f6e54818bfd6",
+        "tools_sha256": "dc7a49919effa548b456d420751711f4488e01faebf3b08c9fcfb41f9d5b750c",
+        "observed_key_bytes": {
+          "galois": 56627808,
+          "down": 0,
+          "relin": 18875920,
+          "public": 2359480
+        },
+        "measurements": {
+          "trials": 64,
+          "logical_outputs": 4096,
+          "slots_per_trial": 4096,
+          "physical_slots": 262144,
+          "misses": 0,
+          "linf": 9.903031206182078e-07,
+          "mse": 2.7070190195600844e-14,
+          "tolerance": 0.000244140625,
+          "actual_level": 1,
+          "actual_ring": 16384,
+          "actual_log_scale_range": [
+            39.00000000000001,
+            39.00000000000001
+          ],
+          "online_mean_ms": 192.176593703125,
+          "online_median_ms": 185.1339175
+        },
+        "evidence_sha256": {
+          "search.json": "042b01d6756ea6fabe72f9e2b5a000cc3686348a1adf219e7fe863c4e6601650",
+          "program.json": "85a90dd127dc99f591cba76bd898da2820a49d76258153c082b2240ac921db87",
+          "model.go": "d0143a33aadbc1c2a0191cb5310264c5f35c168b5cc1d7172e703f105e7bd02b",
+          "metrics.json": "012504bc26be00aac5b133b7a510600cd3ae8312985b380f034de1899ce45f4e",
+          "trials.jsonl": "29feaf5da9f28f7ce34c022d46763d59f400c402af2a4a8884226143002a6906"
+        },
+        "run": "cross-residual/run.k011J5dB"
+      }
+    },
+    "single_ring": {
+      "control": {
+        "mode": "pass3",
+        "strategy": "baseline",
+        "scenario": "equiv-single-ring",
+        "workload": "control",
+        "decode_domain": "source",
+        "live_ciphertexts": 1,
+        "conversion_keys": 0,
+        "inputs": {
+          "checkpoint.mlir": "f26ff6be1829b5054968f0f883b1df3f5ff25fee048c4d459ebf889a9b5dabf7",
+          "corpus.json": "5802cccb9fed91891936ea89a42bea70c956a465183eab4b6801042cc0a56965",
+          "estimates.json": "dbd4b8a7426d5747edb9ea0291457088103e8a92ab9297f422d5f6ff2bc02356",
+          "pass3-options.json": "7a07ef80ebc88929d2ea8ff0f3398b181a24dadaeb72d84711484917b1bb913f",
+          "profile.json": "2d2febaa763a03258a90b059095d8f43449e876700bd7f3bacfc6b924d53cfb4",
+          "security.json": "50fc963a453f4c48a67b48ac0c423103e99357aa9a3f64c482cf511bb8b44707",
+          "source.mlir": "43942bfec60718bf347f28247542e6ba090260e04fdbb3a56ce75b8b0239d4c7"
+        },
+        "policy": {
+          "max_iters": 16,
+          "min_ring": 16384,
+          "source_security_bits": 128,
+          "switch_price": 1,
+          "switching_key_security_bits": 128,
+          "target_security_bits": 128
+        },
+        "outcome": "retain_source_ring",
+        "source_ring": 16384,
+        "target_ring": 16384,
+        "reasons": [],
+        "precheck_receipts": [
+          "37a3a50a4c581a79b734a88f06d74f4f3ca1cabd408c4a93712f17aa025f3bf8"
+        ],
+        "emit_sha256": "6325ddfcde604e4efea5ed47a34ceb84427bd43d8da54823f2ceb834fa2f272e",
+        "checkpoint_sha256": "f26ff6be1829b5054968f0f883b1df3f5ff25fee048c4d459ebf889a9b5dabf7",
+        "tools_sha256": "dc7a49919effa548b456d420751711f4488e01faebf3b08c9fcfb41f9d5b750c",
+        "observed_key_bytes": {
+          "galois": 37751872,
+          "down": 0,
+          "relin": 18875920,
+          "public": 2359480
+        },
+        "measurements": {
+          "trials": 64,
+          "measured_evaluations": 128,
+          "untimed_probe_evaluations": 2,
+          "slots_per_trial": 4096,
+          "physical_slots_per_arm": 262144,
+          "logical_outputs_per_arm": 256,
+          "tolerance": 0.000244140625,
+          "actual_ring": 16384,
+          "actual_level": 1,
+          "actual_log_scale_ranges": [
+            [
+              39.99999999999999,
+              39.99999999999999
+            ],
+            [
+              40,
+              40
+            ]
+          ],
+          "online_mean_ms_direct_legacy": [
+            188.61635796875,
+            183.564472765625
+          ],
+          "truth_linf_direct_legacy": [
+            3.279199183808812e-05,
+            3.2974637070193324e-05
+          ],
+          "truth_mse_direct_legacy": [
+            8.508265550419943e-11,
+            8.527698485516409e-11
+          ],
+          "truth_misses_direct_legacy": [
+            0,
+            0
+          ],
+          "paired_linf": 2.3188835027165844e-07,
+          "paired_mse": 2.33730035221152e-15,
+          "paired_misses": 0,
+          "encryption_count": 64,
+          "shared_eval_keys_sha256": "f586ff4c268771033e0c56c323771db02667df63c2f612a1dc4078174cd617c3"
+        },
+        "evidence_sha256": {
+          "search.json": "1b1387e35f5795822a8bc543dc32dfe0cca2f8d638512158f5c09e01b8268ef2",
+          "program.json": "e645da7183a4399e48ab256dd550e6be4f6c0561d0db89957fb0ba4c66435cc7",
+          "model.go": "3dd105bc8648fa3c1768748e2bbee432b670e2f826e93ba9d17d71e3cbc17919",
+          "metrics.json": "bf43f75e148d39dadeef8896de37211d3fa8f86e2fd1b449d2768c89e2af1c27",
+          "trials.jsonl": "ed0a4532e182fb08272d160ce3ad9c4852e0804b353993e7715df9802fbccf62",
+          "legacy/model.go": "36b271632c81436f0cef7844095792bd8922e3847ad45dd32bc8f1886088083c",
+          "legacy/audit.json": "bdc2e9315d9d06198abfe4d747b0d8040f97967e01c390176e5d569c4135f4b7",
+          "legacy/checked.mlir": "f26ff6be1829b5054968f0f883b1df3f5ff25fee048c4d459ebf889a9b5dabf7",
+          "legacy/translated.go.txt": "d5dbbeeb3f9a2e2b34c737706b450eb46bea06948f006cbaf489b3ef46f7aa6c"
+        },
+        "run": "equiv-control/run.0UhLCHgo"
+      },
+      "strided64": {
+        "mode": "pass3",
+        "strategy": "baseline",
+        "scenario": "equiv-single-ring",
+        "workload": "strided64",
+        "decode_domain": "source",
+        "live_ciphertexts": 1,
+        "conversion_keys": 0,
+        "inputs": {
+          "checkpoint.mlir": "3a44aee4acc8ae3a71a4453825dd6134042cc468cfa82878734b9853baf70f3d",
+          "corpus.json": "53344dc2a346edab638d2a3c2e03548ea720d0a51b3280e527fa19c97fc4ab1c",
+          "estimates.json": "1b8bd1083e750282978f51989be1af7e74da73dbbfef1c11d1d518e4e59f7efd",
+          "pass3-options.json": "797b1086e5ab3ba5f0a182d367e39b8501edafca4fede605066ef225788b814e",
+          "profile.json": "5f2e627862b5a5518d5bfba18b97b9c698f8621636ab9949aae7156d80d743b4",
+          "security.json": "de317b28ee817c60d13284da50f5e047931a11dd4d86b2c011b3ba2cedc84919",
+          "source.mlir": "c328a9900f27187299e03c372adcc796b7e6e426bbe8b0e11cda8cc39f852662"
+        },
+        "policy": {
+          "max_iters": 16,
+          "min_ring": 16384,
+          "source_security_bits": 128,
+          "switch_price": 1,
+          "switching_key_security_bits": 128,
+          "target_security_bits": 128
+        },
+        "outcome": "retain_source_ring",
+        "source_ring": 16384,
+        "target_ring": 16384,
+        "reasons": [],
+        "precheck_receipts": [
+          "772b69ff2357d49a2b3555ffd0e3eb97bd3f0e90376e6d096b4a1f740b0e1543"
+        ],
+        "emit_sha256": "b549923e24e4ad6cdff0fdbc474f88304741a5b91e1585712a7871ea047216b5",
+        "checkpoint_sha256": "3a44aee4acc8ae3a71a4453825dd6134042cc468cfa82878734b9853baf70f3d",
+        "tools_sha256": "dc7a49919effa548b456d420751711f4488e01faebf3b08c9fcfb41f9d5b750c",
+        "observed_key_bytes": {
+          "galois": 56627808,
+          "down": 0,
+          "relin": 18875920,
+          "public": 2359480
+        },
+        "measurements": {
+          "trials": 64,
+          "measured_evaluations": 128,
+          "untimed_probe_evaluations": 2,
+          "slots_per_trial": 4096,
+          "physical_slots_per_arm": 262144,
+          "logical_outputs_per_arm": 4096,
+          "tolerance": 0.000244140625,
+          "actual_ring": 16384,
+          "actual_level": 1,
+          "actual_log_scale_ranges": [
+            [
+              38.00000000000003,
+              38.00000000000003
+            ],
+            [
+              38.00000000000001,
+              38.00000000000001
+            ]
+          ],
+          "online_mean_ms_direct_legacy": [
+            188.222529625,
+            179.42692928125
+          ],
+          "truth_linf_direct_legacy": [
+            1.8349003114703777e-06,
+            1.8126735343154676e-06
+          ],
+          "truth_mse_direct_legacy": [
+            9.082173648962203e-14,
+            9.053697259361845e-14
+          ],
+          "truth_misses_direct_legacy": [
+            0,
+            0
+          ],
+          "paired_linf": 9.243671554234889e-08,
+          "paired_mse": 1.5699086597917163e-16,
+          "paired_misses": 0,
+          "encryption_count": 64,
+          "shared_eval_keys_sha256": "2f81e2293d221946d5870000fdcbeb2476a29c44451fecaa3283c5e0e61020a2"
+        },
+        "evidence_sha256": {
+          "search.json": "24a5ae73dac62ca497ea1e4da11904c969abe4cac2ab49ba4860f3d5b446a2f6",
+          "program.json": "636bb246942247133f53ccbd9b9e95d2cf294223c47237b46d7149413b98b43d",
+          "model.go": "d8e5892da7c0e650fdb2725fd2ee5b50e24c319545b1cf43334e68a7f1eb2f34",
+          "metrics.json": "b0d1dc20f8293099304cff835086c2a4c8413a9e9fa0faf378df9907590e556c",
+          "trials.jsonl": "6b1ea8f8d41323d3ae55092dfd75adafcc833daad61ce9eefc0fb1894fc91add",
+          "legacy/model.go": "56fb70fd852f25b1a90e7c890f53dc9de772d88d74cde109734c431bfc45b5a4",
+          "legacy/audit.json": "f3952d020361bf496325615b41b7379bf67cb35ed356cb84888dbb32cc1a22e5",
+          "legacy/checked.mlir": "3a44aee4acc8ae3a71a4453825dd6134042cc468cfa82878734b9853baf70f3d",
+          "legacy/translated.go.txt": "1a04de973f10d3eb830835a28959b82a9f42ed2c85b56bb3ef768d045de423e4"
+        },
+        "run": "equiv-strided64/run.fiBCgdoP"
+      },
+      "reuse64": {
+        "mode": "pass3",
+        "strategy": "baseline",
+        "scenario": "equiv-single-ring",
+        "workload": "reuse64",
+        "decode_domain": "source",
+        "live_ciphertexts": 1,
+        "conversion_keys": 0,
+        "inputs": {
+          "checkpoint.mlir": "96e2cd0005ea6b41dc41f022eabcdfe42891724289f307aa372aeda78baf6662",
+          "corpus.json": "da7f849b58bd3594d412b5be16718a368ea4e2c3a3f0332c7f6b9d8b2d1a1038",
+          "estimates.json": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a",
+          "pass3-options.json": "797b1086e5ab3ba5f0a182d367e39b8501edafca4fede605066ef225788b814e",
+          "profile.json": "59815ca90e794edb96ccadc0a6ec0f6a7112d91b2d7f9cebdf4569bb2adf11ae",
+          "security.json": "c73a1d89c15c425ff4fbdf2ba676c7f8acf94250a77b58ada027b159aeca42aa",
+          "source.mlir": "c87b0bbd03a024e297088e877619003468bca01d50d95b1c99503297cd5ca8e1"
+        },
+        "policy": {
+          "max_iters": 16,
+          "min_ring": 16384,
+          "source_security_bits": 128,
+          "switch_price": 1,
+          "switching_key_security_bits": 128,
+          "target_security_bits": 128
+        },
+        "outcome": "retain_source_ring",
+        "source_ring": 16384,
+        "target_ring": 16384,
+        "reasons": [],
+        "precheck_receipts": [
+          "8287047ed237204835e24ba243f7b3060fccf9b352c2ec2caf71f8de12f272f1"
+        ],
+        "emit_sha256": "40d30f2b555ce00e1a86f3c09ec4e270b6631d00e6c8dec432bd69734d771a6f",
+        "checkpoint_sha256": "96e2cd0005ea6b41dc41f022eabcdfe42891724289f307aa372aeda78baf6662",
+        "tools_sha256": "dc7a49919effa548b456d420751711f4488e01faebf3b08c9fcfb41f9d5b750c",
+        "observed_key_bytes": {
+          "galois": 56627808,
+          "down": 0,
+          "relin": 18875920,
+          "public": 2359480
+        },
+        "measurements": {
+          "trials": 64,
+          "measured_evaluations": 128,
+          "untimed_probe_evaluations": 2,
+          "slots_per_trial": 4096,
+          "physical_slots_per_arm": 262144,
+          "logical_outputs_per_arm": 4096,
+          "tolerance": 0.000244140625,
+          "actual_ring": 16384,
+          "actual_level": 1,
+          "actual_log_scale_ranges": [
+            [
+              38.00000000000003,
+              38.00000000000003
+            ],
+            [
+              38.00000000000001,
+              38.00000000000001
+            ]
+          ],
+          "online_mean_ms_direct_legacy": [
+            191.94993646875,
+            182.440908296875
+          ],
+          "truth_linf_direct_legacy": [
+            9.99903915027689e-07,
+            9.765172179765358e-07
+          ],
+          "truth_mse_direct_legacy": [
+            2.7097298389157176e-14,
+            2.6888623276310543e-14
+          ],
+          "truth_misses_direct_legacy": [
+            0,
+            0
+          ],
+          "paired_linf": 1.0612617311334116e-07,
+          "paired_mse": 1.4375615034316036e-16,
+          "paired_misses": 0,
+          "encryption_count": 64,
+          "shared_eval_keys_sha256": "b4159a740aa0105a4f2fda919dbb64d52307102ebf1a93792ef8f8d053c861d3"
+        },
+        "evidence_sha256": {
+          "search.json": "578dabe7ad083a85c1f2e4c5b06acb8ff478302d2cbb8c8c8027f4c9b9f5e873",
+          "program.json": "30a989299391e134471fee7654d9fa2f507c95d68c5cc1c37317808f656635a6",
+          "model.go": "e9b6fd26d595ac6dc6cb8d328f116193cb61559c35a6cc79af6865a021db06d8",
+          "metrics.json": "f91e3770d16d1d68655c3369172c2a0f679c30a36ea7cab7ef21198091813968",
+          "trials.jsonl": "6cd889d98c5899a1a3081c35573c8dea4f646de828f6bbf80129f1fa59824774",
+          "legacy/model.go": "283c216295c54432e54d5a7b9c2dd8473fb577cbb2ba0d9aa13de8ce5272ec05",
+          "legacy/audit.json": "af8ac066cf07af1be3224e5bb1b093083ae3c485508b10e9ba01e9c268dc5c98",
+          "legacy/checked.mlir": "96e2cd0005ea6b41dc41f022eabcdfe42891724289f307aa372aeda78baf6662",
+          "legacy/translated.go.txt": "58db653886aa05302c3a11abe6d95f51d7757161619b484e3c0f07638afdee4b"
+        },
+        "run": "equiv-reuse64/run.CQJtKBuw"
+      },
+      "residual": {
+        "mode": "pass3",
+        "strategy": "baseline",
+        "scenario": "equiv-single-ring",
+        "workload": "residual",
+        "decode_domain": "source",
+        "live_ciphertexts": 1,
+        "conversion_keys": 0,
+        "inputs": {
+          "checkpoint.mlir": "04926c4d381ef42039ce86452ca4351ac413955fc5014854827c67194a5865d4",
+          "corpus.json": "be075e087f3f54e6b3f7de63da802c56213a62c131fc81d8f5ef1b8ff0bdfd2e",
+          "estimates.json": "2a5cdb5dfad8eb72b3c737fdec67c7d6c1bf05fd3adfd30cc77552f4e2c6e6ff",
+          "pass3-options.json": "797b1086e5ab3ba5f0a182d367e39b8501edafca4fede605066ef225788b814e",
+          "profile.json": "3a6ffd5ad68f38e8ac6a32dfabda9879cb30ec559d3985f3f0db0ee80417a6e8",
+          "security.json": "6877f0985573b3998f9aefde4b3bcba9468a609d5404a48156ac06f238b926e7",
+          "source.mlir": "c7e8e778ac39fbca30002d7ab4af7b57d130e9fdfe4be8ad491920b07348e1f2"
+        },
+        "policy": {
+          "max_iters": 16,
+          "min_ring": 16384,
+          "source_security_bits": 128,
+          "switch_price": 1,
+          "switching_key_security_bits": 128,
+          "target_security_bits": 128
+        },
+        "outcome": "retain_source_ring",
+        "source_ring": 16384,
+        "target_ring": 16384,
+        "reasons": [],
+        "precheck_receipts": [
+          "6e06ac745e3db5a473056e9ba92266b2719868502b78e9e2721b3b25473db1b7"
+        ],
+        "emit_sha256": "a7695362deae434c683efb54b1e6e88fc2e35582fa212b63b8a27cb2a7cf7ece",
+        "checkpoint_sha256": "04926c4d381ef42039ce86452ca4351ac413955fc5014854827c67194a5865d4",
+        "tools_sha256": "dc7a49919effa548b456d420751711f4488e01faebf3b08c9fcfb41f9d5b750c",
+        "observed_key_bytes": {
+          "galois": 56627808,
+          "down": 0,
+          "relin": 18875920,
+          "public": 2359480
+        },
+        "measurements": {
+          "trials": 64,
+          "measured_evaluations": 128,
+          "untimed_probe_evaluations": 2,
+          "slots_per_trial": 4096,
+          "physical_slots_per_arm": 262144,
+          "logical_outputs_per_arm": 4096,
+          "tolerance": 0.000244140625,
+          "actual_ring": 16384,
+          "actual_level": 1,
+          "actual_log_scale_ranges": [
+            [
+              39.00000000000001,
+              39.00000000000001
+            ],
+            [
+              39,
+              39
+            ]
+          ],
+          "online_mean_ms_direct_legacy": [
+            168.880978875,
+            157.125514125
+          ],
+          "truth_linf_direct_legacy": [
+            2.9473701618210058e-06,
+            3.050083770050893e-06
+          ],
+          "truth_mse_direct_legacy": [
+            2.0250067687475238e-13,
+            2.0474334891462247e-13
+          ],
+          "truth_misses_direct_legacy": [
+            0,
+            0
+          ],
+          "paired_linf": 1.1401934477128783e-07,
+          "paired_mse": 1.7055139322522355e-16,
+          "paired_misses": 0,
+          "encryption_count": 64,
+          "shared_eval_keys_sha256": "c341693d664f643a0c4fdbc225f4e05fa040c0cb27ae4cd8b3af68ac56094b26"
+        },
+        "evidence_sha256": {
+          "search.json": "7f6036762d066ba151b7cd609fbefbcb5c9e392fc02e13be3635a3d0bb617349",
+          "program.json": "edfdff5ec3616ea485db6ccce96e8cb5c3aac48487152988813b0bbf193c6d27",
+          "model.go": "6922c40ea12aca85eed5d69afa494a03f72cb3ae114d5ba1d12a352632d2ad8c",
+          "metrics.json": "7c95c55976b1bc41b5dedc5ca59c44841c3d1b8427d9a1348f0d38820e87a5f9",
+          "trials.jsonl": "dd478d1cbc61901bfbe194ce855f74d9679eb5b7987a21e6c30df860f5e833bf",
+          "legacy/model.go": "1b88a894675c5959104bf8d5aca1ca33f39151295678dc1e612a513ea7ecd351",
+          "legacy/audit.json": "9ad5f5c3eb9a3037d725745943a240c692b35771cdb1e7d719470548c4dda17c",
+          "legacy/checked.mlir": "04926c4d381ef42039ce86452ca4351ac413955fc5014854827c67194a5865d4",
+          "legacy/translated.go.txt": "11f9a71f607e829d74434ff399499838ef09565084883235ef699139878053f7"
+        },
+        "run": "equiv-residual/run.BhyMPIaM"
+      }
+    },
+    "equivalence": {
+      "inputs": 256,
+      "timed_evaluations": 512,
+      "untimed_probe_evaluations": 8,
+      "physical_slot_pairs": 1048576,
+      "truth_slot_checks": 2097152,
+      "paired_linf": 2.3188835027165844e-07,
+      "paired_mse": 7.02149690439769e-16,
+      "truth_misses": 0,
+      "paired_misses": 0
+    }
+  }
+}

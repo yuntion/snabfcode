@@ -1,0 +1,18 @@
+[
+  {
+    "case": "paired_only_periodic_slot",
+    "error": "threshold exceeded (direct, legacy, paired): [0, 0, 1]"
+  },
+  {
+    "case": "unshared_ciphertext",
+    "error": "ciphertext/key sharing or crossover order mismatch"
+  },
+  {
+    "case": "wrong_order",
+    "error": "ciphertext/key sharing or crossover order mismatch"
+  },
+  {
+    "case": "legacy_wrong_ring",
+    "error": "paired timing or output ABI mismatch"
+  }
+]

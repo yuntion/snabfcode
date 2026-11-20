@@ -1,0 +1,6 @@
+{
+  "description": "Fixed normalized operation costs (not timings); key bytes are Lattigo serialized sizes.",
+  "hoisted_per_active_limb": 0.625,
+  "giant_per_active_limb": 1.0,
+  "key_units_per_mib": 1.0
+}

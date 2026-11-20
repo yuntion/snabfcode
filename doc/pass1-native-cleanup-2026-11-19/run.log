@@ -1,0 +1,231 @@
+Pass 1 evidence: /home/fhecompiler/build/pass1-native-clean.W2pb5Lzm/run.lA2p4ZDE
+-- The CXX compiler identification is GNU 11.4.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Looking for C++ include pthread.h
+-- Looking for C++ include pthread.h - found
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Found ZLIB: /usr/lib/x86_64-linux-gnu/libz.so (found version "1.2.11") 
+-- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.74.0/BoostConfig.cmake (found version "1.74.0")  
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/fhecompiler/build/pass1-native-clean.W2pb5Lzm/native
+[  1%] Generating heir-inc/lib/Dialect/HEIRAttrInterfaces.cpp.inc
+[  2%] Generating heir-inc/lib/Utils/Tablegen/InPlaceOpInterface.h.inc
+[  3%] Building CXX object CMakeFiles/snabf_pass3.dir/pass3/GadgetNoiseContract.cpp.o
+[  4%] Building CXX object CMakeFiles/snabf_planner.dir/Orchestrator.cpp.o
+[  5%] Building CXX object CMakeFiles/snabf_pass4.dir/pass4/LayoutContract.cpp.o
+[  6%] Building CXX object CMakeFiles/snabf_pass2.dir/pass2/PolyTemplates.cpp.o
+[  7%] Generating heir-inc/lib/Dialect/HEIRAttrInterfaces.h.inc
+[  8%] Generating heir-inc/lib/Dialect/HEIROpInterfaces.cpp.inc
+[  9%] Generating heir-inc/lib/Dialect/HEIROpInterfaces.h.inc
+[ 10%] Building CXX object CMakeFiles/snabf_planner.dir/RouteSelection.cpp.o
+[ 11%] Generating heir-inc/lib/Dialect/HEIRTypeInterfaces.cpp.inc
+[ 12%] Generating heir-inc/lib/Dialect/HEIRTypeInterfaces.h.inc
+[ 13%] Generating heir-inc/lib/Dialect/Lattigo/IR/LattigoAttributes.cpp.inc
+[ 14%] Generating heir-inc/lib/Dialect/Lattigo/IR/LattigoAttributes.h.inc
+[ 15%] Generating heir-inc/lib/Dialect/Lattigo/IR/LattigoDialect.cpp.inc
+[ 16%] Generating heir-inc/lib/Dialect/Lattigo/IR/LattigoDialect.h.inc
+[ 17%] Generating heir-inc/lib/Dialect/Lattigo/IR/LattigoOps.cpp.inc
+[ 18%] Generating heir-inc/lib/Dialect/Lattigo/IR/LattigoOps.h.inc
+[ 19%] Generating heir-inc/lib/Dialect/Lattigo/IR/LattigoTypes.cpp.inc
+[ 20%] Generating heir-inc/lib/Dialect/Lattigo/IR/LattigoTypes.h.inc
+[ 21%] Generating heir-inc/lib/Dialect/Secret/IR/SecretAttributes.cpp.inc
+[ 22%] Generating heir-inc/lib/Dialect/Secret/IR/SecretAttributes.h.inc
+[ 23%] Generating heir-inc/lib/Dialect/Secret/IR/SecretDialect.cpp.inc
+[ 24%] Generating heir-inc/lib/Dialect/Secret/IR/SecretDialect.h.inc
+[ 25%] Generating heir-inc/lib/Utils/Tablegen/InPlaceOpInterface.cpp.inc
+Consolidate compiler generated dependencies of target heir_lattigo
+[ 26%] Building CXX object ir/CMakeFiles/heir_lattigo.dir/home/fhecompiler/extern/heir/lib/Dialect/Lattigo/IR/LattigoDialect.cpp.o
+[ 27%] Building CXX object CMakeFiles/snabf_pass3.dir/pass3/ParameterMILP.cpp.o
+[ 28%] Building CXX object CMakeFiles/snabf_planner.dir/pass1/SubgroupTower.cpp.o
+[ 29%] Building CXX object CMakeFiles/snabf_pass4.dir/pass4/RingSwitchPlan.cpp.o
+[ 30%] Building CXX object CMakeFiles/snabf_pass2.dir/pass2/IntervalCertifier.cpp.o
+[ 31%] Building CXX object CMakeFiles/snabf_pass4.dir/pass4/DynamicRingPlanner.cpp.o
+[ 32%] Building CXX object CMakeFiles/snabf_planner.dir/pass1/KeyReuseModel.cpp.o
+[ 34%] Linking CXX static library libsnabf_pass4.a
+[ 34%] Built target snabf_pass4
+[ 35%] Building CXX object CMakeFiles/snabf_pass3.dir/pass3/PrimeInstantiator.cpp.o
+[ 36%] Building CXX object CMakeFiles/snabf_pass2.dir/pass2/CompositePolyDP.cpp.o
+[ 37%] Generating Types.h.inc
+[ 38%] Generating Attrs.cpp.inc
+[ 39%] Building CXX object CMakeFiles/snabf_planner.dir/pass1/RingSwitch.cpp.o
+[ 40%] Generating Attrs.h.inc
+[ 41%] Generating Dialect.cpp.inc
+[ 42%] Generating Dialect.h.inc
+[ 43%] Generating Ops.cpp.inc
+[ 44%] Generating Ops.h.inc
+[ 45%] Generating Types.cpp.inc
+[ 46%] Building CXX object ir/CMakeFiles/snabf_ir.dir/IR.cpp.o
+[ 47%] Building CXX object CMakeFiles/snabf_pass3.dir/pass3/ConcreteVerifier.cpp.o
+[ 48%] Linking CXX static library libsnabf_planner.a
+[ 48%] Built target snabf_planner
+[ 49%] Building CXX object CMakeFiles/Pass4Test.dir/home/fhecompiler/test/compiler/Pass4Test.cpp.o
+[ 50%] Building CXX object CMakeFiles/snabf_pass2.dir/pass2/NoiseTransfer.cpp.o
+[ 51%] Linking CXX static library libsnabf_pass3.a
+[ 51%] Built target snabf_pass3
+[ 52%] Linking CXX executable Pass4Test
+[ 53%] Building CXX object CMakeFiles/Pass1MechanicsTest.dir/home/fhecompiler/test/compiler/Pass1MechanicsTest.cpp.o
+[ 53%] Built target Pass4Test
+[ 54%] Building CXX object CMakeFiles/Pass3Test.dir/home/fhecompiler/test/compiler/Pass3Test.cpp.o
+[ 55%] Linking CXX executable Pass3Test
+[ 55%] Built target Pass3Test
+[ 56%] Building CXX object CMakeFiles/snabf_planner_test.dir/home/fhecompiler/test/compiler/OrchestratorTest.cpp.o
+[ 57%] Building CXX object ir/CMakeFiles/heir_lattigo.dir/home/fhecompiler/extern/heir/lib/Dialect/Lattigo/IR/LattigoOps.cpp.o
+[ 58%] Linking CXX static library libsnabf_pass2.a
+[ 58%] Built target snabf_pass2
+[ 59%] Building CXX object ir/CMakeFiles/heir_lattigo.dir/home/fhecompiler/extern/heir/lib/Dialect/HEIRInterfaces.cpp.o
+[ 60%] Linking CXX executable Pass1MechanicsTest
+[ 60%] Built target Pass1MechanicsTest
+[ 61%] Building CXX object CMakeFiles/snabf-pass1.dir/pass1/Planner.cpp.o
+[ 62%] Linking CXX executable snabf_planner_test
+[ 62%] Built target snabf_planner_test
+[ 63%] Building CXX object CMakeFiles/Pass2CertTest.dir/home/fhecompiler/test/compiler/Pass2CertTest.cpp.o
+In file included from /usr/include/boost/bind.hpp:30,
+                 from /usr/include/boost/property_tree/json_parser/detail/parser.hpp:7,
+                 from /usr/include/boost/property_tree/json_parser/detail/read.hpp:13,
+                 from /usr/include/boost/property_tree/json_parser.hpp:16,
+                 from /home/fhecompiler/src/compiler/pass1/Planner.cpp:6:
+/usr/include/boost/bind.hpp:36:1: note: '#pragma message: The practice of declaring the Bind placeholders (_1, _2, ...) in the global namespace is deprecated. Please use <boost/bind/bind.hpp> + using namespace boost::placeholders, or define BOOST_BIND_GLOBAL_PLACEHOLDERS to retain the current behavior.'
+   36 | BOOST_PRAGMA_MESSAGE(
+      | ^~~~~~~~~~~~~~~~~~~~
+[ 64%] Linking CXX executable Pass2CertTest
+[ 64%] Built target Pass2CertTest
+[ 65%] Building CXX object CMakeFiles/Pass2DPTest.dir/home/fhecompiler/test/compiler/Pass2DPTest.cpp.o
+[ 67%] Building CXX object ir/CMakeFiles/heir_lattigo.dir/home/fhecompiler/extern/heir/lib/Utils/Tablegen/InPlaceOpInterface.cpp.o
+[ 68%] Linking CXX static library libsnabf_ir.a
+[ 68%] Built target snabf_ir
+[ 69%] Linking CXX executable Pass2DPTest
+[ 70%] Building CXX object CMakeFiles/Pass2NoiseTest.dir/home/fhecompiler/test/compiler/Pass2NoiseTest.cpp.o
+[ 70%] Built target Pass2DPTest
+[ 71%] Building CXX object ir/CMakeFiles/snabf_import.dir/HEIRImport.cpp.o
+[ 72%] Linking CXX executable snabf-pass1
+[ 72%] Built target snabf-pass1
+[ 73%] Building CXX object ir/CMakeFiles/heir_lattigo.dir/home/fhecompiler/extern/heir/lib/Utils/Utils.cpp.o
+[ 74%] Linking CXX executable Pass2NoiseTest
+[ 74%] Built target Pass2NoiseTest
+[ 75%] Building CXX object CMakeFiles/SSACutTest.dir/pass4/tests/SSACutTest.cpp.o
+[ 76%] Building CXX object ir/CMakeFiles/heir_lattigo.dir/home/fhecompiler/extern/heir/lib/Utils/MathUtils.cpp.o
+[ 77%] Building CXX object ir/CMakeFiles/heir_lattigo.dir/home/fhecompiler/extern/heir/lib/Utils/APIntUtils.cpp.o
+[ 78%] Linking CXX executable SSACutTest
+[ 79%] Linking CXX static library libsnabf_import.a
+[ 79%] Built target snabf_import
+[ 79%] Built target SSACutTest
+[ 80%] Linking CXX static library libheir_lattigo.a
+[ 80%] Built target heir_lattigo
+[ 81%] Generating Passes.h.inc
+[ 83%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/Planning.cpp.o
+[ 84%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/Lowering.cpp.o
+[ 84%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/TransferRecords.cpp.o
+[ 85%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/Pass2Lowering.cpp.o
+[ 86%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/PolyRecords.cpp.o
+[ 87%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/ActivationRegions.cpp.o
+[ 88%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/Passes.cpp.o
+[ 89%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/__/pass1/NativeRouting.cpp.o
+[ 90%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/__/pass1/NativeBootstrap.cpp.o
+[ 91%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/Pass3IR.cpp.o
+[ 92%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/Pass4IR.cpp.o
+[ 93%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/__/Target/Lattigo/RingEmitter.cpp.o
+[ 94%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/__/Target/Lattigo/EmitVerifier.cpp.o
+[ 95%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/__/Target/Lattigo/EmitGraph.cpp.o
+[ 96%] Building CXX object ir/CMakeFiles/snabf_pipeline.dir/__/Target/Lattigo/DirectGo.cpp.o
+[ 97%] Linking CXX static library libsnabf_pipeline.a
+[ 97%] Built target snabf_pipeline
+[ 98%] Building CXX object ir/CMakeFiles/snabf-opt.dir/Driver.cpp.o
+[100%] Linking CXX executable snabf-opt
+[100%] Built target snabf-opt
+Internal ctest changing into directory: /home/fhecompiler/build/pass1-native-clean.W2pb5Lzm/native
+Test project /home/fhecompiler/build/pass1-native-clean.W2pb5Lzm/native
+    Start 1: SSACutTest
+1/8 Test #1: SSACutTest .......................   Passed    0.03 sec
+    Start 2: Pass4Test
+2/8 Test #2: Pass4Test ........................   Passed    0.00 sec
+    Start 3: Pass1MechanicsTest
+3/8 Test #3: Pass1MechanicsTest ...............   Passed    0.03 sec
+    Start 4: Pass3Test
+4/8 Test #4: Pass3Test ........................   Passed    0.03 sec
+    Start 5: Pass2CertTest
+5/8 Test #5: Pass2CertTest ....................   Passed    0.33 sec
+    Start 6: Pass2DPTest
+6/8 Test #6: Pass2DPTest ......................   Passed    0.26 sec
+    Start 7: Pass2NoiseTest
+7/8 Test #7: Pass2NoiseTest ...................   Passed    0.00 sec
+    Start 8: snabf_planner
+8/8 Test #8: snabf_planner ....................   Passed    0.03 sec
+
+100% tests passed, 0 tests failed out of 8
+
+Total Test time (real) =   0.72 sec
+=== RUN   TestSparseDownConv
+    downconv_test.go:83: DownConv N=16384->8192, slots=8, level=1, log2(scale)=40.0, map L_inf=9.144139758148668e-10, key bytes=1573072
+--- PASS: TestSparseDownConv (0.07s)
+=== RUN   TestCenteredGadget
+    gadget_test.go:79: paired relin slot Linf=1.0675498243860474e-08, event={Site:{ID: Level:3 K:1} RowsExecuted:3 RowsSkipped:1 ForwardNTT:15 InverseNTT:4 Decompositions:3 ResidualMax:1.049363e+06 ResidualMean:10980.6240234375 ResidualMeanSquare:3.6318285576323145e+11 LogScale:64 NativeDecompNTT:24 NetDecompNTTSaved:5 ResidualVariance:3.6306228165928735e+11}
+--- PASS: TestCenteredGadget (0.02s)
+PASS
+ok  	snabf.local/compiler/test/backend	0.094s
+control/independent: rounds=1 keys=3 bytes=31459872
+control/joint: rounds=1 keys=2 bytes=20973248
+strided64/independent: rounds=1 keys=4 bytes=41946496
+strided64/joint: rounds=1 keys=3 bytes=31459872
+reuse64/independent: rounds=1 keys=4 bytes=41946496
+reuse64/joint: rounds=1 keys=3 bytes=31459872
+reuse64/cap2: rounds=2 keys=4 bytes=41946496
+PASS: complete tower catalog, charge/feedback tamper, Pass 4 layout contract, dense pricing
+PASS: native Pass 1 Eq. (3), positive/tie/negative/variance/level/layout branches and planning-only boundary
+PASS: native dialect registration, SSA branch, round-trip, fixed point, stale-plan rejection, sink feedback, infeasibility, profile/type checks and IR-guided lowering
+PASS: stale bootstrap manifest, wrong physical Q and aliasing input rejected
+=== RUN   TestPeriodicRoundTrip
+    periodic_bootstrap_test.go:67: real cross-ring refresh: 8 x 64; Linf=1.5304858629328066e-06, MSE=2.1685009366093622e-13
+--- PASS: TestPeriodicRoundTrip (38.63s)
+PASS
+ok  	snabf.local/compiler/build/pass1-native-clean.W2pb5Lzm/run.lA2p4ZDE/periodic_boot	38.884s
+=== RUN   TestControl
+    inference_test.go:260: SNABF_PASS1 {"arm":"heir","metrics":{"Linf":0.000054767805813871195,"MSE":1.7741968655797722e-10,"VsHeirLinf":0,"MeanEvalMs":158.820080765625,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,25],"SerializedGaloisBytes":20973248,"Trials":64,"Outputs":256},"workload":"control"}
+    inference_test.go:260: SNABF_PASS1 {"arm":"independent","metrics":{"Linf":0.00005750762993472769,"MSE":2.9833556439273416e-10,"VsHeirLinf":0.00006774067878723145,"MeanEvalMs":154.61546823437507,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,25,125],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":256},"workload":"control"}
+    inference_test.go:260: SNABF_PASS1 {"arm":"joint","metrics":{"Linf":0.00004648548155841703,"MSE":1.378426957166089e-10,"VsHeirLinf":0.000054270029067993164,"MeanEvalMs":159.26087696874998,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,25],"SerializedGaloisBytes":20973248,"Trials":64,"Outputs":256},"workload":"control"}
+--- PASS: TestControl (35.21s)
+=== RUN   TestStrided64
+    inference_test.go:266: SNABF_PASS1 {"arm":"heir","metrics":{"Linf":0.000045649347263147094,"MSE":7.59483800502396e-11,"VsHeirLinf":0,"MeanEvalMs":174.26472306250005,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,25,625],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":4096},"workload":"strided64"}
+    inference_test.go:266: SNABF_PASS1 {"arm":"independent","metrics":{"Linf":0.0000502491899931623,"MSE":7.437458195855716e-11,"VsHeirLinf":0.00006598047912120819,"MeanEvalMs":144.52760804687506,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,25,625,3125],"SerializedGaloisBytes":41946496,"Trials":64,"Outputs":4096},"workload":"strided64"}
+    inference_test.go:266: SNABF_PASS1 {"arm":"joint","metrics":{"Linf":0.000050929204770712444,"MSE":7.430901007368482e-11,"VsHeirLinf":0.00006113201379776001,"MeanEvalMs":157.57353767187504,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,25,625],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":4096},"workload":"strided64"}
+--- PASS: TestStrided64 (35.48s)
+=== RUN   TestReuse64
+    inference_test.go:272: SNABF_PASS1 {"arm":"heir","metrics":{"Linf":0.000044910316265342476,"MSE":6.126955579215919e-11,"VsHeirLinf":0,"MeanEvalMs":170.76110356250004,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,125,625,15625,30177],"SerializedGaloisBytes":52433120,"Trials":64,"Outputs":4096},"workload":"reuse64"}
+    inference_test.go:272: SNABF_PASS1 {"arm":"independent","metrics":{"Linf":0.00004961658567186056,"MSE":6.174080602029516e-11,"VsHeirLinf":0.0000616119086771505,"MeanEvalMs":133.957491828125,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[12589,15625,19813,30177],"SerializedGaloisBytes":41946496,"Trials":64,"Outputs":4096},"workload":"reuse64"}
+    inference_test.go:272: SNABF_PASS1 {"arm":"joint","metrics":{"Linf":0.00004093640055482725,"MSE":6.863536216662922e-11,"VsHeirLinf":0.000055752694606781006,"MeanEvalMs":155.29446329687502,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,15625,30177],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":4096},"workload":"reuse64"}
+--- PASS: TestReuse64 (34.36s)
+PASS
+ok  	snabf.local/compiler/test/pass1	105.104s
+=== RUN   TestSinkFeedbackExecution
+    feedback_test.go:119: SNABF_PASS1 {"arm":"cap2","metrics":{"Galois":[12589,15625,19813,30177],"InputLevel":7,"Linf":0.00002097882865069456,"MSE":4.641823391929449e-11,"MeanEvalMs":137.13065225,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Outputs":256,"SerializedGaloisBytes":41946496,"Trials":4,"VsHeirLinf":0.00004997476935386658},"workload":"reuse64"}
+--- PASS: TestSinkFeedbackExecution (2.25s)
+PASS
+ok  	snabf.local/compiler/test/unified	2.287s
+residual/economy: silu_direct.d3.ps, silu_direct, poly L6->2, sink L1, 41946496 Galois bytes
+residual/precision: silu_direct.d7.ps, silu_direct, poly L6->1, sink L0, 31459872 Galois bytes
+=== RUN   Test_residual
+    models_test.go:9: residual/economy NUMERICAL PASS: 0/4096 slots over 0.000244140625; Linf 0.0001624690125 MSE 1.029592226e-09; hard_precision_gate=true
+    models_test.go:9: residual/precision NUMERICAL PASS: 0/4096 slots over 0.000244140625; Linf 0.0001650176497 MSE 1.096090145e-09; hard_precision_gate=true
+--- PASS: Test_residual (20.47s)
+PASS
+ok  	snabf.local/compiler/build/pass1-native-clean.W2pb5Lzm/run.lA2p4ZDE/pass2/go_test	20.518s
+=== RUN   Test_reuse64
+    harness_test.go:191: ../reuse64/no_trunc: 0/4096 misses Linf=9.633718290047444e-07 MSE=2.7026393076259138e-14 mean=187.39ms
+    harness_test.go:191: ../reuse64/joint: 0/4096 misses Linf=9.633718290047444e-07 MSE=2.692244454037619e-14 mean=187.48ms
+    harness_test.go:191: ../reuse64/matched_exact: 0/4096 misses Linf=9.633718290047444e-07 MSE=2.6883075547453934e-14 mean=186.76ms
+--- PASS: Test_reuse64 (42.18s)
+=== RUN   Test_residual
+    harness_test.go:191: ../residual/no_trunc: 0/4096 misses Linf=3.034303989735143e-06 MSE=2.047047440015822e-13 mean=155.84ms
+    harness_test.go:191: ../residual/joint: 0/4096 misses Linf=3.049205150928991e-06 MSE=2.0474047459243653e-13 mean=151.60ms
+    harness_test.go:191: ../residual/matched_exact: 0/4096 misses Linf=3.034303989735143e-06 MSE=2.0478962534214015e-13 mean=154.48ms
+--- PASS: Test_residual (35.56s)
+PASS
+ok  	snabf.local/compiler/build/pass1-native-clean.W2pb5Lzm/run.lA2p4ZDE/pass3/go_test	77.793s
+PASS: paired ciphertexts, independent slot and parameter replay, stale-plan rejection, and joint budget sweep
+PASS: ciphertexts, complete tower/union/work records, Pass 2 precision feedback and concrete Pass 3 scopes

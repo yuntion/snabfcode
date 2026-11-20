@@ -1,0 +1,47 @@
+RUN_DIR=/home/fhecompiler/build/e2e-release-20261120/source/512/run.wogS4pGV
+[configure]
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/fhecompiler/build/e2e-native
+[build]
+Consolidate compiler generated dependencies of target snabf_pass4
+Consolidate compiler generated dependencies of target snabf_pass2
+Consolidate compiler generated dependencies of target snabf_planner
+Consolidate compiler generated dependencies of target snabf_pass3
+[  5%] Built target snabf_pass4
+[ 11%] Built target snabf_pass2
+[ 24%] Built target snabf_pass3
+[ 25%] Built target snabf_planner
+Consolidate compiler generated dependencies of target snabf_ir
+[ 37%] Built target snabf_ir
+Consolidate compiler generated dependencies of target heir_lattigo
+Consolidate compiler generated dependencies of target snabf_import
+[ 40%] Built target snabf_import
+[ 75%] Built target heir_lattigo
+Consolidate compiler generated dependencies of target snabf_pipeline
+[ 97%] Built target snabf_pipeline
+Consolidate compiler generated dependencies of target snabf-opt
+[100%] Built target snabf-opt
+[heir_helpers]
+[key_meter]
+[pass1_3]
+[pass4]
+[check]
+[lower]
+[emit]
+[go_build]
+[encrypted]
+=== RUN   TestEncrypted
+    encrypted_test.go:96: N=16384, 4096 logical outputs, 262144 encoded slots, max=9.953690962016815e-07, mean=190.49 ms
+--- PASS: TestEncrypted (14.31s)
+PASS
+ok  	command-line-arguments	14.385s
+[inputs_recheck]
+inputs/corpus.json: OK
+inputs/estimates.json: OK
+inputs/profile.json: OK
+inputs/security.json: OK
+inputs/source.mlir: OK
+[independent]
+{"outcome": "retain_source_ring", "source_ring": 16384, "target_ring": 16384, "observed_key_bytes": {"galois": 56627808, "down": 0, "relin": 18875920, "public": 2359480}, "measurements": {"trials": 64, "logical_outputs": 4096, "slots_per_trial": 4096, "physical_slots": 262144, "misses": 0, "linf": 9.953690962016815e-07, "mse": 2.7095312353654514e-14, "tolerance": 0.000244140625, "actual_level": 1, "actual_ring": 16384, "actual_log_scale_range": [38.00000000000003, 38.00000000000003], "online_mean_ms": 190.48677153125, "online_median_ms": 184.810704}}
+DONE: /home/fhecompiler/build/e2e-release-20261120/source/512/run.wogS4pGV

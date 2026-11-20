@@ -1,0 +1,404 @@
+diff --git a/README.md b/README.md
+index f64e31e..f6dea2b 100644
+--- a/README.md
++++ b/README.md
+@@ -9,6 +9,8 @@ Start with [SNABFDialect.td](src/compiler/ir/SNABFDialect.td), [the operations](
+ The Pass 1 suite compares stock HEIR, independent routing and graph-wide key
+ reuse on three encrypted SiLU blocks. It also runs a separate end-to-end periodic-layout
+ ring-switched bootstrap, residual precision feedback and concrete Pass 3 specialization.
++Run `bash src/tools/run_pass1.sh` for the C++/MLIR and ciphertext regressions.
++Pass 1 has no Python optimizer or text-IR fallback.
+ This is not yet the four-pass E01 result.
+ 
+ The native [Pass 2 implementation and development report](doc/pass2-development.md)
+diff --git a/src/compiler/pass1/README.md b/src/compiler/pass1/README.md
+index fb71d16..c6d94cd 100644
+--- a/src/compiler/pass1/README.md
++++ b/src/compiler/pass1/README.md
+@@ -14,7 +14,7 @@ another MILP. Both lowering and backend binding check their inputs.
+ | `RingSwitch` | Equation (3), trace layout/level/variance feasibility and structured rejection reasons. No MLIR dependency. |
+ | `NativeBootstrap` | Bind the incoming SSA layout and level, replay decisions, and expose an executable standalone bootstrap only for the supported periodic profile. |
+ | [Shared Lattigo target](../Target/Lattigo/) | Emit model-specific Go directly from checked concrete plans, importing the pinned HEIR ordinary CKKS helpers. Pass 4 uses this by default; standalone concrete Pass 3 opts in with `--snabf-lower-ckks=direct-go`. The target's `go-bind emit` remains a historical comparator, not the new emitter. |
+-| `Planner.cpp`, `compile.py`, `heir_ir.py`, `bootstrap.py` | Historical **inspection only**. JSON and the MLIR adapter use the same C++ math and solver; the Python entry cannot emit a program. |
++| `Planner.cpp` | Standalone C++ JSON inspection CLI (`snabf-pass1`). The native compiler and its regression runner do not require this CLI to plan or lower a module. |
+ 
+ `equivalent_splits` consists of `(s, stride, b_v, g_v)` tuples; `cosets` lists
+ only occupied representatives and their diagonals. A zero offset still denotes
+@@ -22,5 +22,8 @@ a real diagonal, unlike empty support. `route-pricing=occupied` charges emitted
+ rotations; `route-pricing=dense_tower` instead uses the literal full-subgroup
+ work counts of Eq. (2). It evaluates all mathematical cuts individually.
+ 
+-Run `bash src/tools/run_pass1.sh` from the project root. Inputs and checks are
+-versioned, while each invocation creates a separate run under `build/`.
++Run `bash src/tools/run_pass1.sh` from the project root. CTest exercises the C++
++decision kernel directly. Integration tests send actual HEIR/MLIR modules to
++`snabf-opt`; Python drives the frontend and tests, not Pass 1 decisions. The
++runner creates a new evidence directory per run; use `SNABF_PASS1_BUILD` for a
++separate build tree under the project's `build/`.
+diff --git a/src/compiler/pass1/bootstrap.py b/src/compiler/pass1/bootstrap.py
+deleted file mode 100644
+index d79cf36..0000000
+--- a/src/compiler/pass1/bootstrap.py
++++ /dev/null
+@@ -1,14 +0,0 @@
+-"""Read-only compatibility adapter; RingSwitch.cpp is the only Eq. (3) implementation."""
+-import json
+-import os
+-from pathlib import Path
+-import subprocess
+-
+-
+-def ring_switch(ring_n, max_level, spec):
+-    exe = os.environ.get('SNABF_PASS1_CLI') or Path(__file__).resolve().parents[3] / 'build/pass1-revision/native/snabf-pass1'
+-    p = subprocess.run([exe, '--bootstrap'], input=json.dumps(dict(spec, ring_n=ring_n, max_level=max_level)),
+-                       capture_output=True, text=True)
+-    if p.returncode:
+-        raise ValueError(p.stderr.strip())
+-    return json.loads(p.stdout)
+diff --git a/src/compiler/pass1/compile.py b/src/compiler/pass1/compile.py
+deleted file mode 100644
+index 8c4c25a..0000000
+--- a/src/compiler/pass1/compile.py
++++ /dev/null
+@@ -1,43 +0,0 @@
+-"""Read historical HEIR text and export a comparison only. No production emission."""
+-
+-import argparse
+-import hashlib
+-import json
+-from pathlib import Path
+-import subprocess
+-
+-from heir_ir import inspect
+-
+-
+-def store(path, obj):
+-    path.write_text(json.dumps(obj, indent=2) + '\n', encoding='utf8')
+-
+-
+-def main():
+-    ap = argparse.ArgumentParser(description=__doc__)
+-    for name in ('lowered', 'costs', 'planner', 'goemit', 'heir-opt', 'heir-translate', 'out-dir'):
+-        ap.add_argument('--'+name, required=True, type=Path)
+-    ap.add_argument('--boot-costs', type=Path, help='cost/layout records keyed by function:%%SSA')
+-    ap.add_argument('--plan-only', action='store_true')
+-    args = ap.parse_args()
+-    if not args.plan_only:
+-        ap.error('legacy JSON is inspection-only; use bash src/tools/run_pass1.sh for checked MLIR emission')
+-    ir = args.lowered.read_text(encoding='utf8')
+-    graph = inspect(ir, json.loads(args.boot_costs.read_text()) if args.boot_costs else {})
+-    root = args.out_dir; root.mkdir(exist_ok=True, parents=True)
+-    store(root/'profile.json', graph['profile'])
+-    graph['bytes_per_key'] = int(subprocess.check_output([args.goemit, 'key-size', root/'profile.json']))
+-    graph['costs'] = json.loads(args.costs.read_text())
+-    graph['heir_lowered_sha256'] = hashlib.sha256(ir.encode()).hexdigest()
+-    plan = json.loads(subprocess.run([args.planner], input=json.dumps(graph), text=True,
+-                                    stdout=subprocess.PIPE, check=True).stdout)
+-    plan.update(graph)
+-    for arm in ('independent','joint'):
+-        choice = plan[arm]; choice['routes'] = [cs[i] for cs, i in zip(plan['candidates'],choice['selected'],strict=True)]
+-        choice['rotation_work'] = choice['objective'] - choice['key_bytes'] * graph['costs']['key_units_per_mib'] / (1<<20)
+-        print(f"{arm}: rungs={[r['s'] for r in choice['routes']]}, Galois keys={[k['galois'] for k in choice['keys']]}, bytes={choice['key_bytes']}, cost={choice['objective']:.6f}",flush=True)
+-    store(root/'plan.json', plan)
+-
+-
+-if __name__ == '__main__':
+-    main()
+diff --git a/src/compiler/pass1/heir_ir.py b/src/compiler/pass1/heir_ir.py
+deleted file mode 100644
+index f08b8ce..0000000
+--- a/src/compiler/pass1/heir_ir.py
++++ /dev/null
+@@ -1,103 +0,0 @@
+-"""Read-only inspector for pre-unified experiment text. Not a lowering pass."""
+-
+-import hashlib
+-import json
+-import re
+-
+-from bootstrap import ring_switch
+-
+-
+-def one(pattern, text):
+-    matches = list(re.finditer(pattern, text, flags=re.M))
+-    if len(matches) != 1:
+-        raise ValueError(f"expected one match for {pattern[:65]}, found {len(matches)}")
+-    return matches[0]
+-
+-
+-def ints(s):
+-    return [int(x) for x in s.split(",") if x.strip()]
+-
+-
+-SSA = r"%[\w.$-]+"
+-PREP = re.compile(rf"^(\s*)({SSA}) = lattigo\.ckks\.prepare_linear_transform ([^\n]+?) <([^<>]+)> :", re.M)
+-
+-
+-def bind_applications(ir, regions):
+-    """Follow the prepared table's constant store/load indices across the HEIR ABI."""
+-    pieces = re.split(r'^  *func\.func @([\w.$-]+)\(', ir, flags=re.M)
+-    funcs = dict(zip(pieces[1::2], pieces[2::2], strict=True))
+-    prep = regions[0]['id'].split(':')[0]
+-    if not prep.endswith('__preprocessing'):
+-        raise ValueError('expected outlined HEIR preprocessing')
+-    entry = prep.removesuffix('__preprocessing') + '__preprocessed'
+-    before, after = funcs[prep], funcs[entry]
+-    table = one(rf'^\s*return ({SSA})[^\n]* : memref<\d+x!linear_transformation>', before)[1]
+-    argument = one(rf'({SSA}): memref<\d+x!linear_transformation>', after.splitlines()[0])[1]
+-    def indices(body):
+-        return {s: int(i) for s,i in re.findall(rf'({SSA}) = arith\.constant (\d+) : index',body)}
+-    pre_idx, post_idx = indices(before), indices(after)
+-    by_slot = {}
+-    for r in regions:
+-        name = r['id'].split(':')[1]
+-        i = one(rf'memref\.store {re.escape(name)}, {re.escape(table)}\[({SSA})\]',before)[1]
+-        slot = pre_idx[i]
+-        if slot in by_slot: raise ValueError('aliased prepared transform table')
+-        by_slot[slot] = r
+-        r['table_slot'] = slot
+-    loads = {v: post_idx[i] for v,i in re.findall(rf'({SSA}) = memref\.load {re.escape(argument)}\[({SSA})\]',after)}
+-    for result,ct,transform in re.findall(rf'({SSA}) = lattigo\.ckks\.apply_linear_transform {SSA}, ({SSA}), ({SSA}) :',after):
+-        r = by_slot[loads[transform]]
+-        if 'apply_id' in r: raise ValueError('repeated application requires a shared-preparation cost model')
+-        r.update(apply_id=f'{entry}:{result}', input_id=f'{entry}:{ct}')
+-    if any('apply_id' not in r for r in regions) or ir.count('= lattigo.ckks.apply_linear_transform ') != len(regions):
+-        raise ValueError('unbound transform or application')
+-
+-
+-def inspect(ir, boot_profiles):
+-    p = one(r"= lattigo\.ckks\.new_parameters_from_literal [^\n]+", ir)[0]
+-    profile = {k: ints(one(rf"\b{k} = \[([^]]*)\]", p)[1]) for k in ("Q", "P")}
+-    profile.update({k: int(one(rf"\b{k} = (\d+)", p)[1]) for k in ("logN", "logDefaultScale")})
+-    ring_n = 1 << profile["logN"]
+-    function = ""
+-    regions, boots = [], {}
+-    for line in ir.splitlines():
+-        if m := re.match(r"\s*func\.func @([\w.$-]+)\(", line):
+-            function = m[1]
+-        if m := PREP.match(line):
+-            fields = m[4]
+-            log_slots = int(one(r"\blogSlots = (\d+)", fields)[1]); slots = 1 << log_slots
+-            level = int(one(r"\blevelQ = (\d+)", fields)[1]); raw = ints(one(r"diagonal_indices = \[([^]]*)\]", fields)[1])
+-            diagonals = [d % slots for d in raw]
+-            if len(diagonals) != len(set(diagonals)) or slots > ring_n//2 or level >= len(profile['Q']):
+-                raise ValueError("inconsistent packed transform")
+-            regions.append({"id": f"{function}:{m[2]}", "raw_diagonals": raw, "diagonals": diagonals,
+-                            "level": level, "log_slots": log_slots, "mask_scale": profile['Q'][level]})
+-        if m := re.search(rf"({SSA}) = lattigo\.ckks\.bootstrap(?:_new)?\b", line):
+-            site = f"{function}:{m[1]}"
+-            if site not in boot_profiles:
+-                raise ValueError(f"bootstrap site {site} needs a cost/layout record")
+-            spec = boot_profiles[site]
+-            for attr, key in [('snabf_input_level','level'), ('snabf_live_slots','live_slots')]:
+-                found = re.search(rf'\b{attr} = (\d+) : i64',line)
+-                if found and int(found[1]) != spec[key]: raise ValueError(f'bootstrap {site}: {key} mismatches IR budget')
+-            boots[site] = ring_switch(ring_n, len(profile['Q'])-1, spec)
+-    if set(boot_profiles) != boots.keys():
+-        raise ValueError("unmatched bootstrap cost record")
+-    if (not regions and not boots) or len(regions) != ir.count("= lattigo.ckks.prepare_linear_transform "):
+-        raise ValueError("unrecognized or absent HEIR transform")
+-    if len({r['id'].split(':')[0] for r in regions}) > 1:
+-        raise ValueError("v1 expects a single preprocessing entry")
+-    if regions:
+-        bind_applications(ir, regions)
+-    key = one(rf"({SSA}), {SSA} = lattigo\.rlwe\.gen_key_pair ({SSA})", ir)
+-    config = one(r"func\.func @([\w.$-]+__configure)\(", ir)[1]
+-    family = {"configuration": config, "secret_ssa": key[1], "profile": profile,
+-              "gadget": "lattigo-full-QP-default-uncompressed"}
+-    scope = hashlib.sha256(json.dumps(family, sort_keys=True).encode()).hexdigest()
+-    return {"profile": profile, "scope": scope, "key_family": family, "regions": regions,
+-            "bootstrap": {"status": "evaluated" if boots else "not_applicable", "sites": boots,
+-                          "cost_records": boot_profiles}}
+-
+-
+-def rewrite(ir, graph, routes, keys):
+-    raise ValueError("legacy inspection does not lower ring switches or emit code; use the native MLIR pipeline")
+diff --git a/src/tools/archive_pass1.py b/src/tools/archive_pass1.py
+index edfeb3f..36c9d46 100644
+--- a/src/tools/archive_pass1.py
++++ b/src/tools/archive_pass1.py
+@@ -41,7 +41,7 @@ def archive(run, out):
+ | P1-3 预算反馈 | `snabf-plan` 按当前层级定价并产生带 SSA 路径的逐轮记录。`snabf-check-plan` 在模块副本上重放，不依赖再跑一次 HiGHS。 | 输入层级、具体 Q/P 或布局更改触发重新规划；旧费用、旧塔层、伪造反馈记录、失效绑定均被拒绝。 |
+ | P1-4 后端与归档 | `snabf-lower-ckks`、`snabf-bind-lattigo`、Go 绑定与 Lattigo 按选定的分解执行。 | 对照真实浮点 SiLU，检查密钥 ID、序列化字节数、层级、scale，另跑残差网络与具体参数联合优化。 |
+ 
+-`src/compiler/pass1` 和 `src/backend/ringswitch` 为主要落位。`compile.py`、`heir_ir.py` 只支持旧记录审阅；`bootstrap.py` 调用同一个 C++ 决策核。`src/compiler/Target/Lattigo/go-bind` 是各 Pass 共用的 Go 绑定工具，只绑定已核验的决策，不选路。
++`src/compiler/pass1` 的 C++ 决策核由 CTest 直接测试；原生 `snabf-opt` 处理 HEIR/MLIR 的 SSA，Python 只驱动前端与黑盒回归。`src/backend/ringswitch` 执行环切；本套对照使用共享的 `src/compiler/Target/Lattigo/go-bind` 绑定已核验的决策，不选路。
+ 
+ ## 2. 式 (2)：数学切分、实际工作量和物理密钥
+ 
+diff --git a/src/tools/run_pass1.sh b/src/tools/run_pass1.sh
+index 6043ef4..b5da1dd 100644
+--- a/src/tools/run_pass1.sh
++++ b/src/tools/run_pass1.sh
+@@ -6,17 +6,19 @@ sdk=${SNABF_MLIR_ROOT:-$root/extern/mlir24/usr/lib/llvm-24}
+ heir=${HEIR_BIN_DIR:-$root/extern/heir-release/heir}
+ export PATH="${GO_BIN_DIR:-$root/extern/go/bin}:$PATH" LD_LIBRARY_PATH="$sdk/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+ export GOPATH="$root/extern/gopath" GOCACHE="$root/extern/go-cache" GOTOOLCHAIN=local GOPROXY=off GOMAXPROCS=${JOBS:-5}
+-export PYTHONPATH="$root/src/frontend:$root/extern/heir/frontend:$root/src/compiler/pass1${PYTHONPATH:+:$PYTHONPATH}" PYTHONDONTWRITEBYTECODE=1
++export PYTHONPATH="$root/src/frontend:$root/extern/heir/frontend${PYTHONPATH:+:$PYTHONPATH}" PYTHONDONTWRITEBYTECODE=1
++unset PYTHONOPTIMIZE
+ export LATTICE_ESTIMATOR=${LATTICE_ESTIMATOR:-$root/extern/lattice-estimator}
+ test -d "$LATTICE_ESTIMATOR/estimator" || { echo 'Set LATTICE_ESTIMATOR to the pinned checkout (doc/pass3-development.md)' >&2; exit 2; }
+-base="$root/build/pass1-revision"; mkdir -p "$base"; out=$(mktemp -d "$base/run.XXXXXXXX")
+-native="$base/native"; opt="$native/ir/snabf-opt"; export SNABF_PASS1_CLI="$native/snabf-pass1"
++base=$(realpath -m "${SNABF_PASS1_BUILD:-$root/build/pass1-revision}")
++case "$base/" in "$root/build/"?*/) ;; *) printf 'Pass 1 build must be under %s/build: %s\n' "$root" "$base" >&2; exit 2;; esac
++mkdir -p "$base"; out=$(mktemp -d "$base/run.XXXXXXXX")
++native="$base/native"; opt="$native/ir/snabf-opt"
+ exec > >(tee "$out/run.log") 2>&1
+ echo "Pass 1 evidence: $out"
+-cmake -S src/compiler -B "$native" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DSNABF_MLIR_ROOT="$sdk" -DCMAKE_PREFIX_PATH="$root/extern/highs-install"
++cmake -S src/compiler -B "$native" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DSNABF_MLIR_ROOT="$sdk" -DHEIR="$root/extern/heir" -DCMAKE_PREFIX_PATH="$root/extern/highs-install"
+ cmake --build "$native" -j"$GOMAXPROCS"
+-ctest --test-dir "$native" --output-on-failure
+-python3 -m unittest discover -v -s test/compiler -p test_pass1.py
++ctest --test-dir "$native" --output-on-failure --no-tests=error
+ go test -mod=readonly -count=1 -v ./test/backend
+ go build -mod=readonly -o "$out/goemit" ./src/compiler/Target/Lattigo/go-bind
+ flags=(--root "$root" --heir-bin "$heir" --snabf-opt "$opt" --goemit "$out/goemit")
+diff --git a/test/compiler/Pass1MechanicsTest.cpp b/test/compiler/Pass1MechanicsTest.cpp
+index 039fed6..1391c21 100644
+--- a/test/compiler/Pass1MechanicsTest.cpp
++++ b/test/compiler/Pass1MechanicsTest.cpp
+@@ -134,6 +134,11 @@ void boot() {
+   c.down = 16;
+   test(c, "negative_gain");
+   c = a;
++  c.keyVariance = 0.75;
++  auto nextBin = test(c, "negative_gain");
++  gate(nextBin.rsVariance == 10 && nextBin.downstreamPenalty == 15 &&
++           nextBin.margin == -5,
++       "wrong downstream variance bin or margin");
+   c.keyVariance = 2;
+   test(c, "downstream_budget");
+   c = a;
+@@ -146,6 +151,12 @@ void boot() {
+   c.layoutAdmitted = false;
+   test(c, "incompatible_packing");
+   c = a;
++  c.live = 9;
++  test(c, "incompatible_packing");
++  c = a;
++  c.beta = 3;
++  test(c, "incompatible_packing");
++  c = a;
+   c.period = 16;
+   test(c, "incompatible_packing");
+   c = a;
+@@ -160,6 +171,8 @@ void boot() {
+   c.beta = 2;
+   c.layout = "split-repack";
+   c.prepare = 4;
++  gate(test(c, "negative_gain").margin == -59,
++       "missing split-repack charge for an unprofitable proposal");
+   c.bootCosts[{32, 3}] = 150;
+   gate(test(c, "profitable").margin == 11,
+        "lost multiplicity/preparation charge");
+diff --git a/test/compiler/test_pass1.py b/test/compiler/test_pass1.py
+deleted file mode 100644
+index 7a08aa8..0000000
+--- a/test/compiler/test_pass1.py
++++ /dev/null
+@@ -1,67 +0,0 @@
+-import unittest
+-
+-from bootstrap import ring_switch
+-from heir_ir import inspect, rewrite
+-
+-
+-class RingSwitchTest(unittest.TestCase):
+-    def setUp(self):
+-        self.spec = {"target_n": 16, "level": 3, "small_ciphertexts": 1, "live_slots": 8, "layout_verified": True,
+-                     "slot_period": 8, "layout_contract": "trace-periodic", "layout_cost": 0,
+-                     "boot_costs": {"32@3": 80, "16@2": 40}, "downswitch_cost": 10, "upswitch_cost": 20,
+-                     "key_variance": 0.375, "gadget_weights": [1, 2],
+-                     "downstream_bins": [{"variance_cap": 5, "extra_cost": 5}, {"variance_cap": 20, "extra_cost": 15}]}
+-
+-    def decision(self, **changes):
+-        return ring_switch(32, 4, self.spec | changes)
+-
+-    def test_strict_boundary(self):
+-        d = self.decision()
+-        self.assertEqual((d['enabled'],d['rs_variance'],d['downstream_penalty'],d['margin']), (True,5,5,5))
+-        for cost in (15,16):
+-            self.assertFalse(self.decision(downswitch_cost=cost)['enabled'])
+-
+-    def test_variance_feedback(self):
+-        self.assertEqual(self.decision(key_variance=0.75)['margin'], -5)
+-        self.assertEqual(self.decision(key_variance=2)['reason'], 'downstream_budget')
+-
+-    def test_level_and_layout(self):
+-        self.assertEqual(self.decision(level=0)['reason'],'no_input_level_for_switch')
+-        self.assertFalse(self.decision(layout_verified=False)['enabled'])
+-        self.assertFalse(self.decision(live_slots=9)['enabled'])
+-        self.assertFalse(self.decision(small_ciphertexts=3)['enabled'])
+-        full = self.decision(small_ciphertexts=2,live_slots=16,slot_period=16,layout_contract='split-repack',layout_cost=4)
+-        self.assertEqual((full['beta_pack'],full['margin']), (2,-59))
+-
+-    def test_bootstrap_sites_are_bound_to_ir(self):
+-        ir = '''  func.func @main__configure() {
+-  %p = lattigo.ckks.new_parameters_from_literal <paramsLiteral = <logN = 5, Q = [193,257,449,577], P = [641], logDefaultScale = 7>>
+-  %sk, %pk = lattigo.rlwe.gen_key_pair %gen
+-}
+-  func.func @main__preprocessing() {
+-  %c = arith.constant 0 : index
+-  %t = lattigo.ckks.prepare_linear_transform %p, %enc, %w <diagonal_indices = [0,-1], levelQ = 3 : i64, logSlots = 3 : i64> : ...
+-  memref.store %t, %tab[%c] : memref<1x!linear_transformation>
+-  return %tab : memref<1x!linear_transformation>
+-}
+-  func.func @main__preprocessed(%arg: memref<1x!linear_transformation>) {
+-  %c = arith.constant 0 : index
+-  %t = memref.load %arg[%c] : memref<1x!linear_transformation>
+-  %x = lattigo.ckks.apply_linear_transform %e, %in, %t : ...
+-  %fresh = lattigo.ckks.bootstrap %e, %x : ...
+-}'''
+-        site = 'main__preprocessed:%fresh'
+-        g = inspect(ir,{site:self.spec})
+-        self.assertTrue(g['bootstrap']['sites'][site]['enabled'])
+-        self.assertEqual(g['regions'][0]['diagonals'],[0,7])
+-        self.assertEqual(g['regions'][0]['apply_id'],'main__preprocessed:%x')
+-        duplicate = ir.replace('  %fresh', '  %y = lattigo.ckks.apply_linear_transform %e, %in, %t : ...\n  %fresh')
+-        with self.assertRaisesRegex(ValueError,'repeated application'):
+-            inspect(duplicate,{site:self.spec})
+-        with self.assertRaisesRegex(ValueError,'does not lower ring switches'):
+-            rewrite(ir,g,[],[])
+-        with self.assertRaisesRegex(ValueError,'needs a cost/layout record'):
+-            inspect(ir,{})
+-
+-
+-if __name__=='__main__': unittest.main()
+diff --git a/test/compiler/test_unified_ir.py b/test/compiler/test_unified_ir.py
+index 1b7cd2a..4748846 100644
+--- a/test/compiler/test_unified_ir.py
++++ b/test/compiler/test_unified_ir.py
+@@ -58,6 +58,16 @@ def main(root, out=None, opt=None):
+     report = json.loads((d/'plan.json').read_text())
+     for arm, rounds, keys in [('joint', 1, 3), ('independent', 1, 4), ('cap2', 2, 4)]:
+         assert report[arm]['rounds'] == rounds and len(report[arm]['keys']) == keys
++    # Mutate one real prepared table's SSA binding, not the selected plan.
++    ckks = (d/'ckks.mlir').read_text()
++    store = next(line for line in ckks.splitlines(keepends=True)
++                 if '"preprocessing.store"' in line and '!kernel.prepared_linear_transform<' in line)
++    key_bytes, rem = divmod(report['joint']['key_bytes'], len(report['joint']['keys']))
++    assert key_bytes > 0 and rem == 0  # one physical key family in this fixture
++    importer = f'--snabf-import-heir=key-bytes={key_bytes}'
++    run(ckks, importer)
++    run(ckks.replace(store, store + store, 1), importer, error='ambiguous HEIR preprocessing slot')
++    run(ckks.replace(store, '', 1), importer, error='unbound HEIR table slot')
+     # Verify concrete profile packing against the original HEIR argument, including
+     # changes which leave the number of slots and all coefficients untouched.
+     layout = next(s for s in joint.splitlines() if '"snabf.profile"' in s)
+@@ -72,10 +82,11 @@ def main(root, out=None, opt=None):
+     record = (fixture/'pass1_boot_record.mlirattr').read_text().strip()
+     raw = base.replace('{snabf_input_level', '{snabf.boot_costs = '+record+', snabf_input_level')
+     heir = root/'extern/heir-release/heir/heir-opt'
+-    def boot(module):
++    def boot(module, error=None):
+         generic = subprocess.run([heir, '--lattigo-configure-crypto-context', '--mlir-print-op-generic', '--mlir-print-local-scope'],
+                                  input=module, text=True, capture_output=True, check=True).stdout
+-        return run(generic, '--pass-pipeline=builtin.module(snabf-pass1-candidates,snabf-plan,snabf-check-plan)')
++        return run(generic, '--pass-pipeline=builtin.module(snabf-pass1-candidates,snabf-plan,snabf-check-plan)', error=error)
++    boot(base, error='missing or invalid snabf.boot_costs')
+     profitable = boot(raw)
+     (out/'boot-selected.mlir').write_text(profitable)
+     assert 'reason = "profitable"' in profitable and 'margin = 5.000000e+00' in profitable and 'rs_variance = 5.000000e+00' in profitable

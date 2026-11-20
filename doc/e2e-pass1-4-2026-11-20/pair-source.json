@@ -1,0 +1,140 @@
+{
+  "positive_run": "/home/fhecompiler/build/e2e-release-20261120/source/128/run.yUfmyIRM",
+  "strict_run": "/home/fhecompiler/build/e2e-release-20261120/source/512/run.wogS4pGV",
+  "only_policy_change": "switching_key_security_bits:128->512",
+  "upstream": {
+    "kind": "independent_source_compilations",
+    "concrete_pass3_sha256": "faaed3fdf172832b52df3687661ddef753fc46568ee0051a9470ee7eece6a328",
+    "checkpoint_comparison": "identical modulo private HEIR client.pack symbol and its checker receipt"
+  },
+  "positive": {
+    "mode": "source",
+    "strategy": "adaptive",
+    "inputs": {
+      "corpus.json": "da7f849b58bd3594d412b5be16718a368ea4e2c3a3f0332c7f6b9d8b2d1a1038",
+      "estimates.json": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a",
+      "profile.json": "59815ca90e794edb96ccadc0a6ec0f6a7112d91b2d7f9cebdf4569bb2adf11ae",
+      "security.json": "c73a1d89c15c425ff4fbdf2ba676c7f8acf94250a77b58ada027b159aeca42aa",
+      "source.mlir": "c87b0bbd03a024e297088e877619003468bca01d50d95b1c99503297cd5ca8e1"
+    },
+    "policy": {
+      "max_iters": 16,
+      "min_ring": 4096,
+      "source_security_bits": 128,
+      "switch_price": 1,
+      "switching_key_security_bits": 128,
+      "target_security_bits": 128
+    },
+    "outcome": "ring_down",
+    "source_ring": 16384,
+    "target_ring": 8192,
+    "reasons": [
+      "verified",
+      "boundary_concrete_replay: concrete message/scale headroom at lin1.mask0",
+      "period_mismatch",
+      "period_mismatch"
+    ],
+    "precheck_receipts": [
+      "4fc3d67860ca5a95e9850f44cdca6251322eb36e54330bbe50e20caa45805a2d"
+    ],
+    "emit_sha256": "665e44fbe1d7415fb2d5e1cf9e2e0998665652958e93d85087c691e366d5e0c8",
+    "checkpoint_sha256": "7f70123460755e9cdf818658dd22ad6a41ac5cf4a112f0280eee83039666392e",
+    "tools_sha256": "c8e8aa169a1544b94a41c61050c4695051ef240cdb8e2df4da89088b529be8ff",
+    "observed_key_bytes": {
+      "galois": 40898336,
+      "down": 3146080,
+      "relin": 18875920,
+      "public": 2359480
+    },
+    "measurements": {
+      "trials": 64,
+      "logical_outputs": 4096,
+      "slots_per_trial": 4096,
+      "physical_slots": 262144,
+      "misses": 0,
+      "linf": 9.99634894860435e-07,
+      "mse": 2.7076409999963746e-14,
+      "tolerance": 0.000244140625,
+      "actual_level": 1,
+      "actual_ring": 8192,
+      "actual_log_scale_range": [
+        38.00000000000003,
+        38.00000000000003
+      ],
+      "online_mean_ms": 157.669242140625,
+      "online_median_ms": 152.5376885
+    },
+    "evidence_sha256": {
+      "search.json": "8497dc25729de84ceb3e31af0057e2e1d1348bc044355b08782a27a95ca36ce8",
+      "program.json": "245feed06fe2f44e7d59eefd90bd93c02a0db454666a9a5cf462c8817242b7af",
+      "model.go": "3807fddd10c2cb19339261dc01e9fce7a7b42a9c28a696e910b4d0f42dcf8f14",
+      "metrics.json": "c76cfc2c9488ac74aa0d220c86627a2bf0ca17c7731da95d85fdc8fdf436c43c",
+      "trials.jsonl": "21eb9fbdb26878e4fb378fdec22e865c6c731150905263eb94404037f4529c45"
+    }
+  },
+  "strict": {
+    "mode": "source",
+    "strategy": "adaptive",
+    "inputs": {
+      "corpus.json": "da7f849b58bd3594d412b5be16718a368ea4e2c3a3f0332c7f6b9d8b2d1a1038",
+      "estimates.json": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a",
+      "profile.json": "59815ca90e794edb96ccadc0a6ec0f6a7112d91b2d7f9cebdf4569bb2adf11ae",
+      "security.json": "c73a1d89c15c425ff4fbdf2ba676c7f8acf94250a77b58ada027b159aeca42aa",
+      "source.mlir": "c87b0bbd03a024e297088e877619003468bca01d50d95b1c99503297cd5ca8e1"
+    },
+    "policy": {
+      "max_iters": 16,
+      "min_ring": 4096,
+      "source_security_bits": 128,
+      "switch_price": 1,
+      "switching_key_security_bits": 512,
+      "target_security_bits": 128
+    },
+    "outcome": "retain_source_ring",
+    "source_ring": 16384,
+    "target_ring": 16384,
+    "reasons": [
+      "switching_key_ext_modulus_security_rejected",
+      "boundary_concrete_replay: concrete message/scale headroom at lin1.mask0",
+      "period_mismatch",
+      "period_mismatch"
+    ],
+    "precheck_receipts": [
+      "98798d8dda5f6819fecc9554a4d28d24dc4410a87f0bf3a40793c70775fcb7dd"
+    ],
+    "emit_sha256": "3851e3ff9403c7ae619a113e5b617600301db5eb7b8bc89b3171735a01f939fc",
+    "checkpoint_sha256": "30781a55218bc9f318e186fa3176dd7eafc4491e27b518892fd27f96ebf88fcf",
+    "tools_sha256": "c8e8aa169a1544b94a41c61050c4695051ef240cdb8e2df4da89088b529be8ff",
+    "observed_key_bytes": {
+      "galois": 56627808,
+      "down": 0,
+      "relin": 18875920,
+      "public": 2359480
+    },
+    "measurements": {
+      "trials": 64,
+      "logical_outputs": 4096,
+      "slots_per_trial": 4096,
+      "physical_slots": 262144,
+      "misses": 0,
+      "linf": 9.953690962016815e-07,
+      "mse": 2.7095312353654514e-14,
+      "tolerance": 0.000244140625,
+      "actual_level": 1,
+      "actual_ring": 16384,
+      "actual_log_scale_range": [
+        38.00000000000003,
+        38.00000000000003
+      ],
+      "online_mean_ms": 190.48677153125,
+      "online_median_ms": 184.810704
+    },
+    "evidence_sha256": {
+      "search.json": "96c79abd8ad3bee90f39bdfa0126045a4bb3d78f63028fb017f08933b99fc155",
+      "program.json": "399f1306ec6c3ea208bf3a3fd10aa3ec6dd06c878f343d3f33b836dbcc8e7669",
+      "model.go": "c90cc598ed629727e17c7b67e7251eeb3cb852e81beedc7a4a35020ff7165af6",
+      "metrics.json": "a2fd68bfc3ae2f51588e35d41ffe05e44c845b5787339fecfa14ecd5b0b9b81e",
+      "trials.jsonl": "000cb2fb593d6833b91a5fb63ec691d2d21fc9b501e30120f51b4a6dd9983098"
+    }
+  }
+}

@@ -1,0 +1,689 @@
+[
+  {
+    "group": "workloads",
+    "model": "control",
+    "arm": "heir",
+    "trials": 64,
+    "slots": 256,
+    "keys": 2,
+    "key_bytes": 20973248,
+    "linf": 7.908106223715461e-05,
+    "mse": 3.46692657341549e-10,
+    "mean_ms": 154.096677015625,
+    "levels": [
+      [
+        7,
+        0
+      ]
+    ],
+    "output_logscale": [
+      51.96361603438207,
+      51.96361603438207
+    ],
+    "over_limit": 0
+  },
+  {
+    "group": "workloads",
+    "model": "control",
+    "arm": "economy",
+    "trials": 64,
+    "slots": 256,
+    "keys": 2,
+    "key_bytes": 20973248,
+    "linf": 9.137241161936635e-05,
+    "mse": 1.3065582081167705e-09,
+    "mean_ms": 130.8462924375,
+    "levels": [
+      [
+        7,
+        1
+      ]
+    ],
+    "output_logscale": [
+      26,
+      26
+    ],
+    "over_limit": 0,
+    "candidate": "silu_direct.d3.ps",
+    "frontier": 10,
+    "activation_error": 5.127935184116993e-05,
+    "L_DAG": 0.924179096815691,
+    "second_level": 2,
+    "second_route": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        1
+      ],
+      [
+        3,
+        2,
+        1
+      ]
+    ],
+    "rotation_solve_rounds": 1,
+    "decisions": {
+      "best_feasible": 1,
+      "level_cache_hit": 4,
+      "route_repriced": 1,
+      "suffix_level": 4
+    }
+  },
+  {
+    "group": "workloads",
+    "model": "control",
+    "arm": "precision",
+    "trials": 64,
+    "slots": 256,
+    "keys": 2,
+    "key_bytes": 20973248,
+    "linf": 7.96283728183994e-05,
+    "mse": 7.872059100385217e-10,
+    "mean_ms": 155.956556953125,
+    "levels": [
+      [
+        7,
+        0
+      ]
+    ],
+    "output_logscale": [
+      26,
+      26
+    ],
+    "over_limit": 0,
+    "candidate": "silu_direct.d7.ps",
+    "frontier": 10,
+    "activation_error": 1.7858058101201732e-08,
+    "L_DAG": 0.9245348222922878,
+    "second_level": 1,
+    "second_route": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        1
+      ],
+      [
+        3,
+        2,
+        1
+      ]
+    ],
+    "rotation_solve_rounds": 1,
+    "decisions": {
+      "suffix_approximation": 1,
+      "backward_ssa": 1,
+      "upstream_cut": 3,
+      "best_feasible": 1,
+      "level_cache_hit": 1,
+      "suffix_level": 4
+    }
+  },
+  {
+    "group": "workloads",
+    "model": "strided64",
+    "arm": "heir",
+    "trials": 64,
+    "slots": 4096,
+    "keys": 3,
+    "key_bytes": 31459872,
+    "linf": 4.255649271842077e-05,
+    "mse": 7.060166991345098e-11,
+    "mean_ms": 171.36337128125,
+    "levels": [
+      [
+        7,
+        0
+      ]
+    ],
+    "output_logscale": [
+      51.96361603438207,
+      51.96361603438207
+    ],
+    "over_limit": 0
+  },
+  {
+    "group": "workloads",
+    "model": "strided64",
+    "arm": "economy",
+    "trials": 64,
+    "slots": 4096,
+    "keys": 3,
+    "key_bytes": 31459872,
+    "linf": 0.00015653194503482265,
+    "mse": 1.1502712882454672e-09,
+    "mean_ms": 133.929924015625,
+    "levels": [
+      [
+        7,
+        1
+      ]
+    ],
+    "output_logscale": [
+      26,
+      26
+    ],
+    "over_limit": 0,
+    "candidate": "silu_direct.d3.ps",
+    "frontier": 10,
+    "activation_error": 3.904160335294127e-06,
+    "L_DAG": 0.777613943642209,
+    "second_level": 2,
+    "second_route": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        4,
+        4,
+        0
+      ]
+    ],
+    "rotation_solve_rounds": 1,
+    "decisions": {
+      "best_feasible": 1,
+      "level_cache_hit": 4,
+      "route_repriced": 1,
+      "suffix_level": 4
+    }
+  },
+  {
+    "group": "workloads",
+    "model": "strided64",
+    "arm": "precision",
+    "trials": 64,
+    "slots": 4096,
+    "keys": 3,
+    "key_bytes": 31459872,
+    "linf": 0.00014605742950618214,
+    "mse": 1.1290529307296283e-09,
+    "mean_ms": 162.42693203125,
+    "levels": [
+      [
+        7,
+        0
+      ]
+    ],
+    "output_logscale": [
+      26,
+      26
+    ],
+    "over_limit": 0,
+    "candidate": "silu_direct.d7.ps",
+    "frontier": 10,
+    "activation_error": 2.425946873213182e-10,
+    "L_DAG": 0.7776557901552502,
+    "second_level": 1,
+    "second_route": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        4,
+        4,
+        0
+      ]
+    ],
+    "rotation_solve_rounds": 1,
+    "decisions": {
+      "suffix_approximation": 1,
+      "backward_ssa": 1,
+      "upstream_cut": 3,
+      "best_feasible": 1,
+      "level_cache_hit": 1,
+      "suffix_level": 4
+    }
+  },
+  {
+    "group": "workloads",
+    "model": "reuse64",
+    "arm": "heir",
+    "trials": 64,
+    "slots": 4096,
+    "keys": 5,
+    "key_bytes": 52433120,
+    "linf": 4.301252556615509e-05,
+    "mse": 6.995449449789902e-11,
+    "mean_ms": 171.358244296875,
+    "levels": [
+      [
+        7,
+        0
+      ]
+    ],
+    "output_logscale": [
+      51.96361603438207,
+      51.96361603438207
+    ],
+    "over_limit": 0
+  },
+  {
+    "group": "workloads",
+    "model": "reuse64",
+    "arm": "economy",
+    "trials": 64,
+    "slots": 4096,
+    "keys": 3,
+    "key_bytes": 31459872,
+    "linf": 0.00016176155422645278,
+    "mse": 1.0559936891579958e-09,
+    "mean_ms": 135.541251328125,
+    "levels": [
+      [
+        7,
+        1
+      ]
+    ],
+    "output_logscale": [
+      26,
+      26
+    ],
+    "over_limit": 0,
+    "candidate": "silu_direct.d3.ps",
+    "frontier": 10,
+    "activation_error": 1.94795731495107e-06,
+    "L_DAG": 0.7474358649510036,
+    "second_level": 2,
+    "second_route": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        6,
+        6,
+        0
+      ],
+      [
+        8,
+        8,
+        0
+      ]
+    ],
+    "rotation_solve_rounds": 1,
+    "decisions": {
+      "best_feasible": 1,
+      "level_cache_hit": 4,
+      "route_repriced": 1,
+      "suffix_level": 4
+    }
+  },
+  {
+    "group": "workloads",
+    "model": "reuse64",
+    "arm": "precision",
+    "trials": 64,
+    "slots": 4096,
+    "keys": 3,
+    "key_bytes": 31459872,
+    "linf": 0.0001419247273588553,
+    "mse": 1.1598327836132632e-09,
+    "mean_ms": 160.766656265625,
+    "levels": [
+      [
+        7,
+        0
+      ]
+    ],
+    "output_logscale": [
+      26,
+      26
+    ],
+    "over_limit": 0,
+    "candidate": "silu_direct.d7.ps",
+    "frontier": 10,
+    "activation_error": 7.607076149392034e-11,
+    "L_DAG": 0.7474593296771487,
+    "second_level": 1,
+    "second_route": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        6,
+        6,
+        0
+      ],
+      [
+        8,
+        8,
+        0
+      ]
+    ],
+    "rotation_solve_rounds": 1,
+    "decisions": {
+      "suffix_approximation": 1,
+      "backward_ssa": 1,
+      "upstream_cut": 3,
+      "best_feasible": 1,
+      "level_cache_hit": 1,
+      "suffix_level": 4
+    }
+  },
+  {
+    "group": "workloads",
+    "model": "residual",
+    "arm": "heir",
+    "trials": 64,
+    "slots": 4096,
+    "keys": 5,
+    "key_bytes": 52433120,
+    "linf": 0.0013571497602213323,
+    "mse": 6.992648345135362e-08,
+    "mean_ms": 141.536618625,
+    "levels": [
+      [
+        6,
+        0
+      ]
+    ],
+    "output_logscale": [
+      26.012025454026073,
+      26.012025454026073
+    ],
+    "over_limit": 1098
+  },
+  {
+    "group": "workloads",
+    "model": "residual",
+    "arm": "economy",
+    "trials": 64,
+    "slots": 4096,
+    "keys": 4,
+    "key_bytes": 41946496,
+    "linf": 0.00014152677613310516,
+    "mse": 9.794087721516013e-10,
+    "mean_ms": 114.257540015625,
+    "levels": [
+      [
+        7,
+        1
+      ]
+    ],
+    "output_logscale": [
+      26,
+      26
+    ],
+    "over_limit": 0,
+    "candidate": "silu_direct.d3.ps",
+    "frontier": 10,
+    "activation_error": 7.253600832783853e-06,
+    "L_DAG": 0.8075348012046066,
+    "second_level": 2,
+    "second_route": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        7,
+        7,
+        0
+      ],
+      [
+        9,
+        9,
+        0
+      ]
+    ],
+    "rotation_solve_rounds": 1,
+    "decisions": {
+      "best_feasible": 1,
+      "level_cache_hit": 4,
+      "route_repriced": 1,
+      "suffix_level": 4
+    }
+  },
+  {
+    "group": "workloads",
+    "model": "residual",
+    "arm": "precision",
+    "trials": 64,
+    "slots": 4096,
+    "keys": 3,
+    "key_bytes": 31459872,
+    "linf": 0.00020317268537874134,
+    "mse": 1.1539967422257152e-09,
+    "mean_ms": 145.08214596875,
+    "levels": [
+      [
+        7,
+        0
+      ]
+    ],
+    "output_logscale": [
+      26,
+      26
+    ],
+    "over_limit": 0,
+    "candidate": "silu_direct.d7.ps",
+    "frontier": 10,
+    "activation_error": 6.818964973858168e-10,
+    "L_DAG": 0.8076048537159651,
+    "second_level": 1,
+    "second_route": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        7,
+        6,
+        1
+      ],
+      [
+        9,
+        8,
+        1
+      ]
+    ],
+    "rotation_solve_rounds": 1,
+    "decisions": {
+      "suffix_approximation": 1,
+      "backward_ssa": 1,
+      "upstream_cut": 3,
+      "best_feasible": 1,
+      "level_cache_hit": 1,
+      "suffix_level": 4
+    }
+  },
+  {
+    "group": "additional_template_coverage",
+    "model": "composite_coverage",
+    "arm": "heir",
+    "trials": 64,
+    "slots": 256,
+    "keys": 2,
+    "key_bytes": 40897600,
+    "linf": 4.060094472735365e-05,
+    "mse": 1.3244496656716765e-10,
+    "mean_ms": 150.660953421875,
+    "levels": [
+      [
+        7,
+        0
+      ]
+    ],
+    "output_logscale": [
+      51.96361603438207,
+      51.96361603438207
+    ],
+    "over_limit": 0
+  },
+  {
+    "group": "additional_template_coverage",
+    "model": "composite_coverage",
+    "arm": "free",
+    "trials": 64,
+    "slots": 256,
+    "keys": 2,
+    "key_bytes": 40897600,
+    "linf": 0.000108195056896708,
+    "mse": 1.1650947141129753e-09,
+    "mean_ms": 225.222770875,
+    "levels": [
+      [
+        10,
+        4
+      ]
+    ],
+    "output_logscale": [
+      26.000000000000004,
+      26.000000000000004
+    ],
+    "over_limit": 0,
+    "candidate": "silu_direct.d3.ps",
+    "frontier": 64,
+    "activation_error": 5.127935184116993e-05,
+    "L_DAG": 0.924179096815691,
+    "second_level": 5,
+    "second_route": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        1
+      ],
+      [
+        3,
+        2,
+        1
+      ]
+    ],
+    "rotation_solve_rounds": 1,
+    "decisions": {
+      "best_feasible": 1,
+      "level_cache_hit": 27,
+      "route_repriced": 4,
+      "suffix_level": 32
+    }
+  },
+  {
+    "group": "additional_template_coverage",
+    "model": "composite_coverage",
+    "arm": "forced_composite",
+    "trials": 64,
+    "slots": 256,
+    "keys": 2,
+    "key_bytes": 40897600,
+    "linf": 9.6721068187932e-05,
+    "mse": 1.061209330343179e-09,
+    "mean_ms": 236.61044325,
+    "levels": [
+      [
+        10,
+        1
+      ]
+    ],
+    "output_logscale": [
+      26.000000000000007,
+      26.000000000000007
+    ],
+    "over_limit": 0,
+    "candidate": "silu_tanh_rational.d3.ps.d3.ps",
+    "frontier": 52,
+    "activation_error": 2.6919328958331597e-05,
+    "L_DAG": 0.9243475904635919,
+    "second_level": 2,
+    "second_route": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        1
+      ],
+      [
+        3,
+        2,
+        1
+      ]
+    ],
+    "rotation_solve_rounds": 1,
+    "decisions": {
+      "best_feasible": 1,
+      "level_cache_hit": 18,
+      "route_repriced": 1,
+      "suffix_level": 32
+    }
+  },
+  {
+    "group": "additional_template_coverage",
+    "model": "composite_coverage",
+    "arm": "forced_composite_tight",
+    "trials": 64,
+    "slots": 256,
+    "keys": 2,
+    "key_bytes": 40897600,
+    "linf": 0.00014151240254392516,
+    "mse": 2.102228106142139e-09,
+    "mean_ms": 263.023253640625,
+    "levels": [
+      [
+        10,
+        0
+      ]
+    ],
+    "output_logscale": [
+      26.000000000000014,
+      26.000000000000014
+    ],
+    "over_limit": 0,
+    "candidate": "silu_tanh_rational.d3.ps.d7.ps",
+    "frontier": 52,
+    "activation_error": 3.5355922300071956e-06,
+    "L_DAG": 0.9245112190071051,
+    "second_level": 1,
+    "second_route": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        1
+      ],
+      [
+        3,
+        2,
+        1
+      ]
+    ],
+    "rotation_solve_rounds": 1,
+    "decisions": {
+      "suffix_approximation": 1,
+      "backward_ssa": 1,
+      "upstream_cut": 23,
+      "suffix_level": 24,
+      "best_feasible": 1,
+      "level_cache_hit": 3
+    }
+  }
+]

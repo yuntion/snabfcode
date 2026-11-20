@@ -1,0 +1,75 @@
+{
+  "control": {
+    "source_provenance": true,
+    "plan_idempotence": [
+      "economy",
+      "precision"
+    ],
+    "precision_feedback_matches_fresh": true,
+    "impossible_level_rejected": true,
+    "tamper_rejected_by": [
+      "snabf-check-plan",
+      "snabf-lower-ckks"
+    ],
+    "tampered_fields": [
+      "poly_frontier.activation_error",
+      "poly_selected.nodes.weights"
+    ],
+    "replanned_sha256": "7a2a275d964b241502afedcef81ba0c4c7700b9986245e5e927d9069f7251c42"
+  },
+  "strided64": {
+    "source_provenance": true,
+    "plan_idempotence": [
+      "economy",
+      "precision"
+    ],
+    "precision_feedback_matches_fresh": true,
+    "impossible_level_rejected": true,
+    "tamper_rejected_by": [
+      "snabf-check-plan",
+      "snabf-lower-ckks"
+    ],
+    "tampered_fields": [
+      "poly_frontier.activation_error",
+      "poly_selected.nodes.weights"
+    ],
+    "replanned_sha256": "da973d8ec85184acde9d35e7014d4795d1b8a93ec2a2cc3fd3264ef84693cb5b"
+  },
+  "reuse64": {
+    "source_provenance": true,
+    "plan_idempotence": [
+      "economy",
+      "precision"
+    ],
+    "precision_feedback_matches_fresh": true,
+    "impossible_level_rejected": true,
+    "tamper_rejected_by": [
+      "snabf-check-plan",
+      "snabf-lower-ckks"
+    ],
+    "tampered_fields": [
+      "poly_frontier.activation_error",
+      "poly_selected.nodes.weights"
+    ],
+    "replanned_sha256": "4cad6b795cbaf2e0e2ab388be6bed34721ca3e563ce9cbc60fc5935ccd669d5c"
+  },
+  "residual": {
+    "source_provenance": true,
+    "plan_idempotence": [
+      "economy",
+      "precision"
+    ],
+    "precision_feedback_matches_fresh": true,
+    "impossible_level_rejected": true,
+    "tamper_rejected_by": [
+      "snabf-check-plan",
+      "snabf-lower-ckks"
+    ],
+    "tampered_fields": [
+      "poly_frontier.activation_error",
+      "poly_selected.nodes.weights"
+    ],
+    "replanned_sha256": "142bef4e44105d80c855f02b38d2ceced7fc3596bbd9cf859940394db4fcf4ed",
+    "residual_distinct_ssa_add": true
+  }
+}

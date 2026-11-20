@@ -1,0 +1,8 @@
+fully_overwritten: 4 authentic controls passed, 4 modified plans denied; no outputs
+Traceback (most recent call last):
+  File "/home/fhecompiler/build/pass4-joint-recheck.Wps2mqbI/check-extra.py", line 78, in <module>
+    success(emit(m,a)); assert (sha(m),sha(a))==(sha(newm),sha(newa)); continue
+  File "/home/fhecompiler/build/pass4-joint-recheck.Wps2mqbI/check-extra.py", line 23, in success
+    assert result.returncode == 0, result.stderr
+AssertionError: /tmp/snabf-private-rename-cr8_e0ny/snabf-opt: error while loading shared libraries: libMLIR.so.24.0: cannot open shared object file: No such file or directory
+

@@ -1,0 +1,208 @@
+{
+  "runs": [
+    {
+      "arm": "heir",
+      "metrics": {
+        "Linf": 6.11594994221476e-05,
+        "MSE": 1.8696408721836455e-10,
+        "VsHeirLinf": 0,
+        "MeanEvalMs": 158.16447226562497,
+        "Galois": [
+          5,
+          25
+        ],
+        "SerializedGaloisBytes": 20973248,
+        "Trials": 64,
+        "Outputs": 256
+      },
+      "workload": "control"
+    },
+    {
+      "arm": "independent",
+      "metrics": {
+        "Linf": 5.2052430332349964e-05,
+        "MSE": 1.8360851481204976e-10,
+        "VsHeirLinf": 9.156018495559692e-05,
+        "MeanEvalMs": 154.17956489062496,
+        "Galois": [
+          5,
+          25,
+          125
+        ],
+        "SerializedGaloisBytes": 31459872,
+        "Trials": 64,
+        "Outputs": 256
+      },
+      "workload": "control"
+    },
+    {
+      "arm": "joint",
+      "metrics": {
+        "Linf": 6.781317309871582e-05,
+        "MSE": 2.0522301026470155e-10,
+        "VsHeirLinf": 6.05657696723938e-05,
+        "MeanEvalMs": 157.89740917187498,
+        "Galois": [
+          5,
+          25
+        ],
+        "SerializedGaloisBytes": 20973248,
+        "Trials": 64,
+        "Outputs": 256
+      },
+      "workload": "control"
+    },
+    {
+      "arm": "heir",
+      "metrics": {
+        "Linf": 5.03643285482136e-05,
+        "MSE": 7.130865943066044e-11,
+        "VsHeirLinf": 0,
+        "MeanEvalMs": 170.34174154687497,
+        "Galois": [
+          5,
+          25,
+          625
+        ],
+        "SerializedGaloisBytes": 31459872,
+        "Trials": 64,
+        "Outputs": 4096
+      },
+      "workload": "strided64"
+    },
+    {
+      "arm": "independent",
+      "metrics": {
+        "Linf": 3.9404897456053745e-05,
+        "MSE": 7.224092204716003e-11,
+        "VsHeirLinf": 5.776435136795044e-05,
+        "MeanEvalMs": 143.28111396875002,
+        "Galois": [
+          5,
+          25,
+          625,
+          3125
+        ],
+        "SerializedGaloisBytes": 41946496,
+        "Trials": 64,
+        "Outputs": 4096
+      },
+      "workload": "strided64"
+    },
+    {
+      "arm": "joint",
+      "metrics": {
+        "Linf": 5.321934976158099e-05,
+        "MSE": 7.933215371364698e-11,
+        "VsHeirLinf": 5.567818880081177e-05,
+        "MeanEvalMs": 155.19756168749993,
+        "Galois": [
+          5,
+          25,
+          625
+        ],
+        "SerializedGaloisBytes": 31459872,
+        "Trials": 64,
+        "Outputs": 4096
+      },
+      "workload": "strided64"
+    },
+    {
+      "arm": "heir",
+      "metrics": {
+        "Linf": 3.908556836532129e-05,
+        "MSE": 6.357143296188955e-11,
+        "VsHeirLinf": 0,
+        "MeanEvalMs": 176.739377875,
+        "Galois": [
+          5,
+          125,
+          625,
+          15625,
+          30177
+        ],
+        "SerializedGaloisBytes": 52433120,
+        "Trials": 64,
+        "Outputs": 4096
+      },
+      "workload": "reuse64"
+    },
+    {
+      "arm": "independent",
+      "metrics": {
+        "Linf": 3.570190453204558e-05,
+        "MSE": 5.511775875878458e-11,
+        "VsHeirLinf": 5.934387445449829e-05,
+        "MeanEvalMs": 137.97837885937497,
+        "Galois": [
+          12589,
+          15625,
+          19813,
+          30177
+        ],
+        "SerializedGaloisBytes": 41946496,
+        "Trials": 64,
+        "Outputs": 4096
+      },
+      "workload": "reuse64"
+    },
+    {
+      "arm": "joint",
+      "metrics": {
+        "Linf": 4.5061455829997765e-05,
+        "MSE": 6.255075394139017e-11,
+        "VsHeirLinf": 6.264448165893555e-05,
+        "MeanEvalMs": 161.67362625000007,
+        "Galois": [
+          5,
+          15625,
+          30177
+        ],
+        "SerializedGaloisBytes": 31459872,
+        "Trials": 64,
+        "Outputs": 4096
+      },
+      "workload": "reuse64"
+    }
+  ],
+  "workloads": {
+    "control": {
+      "arm": "heir_fixed_profile_reference",
+      "heir_opt": "/home/fhecompiler/extern/heir-release/heir/heir-opt",
+      "heir_translate": "/home/fhecompiler/extern/heir-release/heir/heir-translate",
+      "input_sha256": "43942bfec60718bf347f28247542e6ba090260e04fdbb3a56ce75b8b0239d4c7",
+      "min_slots": 4096,
+      "profile_sha256": "a2e57ceb051160701ea128dbab33fb1cdb40612a078d41a40b675e582e2ae95e",
+      "plan_sha256": "253b26288e89816b200a802d62d203ae72d7874057584d3a8318fa771a3aee85"
+    },
+    "reuse64": {
+      "arm": "heir_fixed_profile_reference",
+      "heir_opt": "/home/fhecompiler/extern/heir-release/heir/heir-opt",
+      "heir_translate": "/home/fhecompiler/extern/heir-release/heir/heir-translate",
+      "input_sha256": "c87b0bbd03a024e297088e877619003468bca01d50d95b1c99503297cd5ca8e1",
+      "min_slots": 4096,
+      "profile_sha256": "a2e57ceb051160701ea128dbab33fb1cdb40612a078d41a40b675e582e2ae95e",
+      "plan_sha256": "632eab8c17d7d0252f451e1b87046b66e1f7d02083d5128db41cfe7b4d65812c"
+    },
+    "strided64": {
+      "arm": "heir_fixed_profile_reference",
+      "heir_opt": "/home/fhecompiler/extern/heir-release/heir/heir-opt",
+      "heir_translate": "/home/fhecompiler/extern/heir-release/heir/heir-translate",
+      "input_sha256": "c328a9900f27187299e03c372adcc796b7e6e426bbe8b0e11cda8cc39f852662",
+      "min_slots": 4096,
+      "profile_sha256": "a2e57ceb051160701ea128dbab33fb1cdb40612a078d41a40b675e582e2ae95e",
+      "plan_sha256": "36accc89350cd00585f90645c0395f1ab0499459be21dadd5cc64e354f0eed0b"
+    }
+  },
+  "bootstrap_plan_only": {
+    "enabled": true,
+    "reason": "profitable",
+    "small_level": 2,
+    "beta_pack": 1,
+    "rs_variance": 5.0,
+    "downstream_penalty": 5,
+    "savings": 40,
+    "penalty": 35,
+    "margin": 5
+  }
+}

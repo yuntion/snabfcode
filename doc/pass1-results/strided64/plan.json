@@ -1,0 +1,491 @@
+{
+  "candidates": [
+    [
+      {
+        "s": 0,
+        "subgroup_stride": 1,
+        "baby_stride": 8192,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            2,
+            0,
+            2
+          ],
+          [
+            5,
+            0,
+            5
+          ]
+        ],
+        "baby": [],
+        "giant": [
+          1,
+          2,
+          5
+        ],
+        "galois": [
+          5,
+          25,
+          3125
+        ]
+      },
+      {
+        "s": 11,
+        "subgroup_stride": 1,
+        "baby_stride": 4,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            2,
+            0,
+            2
+          ],
+          [
+            5,
+            4,
+            1
+          ]
+        ],
+        "baby": [
+          4
+        ],
+        "giant": [
+          1,
+          2
+        ],
+        "galois": [
+          5,
+          25,
+          625
+        ]
+      },
+      {
+        "s": 12,
+        "subgroup_stride": 1,
+        "baby_stride": 2,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            2,
+            2,
+            0
+          ],
+          [
+            5,
+            4,
+            1
+          ]
+        ],
+        "baby": [
+          2,
+          4
+        ],
+        "giant": [
+          1
+        ],
+        "galois": [
+          5,
+          25,
+          625
+        ]
+      },
+      {
+        "s": 13,
+        "subgroup_stride": 1,
+        "baby_stride": 1,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            1,
+            1,
+            0
+          ],
+          [
+            2,
+            2,
+            0
+          ],
+          [
+            5,
+            5,
+            0
+          ]
+        ],
+        "baby": [
+          1,
+          2,
+          5
+        ],
+        "giant": [],
+        "galois": [
+          5,
+          25,
+          3125
+        ]
+      }
+    ],
+    [
+      {
+        "s": 0,
+        "subgroup_stride": 4,
+        "baby_stride": 8192,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            4,
+            0,
+            4
+          ]
+        ],
+        "baby": [],
+        "giant": [
+          4
+        ],
+        "galois": [
+          625
+        ]
+      },
+      {
+        "s": 11,
+        "subgroup_stride": 4,
+        "baby_stride": 4,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            4,
+            4,
+            0
+          ]
+        ],
+        "baby": [
+          4
+        ],
+        "giant": [],
+        "galois": [
+          625
+        ]
+      }
+    ]
+  ],
+  "independent": {
+    "objective": 56.8782958984375,
+    "key_bytes": 41946496,
+    "selected": [
+      3,
+      1
+    ],
+    "keys": [
+      {
+        "scope": "9a2e8da55aa07cc2b80952635d966463969ef01ea5ec1a1b8065f0ae6bbf5b0c",
+        "galois": 5,
+        "refs": 1
+      },
+      {
+        "scope": "9a2e8da55aa07cc2b80952635d966463969ef01ea5ec1a1b8065f0ae6bbf5b0c",
+        "galois": 25,
+        "refs": 1
+      },
+      {
+        "scope": "9a2e8da55aa07cc2b80952635d966463969ef01ea5ec1a1b8065f0ae6bbf5b0c",
+        "galois": 625,
+        "refs": 1
+      },
+      {
+        "scope": "9a2e8da55aa07cc2b80952635d966463969ef01ea5ec1a1b8065f0ae6bbf5b0c",
+        "galois": 3125,
+        "refs": 1
+      }
+    ],
+    "routes": [
+      {
+        "s": 13,
+        "subgroup_stride": 1,
+        "baby_stride": 1,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            1,
+            1,
+            0
+          ],
+          [
+            2,
+            2,
+            0
+          ],
+          [
+            5,
+            5,
+            0
+          ]
+        ],
+        "baby": [
+          1,
+          2,
+          5
+        ],
+        "giant": [],
+        "galois": [
+          5,
+          25,
+          3125
+        ]
+      },
+      {
+        "s": 11,
+        "subgroup_stride": 4,
+        "baby_stride": 4,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            4,
+            4,
+            0
+          ]
+        ],
+        "baby": [
+          4
+        ],
+        "giant": [],
+        "galois": [
+          625
+        ]
+      }
+    ],
+    "rotation_work": 16.875
+  },
+  "joint": {
+    "objective": 49.877471923828125,
+    "key_bytes": 31459872,
+    "selected": [
+      2,
+      1
+    ],
+    "keys": [
+      {
+        "scope": "9a2e8da55aa07cc2b80952635d966463969ef01ea5ec1a1b8065f0ae6bbf5b0c",
+        "galois": 5,
+        "refs": 1
+      },
+      {
+        "scope": "9a2e8da55aa07cc2b80952635d966463969ef01ea5ec1a1b8065f0ae6bbf5b0c",
+        "galois": 25,
+        "refs": 1
+      },
+      {
+        "scope": "9a2e8da55aa07cc2b80952635d966463969ef01ea5ec1a1b8065f0ae6bbf5b0c",
+        "galois": 625,
+        "refs": 2
+      }
+    ],
+    "routes": [
+      {
+        "s": 12,
+        "subgroup_stride": 1,
+        "baby_stride": 2,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            2,
+            2,
+            0
+          ],
+          [
+            5,
+            4,
+            1
+          ]
+        ],
+        "baby": [
+          2,
+          4
+        ],
+        "giant": [
+          1
+        ],
+        "galois": [
+          5,
+          25,
+          625
+        ]
+      },
+      {
+        "s": 11,
+        "subgroup_stride": 4,
+        "baby_stride": 4,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            4,
+            4,
+            0
+          ]
+        ],
+        "baby": [
+          4
+        ],
+        "giant": [],
+        "galois": [
+          625
+        ]
+      }
+    ],
+    "rotation_work": 19.875
+  },
+  "profile": {
+    "Q": [
+      288230376150630401,
+      68190209,
+      66551809,
+      67731457,
+      66813953,
+      67502081,
+      67043329,
+      67239937
+    ],
+    "P": [
+      1152921504607338497,
+      1152921504608747521
+    ],
+    "logN": 14,
+    "logDefaultScale": 26
+  },
+  "scope": "9a2e8da55aa07cc2b80952635d966463969ef01ea5ec1a1b8065f0ae6bbf5b0c",
+  "key_family": {
+    "configuration": "linear_silu_linear__configure",
+    "secret_ssa": "%secretKey",
+    "profile": {
+      "Q": [
+        288230376150630401,
+        68190209,
+        66551809,
+        67731457,
+        66813953,
+        67502081,
+        67043329,
+        67239937
+      ],
+      "P": [
+        1152921504607338497,
+        1152921504608747521
+      ],
+      "logN": 14,
+      "logDefaultScale": 26
+    },
+    "gadget": "lattigo-full-QP-default-uncompressed"
+  },
+  "regions": [
+    {
+      "id": "linear_silu_linear__preprocessing:%linear_transformation",
+      "raw_diagonals": [
+        0,
+        1,
+        2,
+        5
+      ],
+      "diagonals": [
+        0,
+        1,
+        2,
+        5
+      ],
+      "level": 7,
+      "log_slots": 12,
+      "mask_scale": 67239937,
+      "table_slot": 0,
+      "apply_id": "linear_silu_linear__preprocessed:%ct_0",
+      "input_id": "linear_silu_linear__preprocessed:%ct"
+    },
+    {
+      "id": "linear_silu_linear__preprocessing:%linear_transformation_6",
+      "raw_diagonals": [
+        0,
+        4
+      ],
+      "diagonals": [
+        0,
+        4
+      ],
+      "level": 2,
+      "log_slots": 12,
+      "mask_scale": 66551809,
+      "table_slot": 1,
+      "apply_id": "linear_silu_linear__preprocessed:%ct_14",
+      "input_id": "linear_silu_linear__preprocessed:%ct_12"
+    }
+  ],
+  "bootstrap": {
+    "status": "not_applicable",
+    "sites": {},
+    "cost_records": {}
+  },
+  "bytes_per_key": 10486624,
+  "costs": {
+    "description": "Fixed normalized operation costs (not timings); key bytes are Lattigo serialized sizes.",
+    "hoisted_per_active_limb": 0.625,
+    "giant_per_active_limb": 1.0,
+    "key_units_per_mib": 1.0
+  },
+  "heir_lowered_sha256": "a05299b14a6520464aea4ad43eeeb770c94990a568fc6305774b5739ed0dce38"
+}

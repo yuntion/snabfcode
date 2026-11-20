@@ -1,0 +1,129 @@
+Pass 1 evidence: /home/fhecompiler/build/pass1-revision/run.GIOCVvjG
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/fhecompiler/build/pass1-revision/native
+Consolidate compiler generated dependencies of target snabf_ir
+Consolidate compiler generated dependencies of target snabf_pass2
+Consolidate compiler generated dependencies of target snabf_pass3
+Consolidate compiler generated dependencies of target snabf_planner
+Consolidate compiler generated dependencies of target heir_lattigo
+[  8%] Built target snabf_pass2
+[ 17%] Built target snabf_ir
+[ 29%] Built target snabf_planner
+[ 30%] Built target snabf_pass3
+Consolidate compiler generated dependencies of target Pass2DPTest
+Consolidate compiler generated dependencies of target Pass2CertTest
+Consolidate compiler generated dependencies of target Pass2NoiseTest
+Consolidate compiler generated dependencies of target snabf_planner_test
+[ 64%] Built target heir_lattigo
+[ 66%] Built target Pass2CertTest
+[ 69%] Built target Pass2NoiseTest
+[ 71%] Built target Pass2DPTest
+[ 73%] Built target snabf_planner_test
+Consolidate compiler generated dependencies of target snabf_import
+Consolidate compiler generated dependencies of target Pass1MechanicsTest
+Consolidate compiler generated dependencies of target Pass3Test
+[ 76%] Built target snabf_import
+[ 78%] Built target Pass3Test
+Consolidate compiler generated dependencies of target snabf-pass1
+[ 80%] Built target Pass1MechanicsTest
+[ 83%] Built target snabf-pass1
+Consolidate compiler generated dependencies of target snabf_pipeline
+[ 97%] Built target snabf_pipeline
+Consolidate compiler generated dependencies of target snabf-opt
+[100%] Built target snabf-opt
+Internal ctest changing into directory: /home/fhecompiler/build/pass1-revision/native
+Test project /home/fhecompiler/build/pass1-revision/native
+    Start 1: Pass1MechanicsTest
+1/6 Test #1: Pass1MechanicsTest ...............   Passed    0.07 sec
+    Start 2: Pass3Test
+2/6 Test #2: Pass3Test ........................   Passed    0.03 sec
+    Start 3: Pass2CertTest
+3/6 Test #3: Pass2CertTest ....................   Passed    0.33 sec
+    Start 4: Pass2DPTest
+4/6 Test #4: Pass2DPTest ......................   Passed    0.26 sec
+    Start 5: Pass2NoiseTest
+5/6 Test #5: Pass2NoiseTest ...................   Passed    0.00 sec
+    Start 6: snabf_planner
+6/6 Test #6: snabf_planner ....................   Passed    0.07 sec
+
+100% tests passed, 0 tests failed out of 6
+
+Total Test time (real) =   0.76 sec
+test_bootstrap_sites_are_bound_to_ir (test_pass1.RingSwitchTest) ... ok
+test_level_and_layout (test_pass1.RingSwitchTest) ... ok
+test_strict_boundary (test_pass1.RingSwitchTest) ... ok
+test_variance_feedback (test_pass1.RingSwitchTest) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.038s
+
+OK
+=== RUN   TestSparseDownConv
+    downconv_test.go:83: DownConv N=16384->8192, slots=8, level=1, log2(scale)=40.0, map L_inf=1.0345560307457332e-09, key bytes=1573072
+--- PASS: TestSparseDownConv (0.07s)
+=== RUN   TestCenteredGadget
+    gadget_test.go:79: paired relin slot Linf=1.0471555458100043e-08, event={Site:{ID: Level:3 K:1} RowsExecuted:3 RowsSkipped:1 ForwardNTT:15 InverseNTT:4 Decompositions:3 ResidualMax:1.049747e+06 ResidualMean:-9422.056640625 ResidualMeanSquare:3.687973377988789e+11 LogScale:64 NativeDecompNTT:24 NetDecompNTTSaved:5 ResidualVariance:3.6870856264753973e+11}
+--- PASS: TestCenteredGadget (0.02s)
+PASS
+ok  	snabf.local/compiler/test/backend	0.096s
+control/independent: rounds=1 keys=3 bytes=31459872
+control/joint: rounds=1 keys=2 bytes=20973248
+strided64/independent: rounds=1 keys=4 bytes=41946496
+strided64/joint: rounds=1 keys=3 bytes=31459872
+reuse64/independent: rounds=1 keys=4 bytes=41946496
+reuse64/joint: rounds=1 keys=3 bytes=31459872
+reuse64/cap2: rounds=2 keys=4 bytes=41946496
+PASS: complete tower catalog, charge/feedback tamper, Pass 4 layout contract, dense pricing
+PASS: native Pass 1 Eq. (3), positive/tie/negative/variance/level/layout branches and planning-only boundary
+PASS: native dialect registration, SSA branch, round-trip, fixed point, stale-plan rejection, sink feedback, infeasibility, profile/type checks and IR-guided lowering
+PASS: stale bootstrap manifest, wrong physical Q and aliasing input rejected
+=== RUN   TestPeriodicRoundTrip
+    periodic_bootstrap_test.go:67: real cross-ring refresh: 8 x 64; Linf=1.6355247020038988e-06, MSE=1.8869393221850836e-13
+--- PASS: TestPeriodicRoundTrip (37.80s)
+PASS
+ok  	snabf.local/compiler/build/pass1-revision/run.GIOCVvjG/periodic_boot	38.081s
+=== RUN   TestControl
+    inference_test.go:260: SNABF_PASS1 {"arm":"heir","metrics":{"Linf":0.00006198020915113012,"MSE":2.3301208120287717e-10,"VsHeirLinf":0,"MeanEvalMs":152.127631578125,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,25],"SerializedGaloisBytes":20973248,"Trials":64,"Outputs":256},"workload":"control"}
+    inference_test.go:260: SNABF_PASS1 {"arm":"independent","metrics":{"Linf":0.000049118971044120885,"MSE":2.291044607980679e-10,"VsHeirLinf":0.00006711483001708984,"MeanEvalMs":151.71234281250005,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,25,125],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":256},"workload":"control"}
+    inference_test.go:260: SNABF_PASS1 {"arm":"joint","metrics":{"Linf":0.0000440080656839148,"MSE":1.846744199253053e-10,"VsHeirLinf":0.00007234513759613037,"MeanEvalMs":153.96550351562493,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,25],"SerializedGaloisBytes":20973248,"Trials":64,"Outputs":256},"workload":"control"}
+--- PASS: TestControl (34.11s)
+=== RUN   TestStrided64
+    inference_test.go:266: SNABF_PASS1 {"arm":"heir","metrics":{"Linf":0.000040550435159353304,"MSE":6.683173234019194e-11,"VsHeirLinf":0,"MeanEvalMs":168.43182714062496,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,25,625],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":4096},"workload":"strided64"}
+    inference_test.go:266: SNABF_PASS1 {"arm":"independent","metrics":{"Linf":0.00004709241129667932,"MSE":6.941506234163649e-11,"VsHeirLinf":0.0000508185476064682,"MeanEvalMs":140.22731684374997,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,25,625,3125],"SerializedGaloisBytes":41946496,"Trials":64,"Outputs":4096},"workload":"strided64"}
+    inference_test.go:266: SNABF_PASS1 {"arm":"joint","metrics":{"Linf":0.00004348468865390809,"MSE":7.505905887034721e-11,"VsHeirLinf":0.000060498714447021484,"MeanEvalMs":153.40956874999998,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,25,625],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":4096},"workload":"strided64"}
+--- PASS: TestStrided64 (34.42s)
+=== RUN   TestReuse64
+    inference_test.go:272: SNABF_PASS1 {"arm":"heir","metrics":{"Linf":0.000042199418797281285,"MSE":5.725692222685587e-11,"VsHeirLinf":0,"MeanEvalMs":173.11365807812496,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,125,625,15625,30177],"SerializedGaloisBytes":52433120,"Trials":64,"Outputs":4096},"workload":"reuse64"}
+    inference_test.go:272: SNABF_PASS1 {"arm":"independent","metrics":{"Linf":0.00004079254713236502,"MSE":5.681085485541182e-11,"VsHeirLinf":0.00006137043237686157,"MeanEvalMs":135.88780440624998,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[12589,15625,19813,30177],"SerializedGaloisBytes":41946496,"Trials":64,"Outputs":4096},"workload":"reuse64"}
+    inference_test.go:272: SNABF_PASS1 {"arm":"joint","metrics":{"Linf":0.00004435203829614154,"MSE":5.7302216935130447e-11,"VsHeirLinf":0.0000509209930896759,"MeanEvalMs":157.36959524999997,"InputLevel":7,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Galois":[5,15625,30177],"SerializedGaloisBytes":31459872,"Trials":64,"Outputs":4096},"workload":"reuse64"}
+--- PASS: TestReuse64 (34.85s)
+PASS
+ok  	snabf.local/compiler/test/pass1	103.438s
+=== RUN   TestSinkFeedbackExecution
+    feedback_test.go:119: SNABF_PASS1 {"arm":"cap2","metrics":{"Galois":[12589,15625,19813,30177],"InputLevel":7,"Linf":0.000030062245739922305,"MSE":4.544954829794029e-11,"MeanEvalMs":150.87231549999998,"OutputLevel":0,"OutputLogScale":51.96361603438207,"Outputs":256,"SerializedGaloisBytes":41946496,"Trials":4,"VsHeirLinf":0.000042475759983062744},"workload":"reuse64"}
+--- PASS: TestSinkFeedbackExecution (2.40s)
+PASS
+ok  	snabf.local/compiler/test/unified	2.441s
+residual/economy: silu_direct.d3.ps, silu_direct, poly L6->2, sink L1, 41946496 Galois bytes
+residual/precision: silu_direct.d7.ps, silu_direct, poly L6->1, sink L0, 31459872 Galois bytes
+=== RUN   Test_residual
+    models_test.go:9: residual/economy NUMERICAL PASS: 0/4096 slots over 0.000244140625; Linf 0.0001516752322 MSE 1.133867362e-09; hard_precision_gate=true
+    models_test.go:9: residual/precision NUMERICAL PASS: 0/4096 slots over 0.000244140625; Linf 0.0001453982113 MSE 9.53510726e-10; hard_precision_gate=true
+--- PASS: Test_residual (20.58s)
+PASS
+ok  	snabf.local/compiler/build/pass1-revision/run.GIOCVvjG/pass2/go_test	20.612s
+=== RUN   Test_reuse64
+    harness_test.go:191: ../reuse64/no_trunc: 0/4096 misses Linf=9.633718290047444e-07 MSE=2.693009006132789e-14 mean=184.59ms
+    harness_test.go:191: ../reuse64/joint: 0/4096 misses Linf=9.633718290047444e-07 MSE=2.6923069056270973e-14 mean=185.62ms
+    harness_test.go:191: ../reuse64/matched_exact: 0/4096 misses Linf=9.633718290047444e-07 MSE=2.682677384316567e-14 mean=182.72ms
+--- PASS: Test_reuse64 (41.50s)
+=== RUN   Test_residual
+    harness_test.go:191: ../residual/no_trunc: 0/4096 misses Linf=3.034303989735143e-06 MSE=2.0465718186831526e-13 mean=153.77ms
+    harness_test.go:191: ../residual/joint: 0/4096 misses Linf=3.034303989735143e-06 MSE=2.0469094248610808e-13 mean=150.81ms
+    harness_test.go:191: ../residual/matched_exact: 0/4096 misses Linf=3.034303989735143e-06 MSE=2.0469106278988477e-13 mean=152.95ms
+--- PASS: Test_residual (35.11s)
+PASS
+ok  	snabf.local/compiler/build/pass1-revision/run.GIOCVvjG/pass3/go_test	76.658s
+PASS: paired ciphertexts, independent slot and parameter replay, stale-plan rejection, and joint budget sweep
+PASS: ciphertexts, complete tower/union/work records, Pass 2 precision feedback and concrete Pass 3 scopes

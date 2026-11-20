@@ -1,0 +1,14 @@
+Internal ctest changing into directory: /home/fhecompiler/build/native
+Test project /home/fhecompiler/build/native
+    Start 1: Pass2CertTest
+1/4 Test #1: Pass2CertTest ....................   Passed    0.33 sec
+    Start 2: Pass2DPTest
+2/4 Test #2: Pass2DPTest ......................   Passed    0.27 sec
+    Start 3: Pass2NoiseTest
+3/4 Test #3: Pass2NoiseTest ...................   Passed    0.00 sec
+    Start 4: snabf_planner
+4/4 Test #4: snabf_planner ....................   Passed    0.07 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Total Test time (real) =   0.68 sec

@@ -1,0 +1,221 @@
+{
+  "bootstrap": {
+    "status": "not_applicable"
+  },
+  "input_sha256": "c87b0bbd03a024e297088e877619003468bca01d50d95b1c99503297cd5ca8e1",
+  "independent": {
+    "arm": "independent",
+    "key_bytes": 41946496,
+    "keys": [
+      {
+        "galois": 12589,
+        "refs": 1
+      },
+      {
+        "galois": 15625,
+        "refs": 1
+      },
+      {
+        "galois": 19813,
+        "refs": 1
+      },
+      {
+        "galois": 30177,
+        "refs": 1
+      }
+    ],
+    "objective": 53.7532958984375,
+    "rounds": 1,
+    "routes": [
+      {
+        "s": 13,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            7,
+            7,
+            0
+          ],
+          [
+            9,
+            9,
+            0
+          ]
+        ]
+      },
+      {
+        "s": 12,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            6,
+            6,
+            0
+          ],
+          [
+            8,
+            8,
+            0
+          ]
+        ]
+      }
+    ],
+    "selected_sha256": "5eca3bbdf26faa47906ab258dad04d932f6a5252b8800e84c2fed394a8432942"
+  },
+  "regions": [
+    {
+      "level": 7,
+      "diagonals": [
+        0,
+        7,
+        9
+      ]
+    },
+    {
+      "level": 2,
+      "diagonals": [
+        0,
+        6,
+        8
+      ]
+    }
+  ],
+  "joint": {
+    "arm": "joint",
+    "key_bytes": 31459872,
+    "keys": [
+      {
+        "galois": 5,
+        "refs": 1
+      },
+      {
+        "galois": 15625,
+        "refs": 2
+      },
+      {
+        "galois": 30177,
+        "refs": 2
+      }
+    ],
+    "objective": 51.752471923828125,
+    "rounds": 1,
+    "routes": [
+      {
+        "s": 12,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            7,
+            6,
+            1
+          ],
+          [
+            9,
+            8,
+            1
+          ]
+        ]
+      },
+      {
+        "s": 12,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            6,
+            6,
+            0
+          ],
+          [
+            8,
+            8,
+            0
+          ]
+        ]
+      }
+    ],
+    "selected_sha256": "7c2878c4e09fde6ece7c8957f5d0d3bd75603e393a063b872d942a2711071da6"
+  },
+  "cap2": {
+    "arm": "joint",
+    "key_bytes": 41946496,
+    "keys": [
+      {
+        "galois": 12589,
+        "refs": 1
+      },
+      {
+        "galois": 15625,
+        "refs": 1
+      },
+      {
+        "galois": 19813,
+        "refs": 1
+      },
+      {
+        "galois": 30177,
+        "refs": 1
+      }
+    ],
+    "objective": 53.7532958984375,
+    "rounds": 2,
+    "routes": [
+      {
+        "s": 13,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            7,
+            7,
+            0
+          ],
+          [
+            9,
+            9,
+            0
+          ]
+        ]
+      },
+      {
+        "s": 12,
+        "terms": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            6,
+            6,
+            0
+          ],
+          [
+            8,
+            8,
+            0
+          ]
+        ]
+      }
+    ],
+    "selected_sha256": "76f63fff5ea7e370e625ee26c6ebe720c0e6a012e2c427084b2815c14fdb0ad8"
+  }
+}

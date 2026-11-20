@@ -1,0 +1,49 @@
+{
+  "project": "/home/fhecompiler",
+  "fresh_build": "/home/fhecompiler/build/pass4-joint-recheck.Wps2mqbI",
+  "fixtures_dir": "/home/fhecompiler/build/pass4-ab-release-20261119/run.POAcXfhz",
+  "fixtures": {
+    "reuse64/input.mlir": "96e2cd0005ea6b41dc41f022eabcdfe42891724289f307aa372aeda78baf6662",
+    "reuse64/cache.json": "9e9f827151e8b4175641ad97791553afde1e2221fd055ae621dbe1d22165df6a",
+    "cross_residual/input.mlir": "44ea9571af3f9f507ffa2f6c5191113ed4a94c7d68ffd53315f2f6e54818bfd6",
+    "cross_residual/cache.json": "1a921108ddfe0d87cd25078d06ccccbc5418acd0930cbe6b652fd18ba28c17a8",
+    "residual/input.mlir": "04926c4d381ef42039ce86452ca4351ac413955fc5014854827c67194a5865d4",
+    "residual/cache.json": "2a5cdb5dfad8eb72b3c737fdec67c7d6c1bf05fd3adfd30cc77552f4e2c6e6ff"
+  },
+  "frozen_sha256": "396dfd04cb34073cc414c350e9ffaabf8e94e83fc11129219118864c339e0367",
+  "frozen": {
+    "src/compiler/ir/Pass3IR.cpp": "b7cf7cceb3f986fdf47787efe667704faedf2dee60d9edddb5f7861f25977834",
+    "src/compiler/ir/Pass3IR.h": "ff46bff60430e1e4aab4eb0921a26e0b9c36d2ebce0f2183af71fcea80871f89",
+    "src/compiler/ir/Pass4IR.cpp": "746560d681a4e30de4a750e5cc4720525b29b1fb0ef8a59c2246f77958d77115",
+    "src/compiler/pass4/SSACut.h": "7e0f3c6db0b6ef7025a7c50192f5bb8a944b7835c5088febdc0fb176fd7b7eca",
+    "src/compiler/pass4/tests/SSACutTest.cpp": "03158ea96923e86553af66fdd43700827ba700b2bb24327452438def87265789",
+    "src/compiler/pass4/tests/replay_gates.py": "56987146af4971ea5d77321eef11164b9299d0d7580d6f2d5854e6e468493c67",
+    "src/tools/pass4_security.py": "82ec66cd875310201196500197cc85efebd219987e0174c5c7b42b713f4a80ab"
+  },
+  "delivered": {
+    "src/compiler/ir/Pass3IR.cpp": "b7cf7cceb3f986fdf47787efe667704faedf2dee60d9edddb5f7861f25977834",
+    "src/compiler/ir/Pass3IR.h": "ff46bff60430e1e4aab4eb0921a26e0b9c36d2ebce0f2183af71fcea80871f89",
+    "src/compiler/ir/Pass4IR.cpp": "2b0a87f9f5fd506e3675b3defeff4e0e76c04b97a9cbc465b7417e83be037782",
+    "src/compiler/pass4/SSACut.h": "7e0f3c6db0b6ef7025a7c50192f5bb8a944b7835c5088febdc0fb176fd7b7eca",
+    "src/compiler/pass4/tests/SSACutTest.cpp": "03158ea96923e86553af66fdd43700827ba700b2bb24327452438def87265789",
+    "src/compiler/pass4/tests/replay_gates.py": "3a6c7a5995c0c6f12576b9b0978aea26b63ed8af48cf7ec4afa35d738a787f3d",
+    "src/tools/pass4_security.py": "82ec66cd875310201196500197cc85efebd219987e0174c5c7b42b713f4a80ab"
+  },
+  "changed_since_freeze": [
+    "src/compiler/ir/Pass4IR.cpp",
+    "src/compiler/pass4/tests/replay_gates.py"
+  ],
+  "source_files_checked": 153,
+  "delivery_files_checked": 39,
+  "reverse_patch": "/home/fhecompiler/build/pass4-delivery.lcFrMpgs/snabf-p4-ab-preload.patch",
+  "reverse_patch_sha256": "b07281d8fecb3ab4ad0a20facfa8cbd720fd185cabf1b060d704dafb672a1e70",
+  "reverse_proof_matched": 7,
+  "estimator": "ae45d740ceb138af87a4f92edc592a0ab0d4f43f",
+  "estimator_mode": "replay of pinned cache, no fresh estimator run",
+  "snabf_opt": "/home/fhecompiler/build/pass4-joint-recheck.Wps2mqbI/native/ir/snabf-opt",
+  "snabf_opt_sha256": "0df346da7657ab25ac1eff6474f475c6f50ec1abfa3fd795fa59eb48e7aa3e1a",
+  "heir_translate": "/home/fhecompiler/extern/heir-release/heir/heir-translate",
+  "heir_translate_sha256": "c83d1c769678475dff1f06fdaa88450e45fdd0e882905b814229055daab2ccc1",
+  "helper_sha256": "3ba17babf49e6153724b374ebc22232f047121a9094c841fa8512c8c8d3f3102",
+  "go": "go version go1.26.0 linux/amd64"
+}

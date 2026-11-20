@@ -1,0 +1,93 @@
+Pass 4 experiment: /tmp/snabf-p4-verify/run.Kb94ajz5
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /tmp/snabf-p4-verify/native
+Consolidate compiler generated dependencies of target snabf_pass4
+Consolidate compiler generated dependencies of target snabf_planner
+Consolidate compiler generated dependencies of target snabf_pass3
+Consolidate compiler generated dependencies of target snabf_pass2
+[  4%] Built target snabf_pass4
+[  9%] Built target snabf_pass2
+[ 15%] Built target snabf_pass3
+[ 21%] Built target snabf_planner
+Consolidate compiler generated dependencies of target snabf_ir
+Consolidate compiler generated dependencies of target Pass4Test
+[ 23%] Built target Pass4Test
+Consolidate compiler generated dependencies of target Pass2CertTest
+[ 26%] Built target Pass2CertTest
+Consolidate compiler generated dependencies of target Pass2DPTest
+[ 28%] Built target Pass2DPTest
+Consolidate compiler generated dependencies of target Pass2NoiseTest
+[ 30%] Built target Pass2NoiseTest
+Consolidate compiler generated dependencies of target snabf_planner_test
+[ 32%] Built target snabf_planner_test
+Consolidate compiler generated dependencies of target snabf-pass1
+Consolidate compiler generated dependencies of target Pass3Test
+[ 34%] Built target Pass3Test
+Consolidate compiler generated dependencies of target Pass1MechanicsTest
+[ 36%] Built target Pass1MechanicsTest
+[ 47%] Built target snabf_ir
+Consolidate compiler generated dependencies of target snabf_import
+[ 50%] Built target snabf_import
+Consolidate compiler generated dependencies of target heir_lattigo
+[ 80%] Built target heir_lattigo
+Consolidate compiler generated dependencies of target snabf_pipeline
+[ 82%] Built target snabf-pass1
+[ 97%] Built target snabf_pipeline
+Consolidate compiler generated dependencies of target snabf-opt
+[100%] Built target snabf-opt
+Internal ctest changing into directory: /tmp/snabf-p4-verify/native
+Test project /tmp/snabf-p4-verify/native
+    Start 1: Pass4Test
+1/7 Test #1: Pass4Test ........................   Passed    0.03 sec
+    Start 2: Pass1MechanicsTest
+2/7 Test #2: Pass1MechanicsTest ...............   Passed    0.37 sec
+    Start 3: Pass3Test
+3/7 Test #3: Pass3Test ........................   Passed    0.98 sec
+    Start 4: Pass2CertTest
+4/7 Test #4: Pass2CertTest ....................   Passed    0.36 sec
+    Start 5: Pass2DPTest
+5/7 Test #5: Pass2DPTest ......................   Passed    0.19 sec
+    Start 6: Pass2NoiseTest
+6/7 Test #6: Pass2NoiseTest ...................   Passed    0.01 sec
+    Start 7: snabf_planner
+7/7 Test #7: snabf_planner ....................   Passed    0.17 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Total Test time (real) =   2.41 sec
+ok  	snabf.local/compiler/test/backend	0.067s
+ok  	snabf.local/compiler/src/backend/gadget	0.011s
+=== RUN   TestEncrypted
+    encrypted_test.go:96: N=16384, 4096 logical outputs, 262144 encoded slots, max=1.0049036929804522e-06, mean=115.28 ms
+--- PASS: TestEncrypted (8.56s)
+PASS
+ok  	command-line-arguments	8.567s
+=== RUN   TestEncrypted
+    encrypted_test.go:96: N=8192, 4096 logical outputs, 262144 encoded slots, max=1.0029802283706424e-06, mean=95.18 ms
+--- PASS: TestEncrypted (7.23s)
+PASS
+ok  	command-line-arguments	7.245s
+=== RUN   TestEncrypted
+    encrypted_test.go:96: N=16384, 4096 logical outputs, 262144 encoded slots, max=1.0130345522441075e-06, mean=117.78 ms
+--- PASS: TestEncrypted (8.73s)
+PASS
+ok  	command-line-arguments	8.744s
+reuse64 23 invalid plans rejected
+=== RUN   TestEncrypted
+    encrypted_test.go:96: N=16384, 4096 logical outputs, 262144 encoded slots, max=2.948316740858381e-06, mean=100.21 ms
+--- PASS: TestEncrypted (7.61s)
+PASS
+ok  	command-line-arguments	7.617s
+=== RUN   TestEncrypted
+    encrypted_test.go:96: N=8192, 4096 logical outputs, 262144 encoded slots, max=2.947834212230216e-06, mean=97.40 ms
+--- PASS: TestEncrypted (7.37s)
+PASS
+ok  	command-line-arguments	7.383s
+=== RUN   TestEncrypted
+    encrypted_test.go:96: N=16384, 4096 logical outputs, 262144 encoded slots, max=2.950228114917408e-06, mean=103.83 ms
+--- PASS: TestEncrypted (7.86s)
+PASS
+ok  	command-line-arguments	7.874s
+residual 23 invalid plans rejected
+Verified: /tmp/snabf-p4-verify/run.Kb94ajz5

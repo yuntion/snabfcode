@@ -1,0 +1,401 @@
+{
+  "workloads": {
+    "reuse64": {
+      "no_trunc": {
+        "Slots": 4096,
+        "Misses": 0,
+        "Trials": 64,
+        "Linf": 9.633718290047444e-07,
+        "MSE": 2.6902008829941947e-14,
+        "OnlineMS": 186.79719840624995,
+        "ObservedOutputLogScale": 38.00000000000001,
+        "OutputLevel": 1,
+        "Events": null,
+        "PairedLinf": 0,
+        "PairedMeanSquare": 0,
+        "bits_qp": 336.60561657629404,
+        "scale": 38,
+        "q": [
+          16580609,
+          270155612161,
+          270155972609,
+          270155284481,
+          270156300289,
+          270154924033,
+          270154498049,
+          270157479937
+        ],
+        "p": [
+          122317219102721
+        ],
+        "min_qp_bits_security": 136.94800000054514,
+        "workload_sites": 35,
+        "cuts": [],
+        "envelope_security": 129.6480000003393,
+        "skipped_rows": 0,
+        "net_decomposition_ntt_saved": 0,
+        "program_sha256": "1bd27b1f0860a5b200f415d58cc01646cf9c57f34a3ae17d2357d6edf97bd937"
+      },
+      "joint": {
+        "Slots": 4096,
+        "Misses": 0,
+        "Trials": 64,
+        "Linf": 9.633718290047444e-07,
+        "MSE": 2.692373394114966e-14,
+        "OnlineMS": 186.73321482812506,
+        "ObservedOutputLogScale": 38.00000000000001,
+        "OutputLevel": 1,
+        "Events": [
+          {
+            "ID": "lin0.giant1",
+            "Level": 7,
+            "K": 1,
+            "RowsExecuted": 7,
+            "RowsSkipped": 1,
+            "ForwardNTT": 63,
+            "InverseNTT": 8,
+            "Decompositions": 7,
+            "ResidualMax": 8290271,
+            "ResidualMean": -16938.79150390625,
+            "ResidualMeanSquare": 22709284146167.75,
+            "LogScale": 75.97500967064073,
+            "NativeDecompNTT": 80,
+            "NetDecompNTTSaved": 9,
+            "ResidualVariance": 22708997223510.137
+          },
+          {
+            "ID": "poly0.n1.relin",
+            "Level": 6,
+            "K": 1,
+            "RowsExecuted": 6,
+            "RowsSkipped": 1,
+            "ForwardNTT": 48,
+            "InverseNTT": 7,
+            "Decompositions": 6,
+            "ResidualMax": 8289216,
+            "ResidualMean": -37737.39697265625,
+            "ResidualMeanSquare": 22616432030494.418,
+            "LogScale": 76,
+            "NativeDecompNTT": 63,
+            "NetDecompNTTSaved": 8,
+            "ResidualVariance": 22615007919364.145
+          },
+          {
+            "ID": "poly0.n3.relin",
+            "Level": 4,
+            "K": 1,
+            "RowsExecuted": 4,
+            "RowsSkipped": 1,
+            "ForwardNTT": 24,
+            "InverseNTT": 5,
+            "Decompositions": 4,
+            "ResidualMax": 8290091,
+            "ResidualMean": -14221.703796386719,
+            "ResidualMeanSquare": 22995829522140.516,
+            "LogScale": 75.95000131748886,
+            "NativeDecompNTT": 35,
+            "NetDecompNTTSaved": 6,
+            "ResidualVariance": 22995627265281.645
+          },
+          {
+            "ID": "poly0.n5.relin",
+            "Level": 3,
+            "K": 1,
+            "RowsExecuted": 3,
+            "RowsSkipped": 1,
+            "ForwardNTT": 15,
+            "InverseNTT": 4,
+            "Decompositions": 3,
+            "ResidualMax": 8289978,
+            "ResidualMean": 40588.73553466797,
+            "ResidualMeanSquare": 22931486304832.453,
+            "LogScale": 75.97499794641843,
+            "NativeDecompNTT": 24,
+            "NetDecompNTTSaved": 5,
+            "ResidualVariance": 22929838859380.15
+          }
+        ],
+        "PairedLinf": 4.5988323423701294e-08,
+        "PairedMeanSquare": 1.4245776185851452e-16,
+        "bits_qp": 336.80923179070066,
+        "scale": 38,
+        "q": [
+          16580609,
+          270155612161,
+          270155972609,
+          270155284481,
+          270156300289,
+          270154924033,
+          270154498049,
+          270157479937
+        ],
+        "p": [
+          140858119421953
+        ],
+        "min_qp_bits_security": 136.94800000000254,
+        "workload_sites": 35,
+        "cuts": [],
+        "envelope_security": 129.6480000003393,
+        "skipped_rows": 4,
+        "net_decomposition_ntt_saved": 28,
+        "program_sha256": "283c216295c54432e54d5a7b9c2dd8473fb577cbb2ba0d9aa13de8ce5272ec05",
+        "paired_empirical_variance": 1.424143117528654e-16
+      },
+      "matched_exact": {
+        "Slots": 4096,
+        "Misses": 0,
+        "Trials": 64,
+        "Linf": 9.633718290047444e-07,
+        "MSE": 2.7010327830763553e-14,
+        "OnlineMS": 184.910962921875,
+        "ObservedOutputLogScale": 38.00000000000001,
+        "OutputLevel": 1,
+        "Events": null,
+        "PairedLinf": 0,
+        "PairedMeanSquare": 0,
+        "bits_qp": 336.80923179070066,
+        "scale": 38,
+        "q": [
+          16580609,
+          270155612161,
+          270155972609,
+          270155284481,
+          270156300289,
+          270154924033,
+          270154498049,
+          270157479937
+        ],
+        "p": [
+          140858119421953
+        ],
+        "min_qp_bits_security": 136.94800000000254,
+        "workload_sites": 35,
+        "cuts": [],
+        "envelope_security": 129.6480000003393,
+        "skipped_rows": 0,
+        "net_decomposition_ntt_saved": 0,
+        "program_sha256": "0047e5b9d1a98932062ae6263d7a87c7fc01068bb577ed08d7c85d82dc0de046"
+      }
+    },
+    "residual": {
+      "no_trunc": {
+        "Slots": 4096,
+        "Misses": 0,
+        "Trials": 64,
+        "Linf": 3.034303989735143e-06,
+        "MSE": 2.0474633091826916e-13,
+        "OnlineMS": 153.22694451562498,
+        "ObservedOutputLogScale": 39,
+        "OutputLevel": 1,
+        "Events": null,
+        "PairedLinf": 0,
+        "PairedMeanSquare": 0,
+        "bits_qp": 342.49973042619735,
+        "scale": 39,
+        "q": [
+          16580609,
+          540311683073,
+          540311912449,
+          540310405121,
+          540312272897,
+          540312862721,
+          540309553153,
+          540313583617
+        ],
+        "p": [
+          56830435459073
+        ],
+        "min_qp_bits_security": 133.73600000001886,
+        "workload_sites": 37,
+        "cuts": [],
+        "envelope_security": 129.6480000003393,
+        "skipped_rows": 0,
+        "net_decomposition_ntt_saved": 0,
+        "program_sha256": "869b1caabbeb063a11d5faa484f79127dddd40e0efc8ee58d1a5a9bba8861b7c"
+      },
+      "joint": {
+        "Slots": 4096,
+        "Misses": 0,
+        "Trials": 64,
+        "Linf": 3.034303989735143e-06,
+        "MSE": 2.0465727766603936e-13,
+        "OnlineMS": 151.1230790625,
+        "ObservedOutputLogScale": 39,
+        "OutputLevel": 1,
+        "Events": [
+          {
+            "ID": "poly0.n1.relin",
+            "Level": 6,
+            "K": 1,
+            "RowsExecuted": 6,
+            "RowsSkipped": 1,
+            "ForwardNTT": 48,
+            "InverseNTT": 7,
+            "Decompositions": 6,
+            "ResidualMax": 8290293,
+            "ResidualMean": 13305.385559082031,
+            "ResidualMeanSquare": 22920114436272.65,
+            "LogScale": 78,
+            "NativeDecompNTT": 63,
+            "NetDecompNTTSaved": 8,
+            "ResidualVariance": 22919937402987.773
+          },
+          {
+            "ID": "poly0.n3.relin",
+            "Level": 4,
+            "K": 1,
+            "RowsExecuted": 4,
+            "RowsSkipped": 1,
+            "ForwardNTT": 24,
+            "InverseNTT": 5,
+            "Decompositions": 4,
+            "ResidualMax": 8290302,
+            "ResidualMean": 106196.71142578125,
+            "ResidualMeanSquare": 22917281460669.37,
+            "LogScale": 77.95000000506819,
+            "NativeDecompNTT": 35,
+            "NetDecompNTTSaved": 6,
+            "ResidualVariance": 22906003719151.72
+          },
+          {
+            "ID": "poly0.n5.relin",
+            "Level": 3,
+            "K": 1,
+            "RowsExecuted": 3,
+            "RowsSkipped": 1,
+            "ForwardNTT": 15,
+            "InverseNTT": 4,
+            "Decompositions": 3,
+            "ResidualMax": 8290155,
+            "ResidualMean": 108523.00830078125,
+            "ResidualMeanSquare": 22946874053451.54,
+            "LogScale": 77.97499750894292,
+            "NativeDecompNTT": 24,
+            "NetDecompNTTSaved": 5,
+            "ResidualVariance": 22935096810120.887
+          },
+          {
+            "ID": "lin1.giant1",
+            "Level": 2,
+            "K": 1,
+            "RowsExecuted": 2,
+            "RowsSkipped": 1,
+            "ForwardNTT": 8,
+            "InverseNTT": 3,
+            "Decompositions": 2,
+            "ResidualMax": 8289997,
+            "ResidualMean": -13679.72314453125,
+            "ResidualMeanSquare": 22981376216853.188,
+            "LogScale": 77.97500153368792,
+            "NativeDecompNTT": 15,
+            "NetDecompNTTSaved": 4,
+            "ResidualVariance": 22981189082027.875
+          }
+        ],
+        "PairedLinf": 2.2335969808275055e-08,
+        "PairedMeanSquare": 2.397271163289318e-17,
+        "bits_qp": 342.5137057740307,
+        "scale": 39,
+        "q": [
+          16580609,
+          540311683073,
+          540311912449,
+          540310405121,
+          540312272897,
+          540312862721,
+          540309553153,
+          540313583617
+        ],
+        "p": [
+          57383625392129
+        ],
+        "min_qp_bits_security": 133.73600000001812,
+        "workload_sites": 37,
+        "cuts": [],
+        "envelope_security": 129.6480000003393,
+        "skipped_rows": 4,
+        "net_decomposition_ntt_saved": 23,
+        "program_sha256": "1b88a894675c5959104bf8d5aca1ca33f39151295678dc1e612a513ea7ecd351",
+        "paired_empirical_variance": 2.3950699004191627e-17
+      },
+      "matched_exact": {
+        "Slots": 4096,
+        "Misses": 0,
+        "Trials": 64,
+        "Linf": 3.034303989735143e-06,
+        "MSE": 2.0475316828744584e-13,
+        "OnlineMS": 154.00919557812495,
+        "ObservedOutputLogScale": 39,
+        "OutputLevel": 1,
+        "Events": null,
+        "PairedLinf": 0,
+        "PairedMeanSquare": 0,
+        "bits_qp": 342.5137057740307,
+        "scale": 39,
+        "q": [
+          16580609,
+          540311683073,
+          540311912449,
+          540310405121,
+          540312272897,
+          540312862721,
+          540309553153,
+          540313583617
+        ],
+        "p": [
+          57383625392129
+        ],
+        "min_qp_bits_security": 133.73600000001812,
+        "workload_sites": 37,
+        "cuts": [],
+        "envelope_security": 129.6480000003393,
+        "skipped_rows": 0,
+        "net_decomposition_ntt_saved": 0,
+        "program_sha256": "1d22631b3ae9585df19899e9ea7c2156c175052a7222d38c632ce8df5dc5f86d"
+      }
+    }
+  },
+  "negative": [
+    {
+      "case": "wrong-k",
+      "pass": "--snabf-check-plan",
+      "diagnostic": "/home/fhecompiler/build/pass3/run.VUfjVOsG/wrong-k.mlir:1:1: error: illegal truncation at lin0.giant1"
+    },
+    {
+      "case": "wrong-k",
+      "pass": "--snabf-lower-ckks",
+      "diagnostic": "/home/fhecompiler/build/pass3/run.VUfjVOsG/wrong-k.mlir:1:1: error: illegal truncation at lin0.giant1"
+    },
+    {
+      "case": "fake-scale",
+      "pass": "--snabf-check-plan",
+      "diagnostic": "/home/fhecompiler/build/pass3/run.VUfjVOsG/fake-scale.mlir:1:1: error: stale Pass 3 site, scale or error transfer"
+    },
+    {
+      "case": "fake-scale",
+      "pass": "--snabf-lower-ckks",
+      "diagnostic": "/home/fhecompiler/build/pass3/run.VUfjVOsG/fake-scale.mlir:1:1: error: stale Pass 3 site, scale or error transfer"
+    }
+  ],
+  "compile_only_budget_sweep": [
+    {
+      "epsilon": 0.0006,
+      "p_bits": 45.80065818956602,
+      "sites": [
+        "lin0.giant1",
+        "poly0.n1.relin",
+        "poly0.n3.relin",
+        "poly0.n5.relin"
+      ]
+    },
+    {
+      "epsilon": 0.00032,
+      "p_bits": 50.448209838125315,
+      "sites": [
+        "lin0.giant1",
+        "poly0.n1.relin",
+        "poly0.n3.relin"
+      ]
+    }
+  ]
+}
