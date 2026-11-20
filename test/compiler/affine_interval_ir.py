@@ -20,6 +20,7 @@ def check(condition, message):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--opt', type=Path, required=True)
+    ap.add_argument('--reference-opt', type=Path, help='clean release baseline; compare its fresh plan byte for byte')
     ap.add_argument('--selected', type=Path, required=True)
     ap.add_argument('--out', type=Path, required=True, help='new, private evidence directory')
     ap.add_argument('--require-tightened', action='store_true', help='require a strictly narrower DP input')
@@ -27,8 +28,8 @@ def main():
     args.out.mkdir(parents=True, exist_ok=False)
     decisions = {}
 
-    def native(text, *flags, reject=None):
-        p = subprocess.run([args.opt, '--allow-unregistered-dialect', '--verify-each',
+    def native(text, *flags, reject=None, binary=None):
+        p = subprocess.run([binary or args.opt, '--allow-unregistered-dialect', '--verify-each',
                             '--mlir-print-op-on-diagnostic=false', *flags],
                            input=text, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if reject:
@@ -45,7 +46,15 @@ def main():
           'supply a legacy pre-Pass-3 selected.mlir')
     # Compare complete canonical IR (candidate order, certificates, selected
     # DAG, routes, budgets), not just the winner template name.
-    check(native(canonical, plan, check_plan) == canonical, 'legacy plan changed')
+    fresh = native(canonical, plan, check_plan)
+    decisions['archive_fixed_point'] = fresh == canonical
+    if args.reference_opt:
+        ref = native(selected, plan, check_plan, binary=args.reference_opt)
+        check(fresh == ref, 'default plan differs from clean reference compiler')
+        decisions['reference_plan_sha256'] = hashlib.sha256(ref).hexdigest()
+        canonical = fresh
+    else:
+        check(fresh == canonical, 'legacy plan changed')
     decisions['legacy_selected_sha256'] = hashlib.sha256(canonical).hexdigest()
     check(b'affine_slots =' not in canonical, 'opt-in metadata leaked into legacy mode')
     hdr = b'module attributes {'
@@ -81,9 +90,14 @@ def main():
     bad, n = re.subn(rb'(?<![\w])lo = array<f64: [^,>]+', b'lo = array<f64: -9.87654321e+02', affine, count=1)
     check(n == 1 and bad != affine, 'could not tamper saved slot projection')
     native(bad, check_plan, reject='stale budget')
+    bad_domain, n = re.subn(rb'input_interval = array<f64: [^,>]+',
+                            b'input_interval = array<f64: -9.87654321e+02', affine, count=1)
+    check(n == 1 and bad_domain != affine, 'could not tamper candidate input domain')
+    native(bad_domain, check_plan, reject='stale Pass 2 frontier')
     native(affine.replace(b'snabf.interval_mode = "affine"', b'snabf.interval_mode = "typo"'),
            check_plan, reject='invalid snabf.interval_mode')
     decisions['stale_slot_and_unknown_mode_rejected'] = True
+    decisions['stale_candidate_domain_rejected'] = True
     decisions['affine_sha256'] = hashlib.sha256(affine).hexdigest()
     for name, data in [('legacy.mlir',canonical), ('affine.mlir',affine), ('tampered.mlir',bad)]:
         (args.out/name).write_bytes(data)
