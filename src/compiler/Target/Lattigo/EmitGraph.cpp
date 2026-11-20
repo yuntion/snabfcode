@@ -1,11 +1,97 @@
 #include "EmitGraph.h"
 #include "pass1/SubgroupTower.h"
+#include "pass2/AffineErrorForm.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/Support/SHA256.h"
 #include "llvm/ADT/StringSwitch.h"
 #include <bit>
 #include <cmath>
 
 namespace snabf::ir::lattigo_target::detail {
 namespace {
+// Canonical hash: uint64 big endian; byte strings and integer vectors have a
+// uint64 length. Signed payloads are raw IEEE-754 binary64, not printed floats.
+struct Hash {
+  llvm::SHA256 h;
+  void word(uint64_t x) {
+    uint8_t bytes[8];
+    for (int i = 7; i >= 0; --i, x >>= 8) bytes[i] = uint8_t(x);
+    h.update(ArrayRef<uint8_t>(bytes, 8));
+  }
+  void text(StringRef s) { word(s.size()); h.update(s); }
+  void vector(ArrayRef<int64_t> xs) { word(xs.size()); for (auto x : xs) word(x); }
+  std::string finish() { return llvm::toHex(h.final(), true); }
+};
+
+DictionaryAttr buildEncodingPlan(EmitGraph &g) {
+  Builder b(g.program.getContext());
+  Hash program;
+  program.text("snabf.encoding-input.v1");
+  for (auto x : {g.source, g.target, g.width, g.slots, g.sink}) program.word(x);
+  program.word(g.families.size());
+  for (auto [n, d] : g.families) {
+    program.word(n); program.text(str(d, "key_id")); program.word(num(d, "scale"));
+    program.vector(ints(d, "q")); program.vector(ints(d, "p"));
+  }
+  SmallVector<Attribute> receipts;
+  std::vector<pass2::Exact> outputs;
+  auto ins = field<ArrayAttr>(g.program, "instructions");
+  program.word(g.edges.size());
+  for (auto [i, e] : llvm::enumerate(g.edges)) {
+    const auto kind = str(cast<DictionaryAttr>(ins[i]), "op");
+    auto family = g.families.at(e.n);
+    auto def = num(family, "scale");
+    require(def > 0 && def <= 128, "unsupported CKKS default scale");
+    auto prec = std::max<int64_t>(53, def);
+    Hash payload;
+    for (auto v : e.values) payload.word(std::bit_cast<uint64_t>(v));
+    auto digest = payload.finish();
+    program.text(e.id); program.text(kind);
+    for (auto x : {e.n, e.level, e.k, e.shift, e.site}) program.word(x);
+    program.word(std::bit_cast<uint64_t>(e.scale)); program.vector(e.inputs);
+    program.word(e.values.size()); program.text(digest);
+    pass2::Exact scale = e.inputs.empty() ? 1 : outputs.at(e.inputs[0]);
+    if (e.op == Op::Source || !e.values.empty()) {
+      double log = double(def);
+      if (e.op != Op::Source) {
+        const double parent = g.edges.at(e.inputs[0]).scale;
+        log = e.op == Op::AddPlain ? parent : e.scale - parent;
+      }
+      const auto meta = pass2::plannedEncodingScale(log);
+      const auto effective = pass2::effectiveEncoderScale(meta, prec);
+      NamedAttrList row;
+      row.set("index", b.getI64IntegerAttr(i)); row.set("node_id", b.getStringAttr(e.id));
+      row.set("call", b.getStringAttr(kind)); row.set("key_id", family.get("key_id"));
+      row.set("level", b.getI64IntegerAttr(e.level)); row.set("ring_n", b.getI64IntegerAttr(e.n));
+      row.set("precision", b.getI64IntegerAttr(prec));
+      row.set("branch", b.getStringAttr(prec == 53 ? "embedDouble/Scale.Float64" : "embedArbitrary/Scale.Value"));
+      row.set("log_argument_exact", b.getStringAttr(pass2::exactBinary(log).get_str()));
+      row.set("metadata_scale", b.getStringAttr(meta.get_str()));
+      row.set("effective_encoder_scale", b.getStringAttr(effective.get_str()));
+      row.set("payload_sha256", b.getStringAttr(digest));
+      row.set("payload_count", b.getI64IntegerAttr(e.values.size()));
+      e.encoding = row.getDictionary(b.getContext()); receipts.push_back(e.encoding);
+      if (e.op == Op::Source) scale = meta;
+      else if (e.op == Op::AddPlain) scale = std::max(scale, meta);
+      else scale = pass2::roundCKKSScale(scale * meta);
+    } else if (e.op == Op::Mul) scale = pass2::roundCKKSScale(scale * outputs.at(e.inputs[1]));
+    else if (e.op == Op::Add) for (auto a : e.inputs) scale = std::max(scale, outputs.at(a));
+    else if (e.op == Op::Rescale) {
+      auto level = g.edges.at(e.inputs[0]).level;
+      require(level - e.level == (def <= 64 ? 1 : 2), "rescale/precision mode mismatch");
+      for (; level > e.level; --level)
+        scale = pass2::roundCKKSScale(scale / pass2::Exact(std::to_string(ints(family, "q")[level])));
+    }
+    e.outputScale = scale.get_str(); outputs.push_back(std::move(scale));
+  }
+  NamedAttrList plan;
+  plan.set("schema", b.getStringAttr("encoding-receipt-v1"));
+  plan.set("abi", b.getStringAttr("lattigo/v6.2.0;batched-periodic-f64;mpfr-exp2-rn128;nearest-even"));
+  plan.set("program_sha256", b.getStringAttr(program.finish()));
+  plan.set("receipts", b.getArrayAttr(receipts));
+  return plan.getDictionary(b.getContext());
+}
+
 Op opcode(StringRef s) {
   auto op = llvm::StringSwitch<std::optional<Op>>(s)
     .Case("source",Op::Source).Case("drop",Op::Drop).Case("mul",Op::Mul)
@@ -64,7 +150,7 @@ EmitGraph::EmitGraph(DictionaryAttr p) : program(p),
     if (sourceOp) require(e.n==source && e.level==int64_t(ints(families.at(source),"q").size())-1 && e.scale==num(families.at(source),"scale"),"stale_input_binding");
     for (auto i:e.inputs) {
       int64_t gap=edges[i].level-e.level;
-      require(e.op==Op::Drop ? gap>=0 : e.op==Op::Rescale ? gap==1 : gap==0,"invalid_operand_level: " + s);
+      require(e.op==Op::Drop ? gap>=0 : e.op==Op::Rescale ? gap==(num(families.at(e.n),"scale")<=64?1:2) : gap==0,"invalid_operand_level: " + s);
       if (e.op==Op::Add) require(std::abs(edges[i].scale-e.scale)<=1e-8,"unaligned physical add: " + s);
     }
     if (e.op==Op::Mask || e.op==Op::Coefficient || e.op==Op::AddPlain) {
@@ -159,5 +245,21 @@ EmitGraph::EmitGraph(DictionaryAttr p) : program(p),
   }
   require(!transition || (!operands.empty() && switchingDomain),"unbound_mixed_domain_or_cut");
   require(bytes==num(p,"galois_bytes"),"stale_emitted_key_bytes");
+  encodingPlan = buildEncodingPlan(*this);
+  if (auto old = p.get("encoding_receipts"))
+    require(old == encodingPlan, "stale_encoding_scale_binding");
+}
+
+DictionaryAttr bindEncodingProgram(ModuleOp m, DictionaryAttr raw, bool firstCheck) {
+  const auto fresh = EmitGraph(raw).encodingPlan;
+  constexpr StringLiteral key = "snabf.encoding_receipts";
+  if (auto old = m->getAttr(key)) require(old == fresh, "stale_encoding_scale_binding");
+  else {
+    require(firstCheck && !m->hasAttr("snabf.emit_sha256") && !m->hasAttr("snabf.ckks_direct") &&
+            !m->hasAttr("snabf.ckks_epochs"), "missing_encoding_scale_binding");
+    m->setAttr(key, fresh);
+  }
+  NamedAttrList bound(raw); bound.set("encoding_receipts", fresh);
+  return bound.getDictionary(m.getContext());
 }
 } // namespace snabf::ir::lattigo_target::detail

@@ -17,6 +17,7 @@ struct Domain {
   std::string key_id;
   int ring_n = 0;
   std::vector<uint64_t> q, p; // actual, ordered, NEVER widths
+  int rescale_primes = 1;
 };
 enum class Op { Source, Add, Sub, Neg, Drop, Rescale, ScalarMulPlain, AddPlain,
                 CtMul, VectorMulPlain, Relin, Rotate, Down };
@@ -33,6 +34,7 @@ struct Node {
   std::optional<double> real_scalar; // ideal signed scalar for ScalarMulPlain
   std::vector<double> plain_values; // complete payload for VectorMulPlain/AddPlain
   int64_t rotation = 0; // signed component permutation, never a scalar gain
+  std::optional<Exact> effective_encoder_scale, source_bound;
 };
 struct OutputPort { std::string id; size_t value; };
 struct Topology {
@@ -80,9 +82,9 @@ struct SiteQuery {
 // Permute/Project/Product/vector PlainMul bound the COMPLETE transformed
 // parent error (incl. cross terms); preserving a signed input identity there
 // would permit invalid cancellation across slots. Other sites are incremental:
-// for rescale and real scalar multiplication, the inherited canonical gain is
-// (Delta_out / Delta_in) times the ideal signed decoded gain. The local proof
-// must include physical metadata/rounding drift on the actual noisy operands.
+// rescale divides by the actual prime product; a real scalar uses the
+// effective encoding scale. Ideal-message scale drift is charged separately.
+// Encoding/FFT/rounding errors (including their cross terms) remain owed.
 // PlainEncode is its contribution AT THE OP OUTPUT, not a raw plaintext bound.
 // Output covers reference-function approximation and decoding, in canonical
 // units. No built-in CKKS/empirical provider is installed.
@@ -112,6 +114,8 @@ struct SiteAudit { std::string id; Role role; std::string formula_ref; };
 struct EdgeAudit {
   std::string id, key_id, evk, physical_scale_exact;
   int ring_n, level, k;
+  std::string metadata_scale, effective_scale, ideal_bound, scale_bias;
+  std::string join_branch, multiplier_a, multiplier_b, residual_a, residual_b;
 };
 struct CertAuditReport {
   Mode mode = Mode::Engineering;

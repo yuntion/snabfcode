@@ -85,6 +85,26 @@ Exact roundCKKSScale(const Exact &q) {
   return rational(t);
 }
 
+Exact plannedEncodingScale(double log) {
+  // Keep the Float64 branch in the normal range and reject exotic plans.
+  require(std::isfinite(log) && log >= -512 && log <= 512, "unsupported encoding exponent");
+  Float t(128);
+  mpfr_set_d(t.x, log, MPFR_RNDN); // exact
+  mpfr_exp2(t.x, t.x, MPFR_RNDN);
+  return rational(t);
+}
+
+Exact effectiveEncoderScale(const Exact &metadata, unsigned prec) {
+  require(prec >= 53 && prec <= 128 && roundCKKSScale(metadata) == metadata,
+          "unsupported CKKS encoding precision/metadata");
+  if (prec > 53) return metadata; // embedArbitrary receives &metadata.Scale.Value
+  Float t(128);
+  mpfr_set_q(t.x, metadata.get_mpq_t(), MPFR_RNDN); // exact 128-bit metadata
+  const double v = mpfr_get_d(t.x, MPFR_RNDN);
+  require(std::isnormal(v), "non-normal effective encoder scale");
+  return exactBinary(v);
+}
+
 void AffineErrorForm::addBias(const Exact &b) {
   checkRational(b);
   require(b >= 0, "negative bias");
