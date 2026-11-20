@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tarfile
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -17,6 +18,48 @@ from replay_noise_audit import Attributes, need
 SEAL = re.compile(r'snabf\.emit_sha256 = "([0-9a-f]{64})"')
 RECEIPTS = 'snabf.encoding_receipts = '
 CHECK, LOWER = '--snabf-check-plan', '--snabf-lower-ckks=direct-go=true'
+BARE = '--snabf-lower-ckks'
+
+
+def exercise_heir(fixture, root, run, mutate):
+    # Start at the actual pre-Pass3 snapshot: do not turn an archived seal
+    # into a passing example by deleting it. Read one file, never unpack in place.
+    scenario = {'cross_residual': 'cross-residual', 'reuse64': 'reuse64-128'}[fixture.name]
+    with tarfile.open(fixture.parents[1] / 'evidence.tar.gz', 'r:gz') as archive:
+        member, = [m for m in archive if re.fullmatch(r'source/' + scenario + r'/run\.[^/]+/work/selected\.mlir', m.name)]
+        need(member.isfile(), 'expected archived selected IR')
+        selected = root / 'selected.mlir'
+        selected.write_bytes(archive.extractfile(member).read())
+    text = selected.read_text()
+    need('snabf.pass3 = ' not in text and RECEIPTS not in text and not SEAL.search(text), 'expected pre-Pass3 IR')
+
+    def heir_output(path):
+        text = path.read_text()
+        need('snabf.export = {' in text and '"kernel.apply_linear_transform"' in text and
+             'snabf.ckks_direct = ' not in text and 'snabf.ckks_epochs = ' not in text, 'did not lower to HEIR')
+        return text
+
+    historical = heir_output(run('bare-prepass3', selected, BARE))
+    need(not SEAL.search(historical) and RECEIPTS not in historical, 'minted a binding during historical lowering')
+    (root / 'source-security.json').write_bytes((fixture / 'security.json').read_bytes())
+    options = json.loads((fixture / 'pass3-options.json').read_bytes())
+    options['epsilon'] = options.pop('tolerance')
+    flags = ' '.join(k.replace('_', '-') + '=' + str(v) for k, v in options.items())
+    fresh = run('checked-before-pass4', selected, '--snabf-pass3=' + flags + ' security=source-security.json', CHECK)
+    bound = fresh.read_text()
+    seal, = SEAL.findall(bound)
+    need('snabf.pass3 = ' in bound and RECEIPTS in bound and 'snabf.ring_search = ' not in bound,
+         'expected a newly sealed, concrete pre-Pass4 input')
+    lowered = heir_output(run('bare-sealed', fresh, BARE))
+    need(SEAL.findall(lowered) == [seal], 'bare lower resealed the input')
+    forged, count = re.subn(r'(effective_encoder_scale = ")[^"]+"', r'\g<1>1"', bound, count=1)
+    need(count == 1 and forged != bound, 'expected a non-unit source encoding scale')
+    run('bare-forged-receipt', mutate('wrong-effective', forged), BARE, reject='stale_encoding_scale_binding')
+    run('bare-bad-sha', mutate('new-sha', SEAL.sub('snabf.emit_sha256 = "' + '0' * 64 + '"', bound, count=1)),
+        BARE, reject='stale_emit_fingerprint')
+    orphan, count = re.subn(SEAL.pattern + ', ', '', bound, count=1)
+    need(count == 1, 'expected a removable seal field')
+    run('bare-orphan-receipt', mutate('orphan-receipt', orphan), BARE, reject='unsealed_derived_encoding_program')
 
 
 def exercise(opt, fixture):
@@ -53,9 +96,11 @@ def exercise(opt, fixture):
             f.write_text(txt)
             return f
 
-        for label, flag in [('check', CHECK), ('cert', CHECK + '=require-noise-cert=true'), ('direct', LOWER), ('bind', bind)]:
+        for label, flag in [('check', CHECK), ('cert', CHECK + '=require-noise-cert=true'), ('direct', LOWER),
+                            ('bare-unbound', BARE), ('bind', bind)]:
             run(label, source, flag, reject='missing_encoding_scale_binding')
         need(not (root / 'model.go').exists() and not (root / 'program.json').exists(), 'published unbound artifacts')
+        exercise_heir(fixture, root, run, mutate)
 
         run('stale-seal', mutate('sha', legacy.replace(old, '0' * 64, 1)), replan, reject='stale_emit_fingerprint')
         run('foreign-attr', mutate('attr', SEAL.sub(r'b2.changed = true, \g<0>', legacy, count=1)),
@@ -95,7 +140,8 @@ def exercise(opt, fixture):
         need(RECEIPTS in text and 'snabf.ckks_epochs = ' not in text and SEAL.findall(text) not in ([], [new]),
              'the previous lowering or seal survived a change of policy')
         need(source.read_bytes() == data, 'modified the frozen checkpoint')
-        return dict(case=fixture.name, frozen_sha256=hashlib.sha256(data).hexdigest(), new_seal=new, denials=negatives)
+        return dict(case=fixture.name, frozen_sha256=hashlib.sha256(data).hexdigest(), new_seal=new,
+                    bare_heir=['pre-pass3', 'sealed-pass3'], denials=negatives)
 
 
 if __name__ == '__main__':
