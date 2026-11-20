@@ -1,6 +1,7 @@
 #include "Pipeline.h"
 #include "Pass2IR.h"
 #include "Pass3IR.h"
+#include "pass3/CostProfile.h"
 #include "NoiseCertIR.h"
 #include "Pass4IR.h"
 #include "Target/Lattigo/DirectEmitter.h"
@@ -98,7 +99,17 @@ struct Pass1 : impl::Pass1CandidatesBase<Pass1> {
 };
 struct Parameters3 : impl::Pass3ParametersBase<Parameters3> {
  using Base::Base;
- void runOnOperation() override {if(failed(diagnosed(getOperation(),[&]{publishPass3(getOperation(),{minScale,maxScale,maxK,tolerance,cap,minBase,guard,gadgetAlpha,hetero,heirAnchor,widthMin,widthMax,auxMargin},fixed,audit,security,sourceFraction);})))signalPassFailure();}
+ void runOnOperation() override {
+   if (failed(diagnosed(getOperation(),[&]{
+     pass3::Options options{minScale,maxScale,maxK,tolerance,cap,minBase,guard,gadgetAlpha,hetero,heirAnchor,widthMin,widthMax,auxMargin};
+     require(costProfileFile.empty()==costHardware.empty(), "cost_profile_and_hardware_id_required_together");
+     if (!costProfileFile.empty()) {
+       require(options.blockSearch(), "calibrated_cost_requires_explicit_gadget_alpha");
+       options.costProfile=pass3::CostProfile::loadFile(costProfileFile.getValue(),costHardware.getValue());
+     }
+     publishPass3(getOperation(),options,fixed,audit,security,sourceFraction);
+   }))) signalPassFailure();
+ }
 };
 struct Rings : impl::DynamicRingsBase<Rings> {
   using Base::Base;

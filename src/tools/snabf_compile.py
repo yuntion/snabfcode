@@ -3,6 +3,8 @@ import argparse
 import json
 import math
 import os
+import re
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -31,13 +33,19 @@ def write(path, value):
     path.write_text(json.dumps(value, sort_keys=True, allow_nan=False, indent=2)+'\n')
 
 
+def scale_search_mode(mode, legacy_heterogeneous):
+    if mode == 'narrow' and legacy_heterogeneous:
+        raise ValueError('[SNABF_INVALID_OPTIONS] narrow conflicts with --heterogeneous-scales')
+    return mode or ('heir-anchor' if legacy_heterogeneous else 'narrow')
+
+
 def gadget_options(a):
     # Absence is distinct from explicit alpha=1 (the frozen v1 and fixed-block
     # v2 contracts respectively). 0 asks the native solver to search {1, 2}.
     options = []
     if a.gadget_alpha is not None:
         options.append(f'gadget-alpha={a.gadget_alpha}')
-    if a.heterogeneous_scales:
+    if scale_search_mode(a.scale_mode, a.heterogeneous_scales) == 'heir-anchor':
         options.extend(('heterogeneous-scales=true', 'heir-scale-anchor=true'))
     if not (20 <= a.prime_bw_min < a.prime_bw_max <= 59 and 2 <= a.aux_prime_margin_bits <= 59):
         raise ValueError('[SNABF_INVALID_OPTIONS] invalid prime search bounds or block margin')
@@ -49,6 +57,15 @@ def gadget_options(a):
             raise ValueError('[SNABF_INVALID_OPTIONS] max-k must be nonnegative')
         options.append(f'max-k={a.max_k}')
     return ''.join(' ' + opt for opt in options)
+
+
+def checked_pricing(a):
+    if a.cost_profile is None and a.cost_hardware_id is None:
+        return None
+    if (a.cost_profile is None or not re.fullmatch('[0-9a-f]{64}', a.cost_hardware_id or '')
+            or a.gadget_alpha is None or a.mode != 'keep-source'):
+        raise ValueError('[SNABF_INVALID_OPTIONS] measured pricing needs --cost-profile, --cost-hardware-id, explicit --gadget-alpha and --mode keep-source; cross-ring costs are not calibrated')
+    return a.cost_profile.resolve(strict=True)
 
 
 def compile_model(a):
@@ -63,6 +80,7 @@ def compile_model(a):
             2 <= a.q_count <= 32 and 1 <= a.min_slots <= 2**(a.log_n-1)):
         raise ValueError('[SNABF_INVALID_OPTIONS] invalid interval, ring, chain, slots or threshold')
     gadget = gadget_options(a)
+    cost_file = checked_pricing(a)
     env = os.environ.copy()
     ext = Path(env.get('SNABF_EXTERN', ROOT/'extern')).resolve()
     sdk = Path(env.get('SNABF_MLIR_ROOT',ext/'mlir24/usr/lib/llvm-24')).resolve()
@@ -89,6 +107,10 @@ def compile_model(a):
     with tempfile.TemporaryDirectory(prefix='.snabf-',dir=out.parent) as tmp:
         staging = Path(tmp); publish = staging/'publish'; publish.mkdir()
         w = publish/'work'; w.mkdir()
+        if cost_file is not None:
+            # Snapshot once so every specialization pass sees identical bytes.
+            shutil.copyfile(cost_file, w/'gadget-profile.json')
+            gadget += f' cost-profile=gadget-profile.json cost-hardware-id={a.cost_hardware_id}'
         def run(*argv, cwd=w, capture=False):
             return subprocess.run(list(map(str,argv)), cwd=cwd,env=env,check=True,text=True,
                                   stdout=subprocess.PIPE if capture else None).stdout
@@ -176,6 +198,12 @@ def compile_model(a):
                     precision_bits=a.precision_bits,input_bound=a.input_bound,cut_profile=a.cut_profile,
                     verification='conditional' if issued else 'engineering',probabilistic_cert_issued=issued, specialization=history,
                     source_arithmetic_fraction=plan['source_arithmetic_fraction'])
+        if cost_file is not None:
+            policy = plan['options']
+            if (policy.get('cost_mode') != 'calibrated-sites-v1' or policy.get('cost_hardware_id') != a.cost_hardware_id
+                    or not re.fullmatch('[0-9a-f]{64}', policy.get('cost_profile_sha256', ''))):
+                raise ValueError('[SNABF_STALE_COST_PROFILE] native receipt does not bind measured pricing')
+            result.update({k: policy[k] for k in ('cost_mode','cost_hardware_id','cost_profile_sha256')})
         if a.emit_go:
             opt('--snabf-lower-ckks=direct-go=true','checked.mlir','-o','lowered.mlir')
             opt('--snabf-bind-lattigo=ring-go=../model.go audit=../program.json','lowered.mlir','-o',os.devnull)
@@ -194,7 +222,11 @@ def main():
     p.add_argument('--input-bound',type=float,required=True); p.add_argument('--precision-bits',type=int,default=12)
     p.add_argument('--security-bits','--security',type=int,default=128)
     p.add_argument('--gadget-alpha', type=int, choices=range(5), help='explicit fixed-block v2 P count; 0 searches {1,2}; omit for legacy single-P')
+    p.add_argument('--cost-profile',type=Path,help='measured gadget invocations on ordered Q/P, keep-source only')
+    p.add_argument('--cost-hardware-id',help='expected hardware fingerprint, independently supplied by the operator')
     p.add_argument('--heterogeneous-scales', action='store_true', help='v2 heterogeneous search constrained to the pinned HEIR integer rescale bin')
+    p.add_argument('--scale-mode', choices=('narrow','heir-anchor'),
+                   help='narrow by default; heir-anchor is the explicit pinned-HEIR ablation')
     p.add_argument('--prime-bw-min', type=float, default=24, help='continuous width floor for non-base Q and P in v2')
     p.add_argument('--prime-bw-max', type=float, default=59, help='continuous prime width ceiling in v2')
     p.add_argument('--aux-prime-margin-bits', type=int, default=2, help='minimum bits of P headroom over each fixed Q block')

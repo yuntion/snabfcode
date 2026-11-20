@@ -128,18 +128,21 @@ def public_input(t, n, seed):
     return [(r.below((1 << 24)+1) - (1 << 23))/(1 << 23) for _ in range(n)]  # exact f32 in [-1,1]
 
 
-def corpus_for_source(source, layers, width, trials, input_seed):
+def corpus_for_source(source, layers, width, trials, input_seed, *, input_bound=1.0, exp_fn=math.exp):
+    check(input_bound in (0.5, 1.0), 'unsupported held-out input box')
     matrices = source_weights(source, layers, width)
     cases, peaks = [], [0.0] * layers
     for t in range(trials):
         x = public_input(t, width, input_seed)
+        if input_bound != 1.0:
+            x = [v * input_bound for v in x]
         h = x
         for i, w in enumerate(matrices):
             h = [math.fsum(c*v for c, v in zip(row, h, strict=True)) for row in w]
             peaks[i] = max(peaks[i], max(map(abs, h)))
             check(peaks[i] <= 1.0, 'observed value outside the declared full-box bound')
             if i != layers-1:
-                h = [v/(1.0+math.exp(-v)) for v in h]
+                h = [v/(1.0+exp_fn(-v)) for v in h]
         cases.append(dict(x=x, truth=h))
     return dict(source_sha256=sha(source), cases=cases), peaks
 
