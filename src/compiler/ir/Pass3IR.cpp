@@ -585,6 +585,7 @@ void publishPass3(ModuleOp m, const p::Options &o, bool fixed, StringRef audit,
   }
   if (!audit.empty()) {
     auto json = jsonPass2(r);
+    json["requested_slots"] = int64_t(in.profile.getSlots());
     llvm::json::Array bits, scales, cuts;
     for (double x : s.bits)
       bits.push_back(x);

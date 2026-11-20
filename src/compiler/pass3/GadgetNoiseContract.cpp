@@ -10,6 +10,11 @@ const char *name(Op op) {
   return names[static_cast<int>(op)];
 }
 bool keyOp(Op o) { return o == Op::Baby || o == Op::Giant || o == Op::Relin; }
+int activeDigitBlocks(int level, int k, int alpha) {
+  if (k < 0 || k > level || alpha < 1)
+    throw std::invalid_argument("invalid_fixed_gadget_partition");
+  return 1 + (level / alpha - k / alpha);
+}
 // Hoeffding on the real and imaginary projections of an iid centered
 // ternary key, union over N embeddings. No independence of gadget sites.
 double secretBound(int n) {

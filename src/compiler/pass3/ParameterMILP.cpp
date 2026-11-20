@@ -179,7 +179,7 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d) {
               8 * eta)
             break;
         }
-        int choose = m.var(0, 1, (e.level + 1 - k) * (e.level + 2), true);
+        int choose = m.var(0, 1, activeDigitBlocks(e.level, k, 1) * (e.level + 2), true);
         z[i].push_back(choose);
         one[choose] = 1;
         if (k) {
@@ -284,7 +284,7 @@ Solution optimizeAtBoundary(const Graph &g,const Options &o,Solution s){
     if(keyOp(e.op)||e.op==Op::Down){Row one;long double D=1;int maxK=e.op==Op::Down?0:std::min(o.maxK,e.level);
       for(int k=0;k<=maxK;++k){long double key=0;for(int j=k;j<=e.level;++j)key+=10.L*n*n*(s.q.at(j)+1.L)/p;
         long double inc=(key+round+(k?residualFactor(e.op,n)*(D-1):0))/(scale*eta);
-        if(inc<=8){int z=m.var(0,1,double(n)/g.n*(e.level+1-k)*(e.level+2),true);flags.back().push_back(z);one[z]=1;row[z]-=double(inc);}else flags.back().push_back(-1);
+        if(inc<=8){int z=m.var(0,1,double(n)/g.n*activeDigitBlocks(e.level,k,int(s.p.size()))*(e.level+2),true);flags.back().push_back(z);one[z]=1;row[z]-=double(inc);}else flags.back().push_back(-1);
         D*=s.q.at(k);
       }m.row(1,one,1);
     }

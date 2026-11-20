@@ -7,6 +7,11 @@ static void ck(bool b) {
     throw std::runtime_error("Pass4Test failure");
 }
 int main() {
+  auto w = commonCutLevels({{2,5},{3,4}});
+  ck(w && w->required==3 && w->current==4);
+  w = commonCutLevels({{2,2},{1,4}});
+  ck(w && w->required==2 && w->current==2);
+  ck(!commonCutLevels({{3,5},{1,2}}) && !commonCutLevels({}) && !commonCutLevels({{-1,4}}));
   SlotLayoutDesc a{16384, 8192, 64, 1, 4096, 2, 38, Packing::PeriodicSingle,
                    {0},   {0},  {}};
   auto b = a;

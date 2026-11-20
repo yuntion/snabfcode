@@ -60,7 +60,16 @@ struct Import : impl::ImportHEIRBase<Import> {
 struct Marker : impl::MarkActivationsBase<Marker> {
   using Base::Base;
   void runOnOperation() override {
-    if (failed(diagnosed(getOperation(), [&] { markActivationSources(getOperation()); }))) signalPassFailure();
+    if (staticEntry && failed(verifyStaticSource(getOperation()))) {
+      signalPassFailure();
+      return;
+    }
+    if (failed(diagnosed(getOperation(), [&] {
+          auto m = getOperation();
+          markActivationSources(m);
+          if (staticEntry && !m->hasAttr("snabf.initial_profile"))
+            m->setAttr("snabf.initial_profile", StringAttr::get(&getContext(), "epoch_0"));
+        }))) signalPassFailure();
   }
 };
 struct Pass2 : impl::Pass2CandidatesBase<Pass2> {
@@ -98,7 +107,11 @@ struct Planner : impl::PlanBase<Planner> {
 struct Checker : impl::CheckPlanBase<Checker> {
   using Base::Base;
   void runOnOperation() override {
-    if (failed(diagnosed(getOperation(), [&] { lattigo_target::checkAndSeal(getOperation()); })))
+    if (failed(diagnosed(getOperation(), [&] {
+          auto m = getOperation();
+          lattigo_target::checkAndSeal(m);
+          if (requireDown) requireCheckedRingDown(m);
+        })))
       signalPassFailure();
   }
 };

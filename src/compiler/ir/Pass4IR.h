@@ -6,5 +6,6 @@ void planRings(ModuleOp, int64_t minRing, unsigned rounds,
 bool isMixed(ModuleOp);
 void checkRings(ModuleOp);
 void checkRingSearch(ModuleOp);
+void requireCheckedRingDown(ModuleOp);
 DictionaryAttr ringProgram(ModuleOp);
 } // namespace snabf::ir

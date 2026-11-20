@@ -63,12 +63,22 @@ static Operation *storedProducer(Value table) {
   auto f = load->getParentOfType<func::FuncOp>();
   auto m = f->getParentOfType<ModuleOp>();
   auto tag = field<IntegerAttr>(load, "site_id");
-  auto prep = f.getName().str();
-  require(StringRef(prep).ends_with("__preprocessed"),
-          "unexpected HEIR evaluator ABI");
-  prep.replace(prep.size() - 14, 14, "__preprocessing");
-  auto producer = m.lookupSymbol<func::FuncOp>(prep);
-  require(bool(producer), "missing preprocessing function");
+  require(load->getNumOperands() == 1, "invalid HEIR preprocessing load");
+  auto arg = dyn_cast<BlockArgument>(load->getOperand(0));
+  require(arg && arg.getOwner() == &f.getBody().front(), "unbound preprocessing handle");
+  func::FuncOp producer;
+  m.walk([&](func::CallOp call) {
+    if (call.getCallee() != f.getName()) return;
+    auto handle = call.getOperand(arg.getArgNumber());
+    auto make = handle.getDefiningOp<func::CallOp>();
+    require(handle.hasOneUse() && make && !make.getNumOperands() && make.getNumResults() == 1,
+            "unbound preprocessing table producer");
+    auto p = m.lookupSymbol<func::FuncOp>(make.getCallee());
+    require(p && p.getBody().hasOneBlock() && (!producer || producer == p),
+            "ambiguous preprocessing table producer");
+    producer = p;
+  });
+  require(bool(producer), "missing preprocessing table caller");
   auto ret = producer.getBody().front().getTerminator();
   require(ret->getNumOperands() == 1, "expected one preprocessing table");
   Operation *value = nullptr;
@@ -105,8 +115,11 @@ void importCKKS(ModuleOp m, int64_t bytes, double bound, double hoist,
   auto p = decodeParameters(field<Attribute>(m, "ckks.schemeParam"));
   auto slots = field<IntegerAttr>(m, "scheme.requested_slot_count").getInt();
   IRRewriter rw(m.getContext());
-  auto ref = FlatSymbolRefAttr::get(m.getContext(), "e01");
-  require(!m.lookupSymbol("e01"), "profile already exists");
+  StringRef symbol = "e01"; // frozen pre-product IR ABI
+  if (m->hasAttr("snabf.initial_profile"))
+    symbol = field<StringAttr>(m,"snabf.initial_profile").getValue();
+  require(!symbol.empty() && !m.lookupSymbol(symbol), "empty or conflicting profile symbol");
+  auto ref = FlatSymbolRefAttr::get(m.getContext(), symbol);
   func::FuncOp eval;
   for (auto f : m.getOps<func::FuncOp>()) {
     auto iface = f->getAttrOfType<DictionaryAttr>("heir.interface");
@@ -143,7 +156,7 @@ void importCKKS(ModuleOp m, int64_t bytes, double bound, double hoist,
     return CtType::get(m.getContext(), logical, n, c.level, ref);
   };
   rw.setInsertionPointToStart(m.getBody());
-  ProfileOp::create(rw, m.getLoc(), "e01", n, p.q, p.p, p.logScale,
+  ProfileOp::create(rw, m.getLoc(), symbol, n, p.q, p.p, p.logScale,
                     entry.getName().str() + "__configure:" + input.key, layout,
                     slots, bytes);
   m->setAttr("snabf.hoist", rw.getF64FloatAttr(hoist));
@@ -189,9 +202,11 @@ void importCKKS(ModuleOp m, int64_t bytes, double bound, double hoist,
       next = PolyEvalOp::create(rw, o->getLoc(), out, o->getOperand(0),
                                 field<ArrayAttr>(o, "coefficients"));
     else {
-      require(k == "ckks.mul_plain" || k == "ckks.mul" || k == "ckks.add" || k == "ckks.rescale" ||
-                  k == "ckks.level_reduce" || k == "ckks.relinearize",
-              "no lossless import for " + k);
+      if (k != "ckks.mul_plain" && k != "ckks.mul" && k != "ckks.add" && k != "ckks.rescale" &&
+          k != "ckks.level_reduce" && k != "ckks.relinearize") {
+        o->emitError() << "[SNABF_UNSUPPORTED_OP] op=" << k << " reason=no_lossless_encrypted_import";
+        throw ContractError(("no lossless import for " + k).str());
+      }
       next = StepOp::create(rw, o->getLoc(), out, o->getOperands(), k);
     }
     next->setAttr("native", TypeAttr::get(native));

@@ -1,6 +1,20 @@
 # SN-ABF compiler
 
 Security-Noise Coupled Algebraic Budget Flow on Google HEIR and Lattigo.
+
+### Static compiler entry (phase 2)
+
+On the configured Linux toolchain, build `snabf-opt` as for the native suite and point `SNABF_OPT` at that binary. The product entry accepts **one static packed f32 vector in/out**, constant matvecs, source-marked SiLU and residual addition. It does not consume a workload name, frozen corpus, hand-authored parameter file or an old plan. `--log-n`, `--q-count` and `--min-slots` specify the provisional HEIR typing capacity. Automatic deep bootstrapping is not in this subset. The source interval is a caller contract.
+
+```bash
+python3 src/tools/snabf_compile.py --mlir /path/to/model.mlir --input-bound 1 \
+  --precision-bits 12 --security-bits 128 --mode keep-source --emit-go --out-dir /tmp/new-model
+python3 test/compiler/phase2_static_smoke.py  # generates 3 matvecs, 2 SiLUs and a residual; encrypts and checks every slot
+python3 test/compiler/test_phase2_entry.py -v
+```
+
+Use a **new** output directory. The compiler publishes `work/checked.mlir`, `compile.json` and, with `--emit-go`, `model.go` and `program.json` together after `go build` succeeds. Cache hits are owner-private local estimator measurements, not signed approvals. On a miss, `sage` and the pinned `LATTICE_ESTIMATOR` checkout (by default under `extern`) must be available. `adaptive` may retain the source ring; `force-down` requires a checked profitable physical switch. To replay a published adaptive plan, set `SNABF_PASS4_ESTIMATES` to its `work/domains.json`; unset it for keep-source. `single-live-v1` is the only emittable cut profile. No probabilistic certificate is issued. See [phase 2 decisions](doc/phase2-decisions.md).
+
 The first full experiment is specified in [E01](doc/experiment-01.md).
 The fixed-profile control and [native Pass 1](doc/pass1-revision/results.md) run end to end.
 The primary compiler is now the native [SN-ABF dialect and C++ pass pipeline](doc/unified-ir-development.md).

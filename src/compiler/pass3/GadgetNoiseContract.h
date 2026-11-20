@@ -50,6 +50,8 @@ struct Options {
   double tolerance = 1. / 4096, securityCap = 350, minBase = 24, guardBits = 1;
 };
 bool keyOp(Op);
+// Fixed EVK blocks, not a new partition of the surviving suffix.
+int activeDigitBlocks(int level, int k, int alpha);
 double secretBound(int n);
 double
 residualFactor(Op, int n); // canonical residual bound per unit omitted product

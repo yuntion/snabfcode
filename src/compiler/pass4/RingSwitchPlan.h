@@ -1,6 +1,9 @@
 #pragma once
 #include "LayoutContract.h"
+#include <optional>
 namespace snabf::pass4 {
+struct CutLevels { int64_t required, current; };
+std::optional<CutLevels> commonCutLevels(const std::vector<CutLevels> &values);
 enum class Action { Down, Up, SplitRepack, Align };
 struct RingSwitchTransitionSpec {
   Action kind;

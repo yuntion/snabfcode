@@ -17,6 +17,7 @@ def Pass1Candidates : ModuleStage<"snabf-pass1-candidates","Publish subgroup-tow
   let dependentDialects = ["::snabf::ir::SNABF", "::mlir::heir::lattigo::LattigoDialect"];
 }
 def MarkActivations : ModuleStage<"snabf-mark-activations", "Identify source SiLU semantics before HEIR polynomial approximation"> {
+  let options = [Option<"staticEntry", "static-entry", "bool", "false", "Validate the single-input static source subset before HEIR lowering">];
   let dependentDialects = ["::mlir::linalg::LinalgDialect", "::mlir::arith::ArithDialect", "::mlir::math::MathDialect"];
 }
 def Pass2Candidates : ModuleStage<"snabf-pass2-candidates", "Certify full activation DAGs and publish the Pass 2 Pareto frontier"> {
@@ -31,6 +32,7 @@ def Plan : ModuleStage<"snabf-plan","Select candidates over SSA, re-solve violat
   let options = [Option<"independent","independent","bool","false","Decide per layer, score physical key union">];
 }
 def CheckPlan : ModuleStage<"snabf-check-plan","Recompute budget transfers, selected routes and key inventory"> {
+  let options = [Option<"requireDown","require-ring-down","bool","false","Reject a checked fallback when a physical down-conversion was requested">];
   let dependentDialects = ["::snabf::ir::SNABF", "::mlir::func::FuncDialect", "::mlir::heir::lattigo::LattigoDialect"];
 }
 def Pass3Parameters : ModuleStage<"snabf-pass3", "Optimize and concretize RNS, scales and centered-prefix gadget sites"> {

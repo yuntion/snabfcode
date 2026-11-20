@@ -574,6 +574,11 @@ DictionaryAttr details(ModuleOp m, DictionaryAttr par, double price,
                   c.getOut().getType().getProfile(),
           "stale_conversion_ssa");
   auto a = c.getInput().getType(), z = c.getOut().getType();
+  // The current emitter converts one value before a one-level linear op.
+  // Check the suffix demand against the actual (replanned) SSA availability.
+  auto window = commonCutLevels({{l.getOut().getType().getLevel() + 1, a.getLevel()}});
+  require(window && z.getLevel() >= window->required && z.getLevel() <= window->current,
+          "cut_level_window_empty_or_exceeded");
   auto target =
       SymbolTable::lookupNearestSymbolFrom<ProfileOp>(c, z.getProfile());
   auto base = field<DictionaryAttr>(m, "snabf.pass3");
@@ -687,6 +692,17 @@ void materialize(ModuleOp m, int64_t n, int64_t level, double price,
 bool isMixed(ModuleOp m) {
   return bool(conv(m)) || m->hasAttr("snabf.mixed_parameters") ||
          m->hasAttr("snabf.ring_decision");
+}
+void requireCheckedRingDown(ModuleOp m) {
+  auto trace = m->getAttrOfType<DictionaryAttr>("snabf.ring_search");
+  require(bool(trace), "[SNABF_FORCE_DOWN_REJECTED] missing_ring_search");
+  if (isMixed(m) && conv(m) && field<StringAttr>(trace, "outcome").getValue() == "ring_down")
+    return;
+  std::set<std::string> reasons;
+  for (Attribute a : field<ArrayAttr>(trace, "rounds"))
+    reasons.insert(field<StringAttr>(cast<DictionaryAttr>(a), "reason").str());
+  if (reasons.empty()) reasons.insert("no_checked_down_proposal");
+  throw ContractError("[SNABF_FORCE_DOWN_REJECTED] " + llvm::join(reasons, ","));
 }
 static void clearSearch(ModuleOp x) {
   source(x)->removeAttr(policyName);

@@ -1,6 +1,18 @@
 #include "RingSwitchPlan.h"
+#include <algorithm>
 #include <cmath>
 namespace snabf::pass4 {
+std::optional<CutLevels> commonCutLevels(const std::vector<CutLevels> &values) {
+  if (values.empty()) return std::nullopt;
+  CutLevels window = values.front();
+  for (auto v : values) {
+    if (v.required < 0 || v.current < 0) return std::nullopt;
+    window.required = std::max(window.required, v.required);
+    window.current = std::min(window.current, v.current);
+  }
+  if (window.required > window.current) return std::nullopt;
+  return window;
+}
 double limbWork(int64_t n, int64_t l) {
   return n * std::log2(double(n)) * (1. + l);
 }

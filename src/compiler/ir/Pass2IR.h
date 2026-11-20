@@ -3,6 +3,7 @@
 
 namespace snabf::ir {
 void markActivationSources(ModuleOp);
+LogicalResult verifyStaticSource(ModuleOp);
 void liftActivationRegions(ModuleOp);
 void publishPolynomials(ModuleOp, int64_t depth, double epsilon,
                         int64_t minOutputLevel, double maxOutputError, StringRef family);

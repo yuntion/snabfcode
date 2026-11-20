@@ -66,6 +66,53 @@ void markActivationSources(ModuleOp m) {
   require(!records.empty(), "no source x/(1+exp(-x)) activation found");
   m->setAttr("snabf.activation_sources", b.getArrayAttr(records));
 }
+// Product entry v1. Classify operations while their source locations and
+// tensor semantics still exist. Frozen replay has its own entry contract.
+LogicalResult verifyStaticSource(ModuleOp m) {
+  auto reject = [](Operation *op, StringRef reason) -> LogicalResult {
+    return op->emitError() << "[SNABF_UNSUPPORTED_OP] op=" << name(op)
+                           << " reason=" << reason;
+  };
+  auto funcs = m.getOps<func::FuncOp>();
+  if (!llvm::hasSingleElement(funcs) || !llvm::hasSingleElement(*m.getBody()))
+    return reject(m, "expected_one_model_function");
+  auto f = *funcs.begin();
+  if (f.isExternal() || !f.getBody().hasOneBlock() || f.getNumArguments() != 1 ||
+      f.getNumResults() != 1 || !f.getArgAttr(0, "secret.secret"))
+    return reject(f, "expected_single_secret_input_single_result_straight_line");
+  auto input = dyn_cast<RankedTensorType>(f.getArgument(0).getType());
+  if (!input || !input.hasStaticShape() || input.getRank() != 1 ||
+      input.getDimSize(0) <= 0 || !input.getElementType().isF32() ||
+      f.getResultTypes()[0] != input)
+    return reject(f, "expected_same_static_vector_shape");
+  bool linear = false, activation = false;
+  for (Operation &op : f.getBody().front()) {
+    for (Type type : op.getResultTypes())
+      if (auto t = dyn_cast<ShapedType>(type); t && !t.hasStaticShape())
+        return reject(&op, "dynamic_tensor_shape");
+    auto k = name(&op);
+    if (k == "linalg.matvec") { linear = true; continue; }
+    if (k == "linalg.generic") {
+      if (siluBody(&op)) { activation = true; continue; }
+      auto &r = op.getRegion(0);
+      if (op.getNumOperands() == 3 && r.hasOneBlock() &&
+          r.front().getNumArguments() == 3 && r.front().getTerminator()->getNumOperands() == 1) {
+        auto *add = producer(r.front().getTerminator()->getOperand(0), "arith.addf");
+        auto maps = op.getAttrOfType<ArrayAttr>("indexing_maps");
+        if (add && maps && maps.size() == 3 && llvm::all_of(maps, [](Attribute a) {
+              return cast<AffineMapAttr>(a).getValue().isIdentity();
+            }) && ((add->getOperand(0) == r.front().getArgument(0) && add->getOperand(1) == r.front().getArgument(1)) ||
+                  (add->getOperand(1) == r.front().getArgument(0) && add->getOperand(0) == r.front().getArgument(1)))) continue;
+      }
+      return reject(&op, "unrecognized_elementwise_region");
+    }
+    if (k != "arith.constant" && k != "linalg.fill" && k != "tensor.empty" &&
+        k != "linalg.add" && k != "arith.addf" && k != "func.return")
+      return reject(&op, "outside_static_linear_silu_add_subset");
+  }
+  if (!linear || !activation) return reject(f, "expected_matvec_and_silu");
+  return success();
+}
 void liftActivationRegions(ModuleOp m) {
   auto records = field<ArrayAttr>(m, "snabf.activation_sources");
   IRRewriter rw(m.getContext());
