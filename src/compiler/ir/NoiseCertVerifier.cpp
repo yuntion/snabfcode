@@ -258,7 +258,16 @@ void audit(const Topology &g, const Options &o, const AnalyticContracts *provide
     check(outputs.contains(id) && std::isfinite(p) && p > 0 && p < 1,
           "orphan or invalid sink allocation: " + id);
 
-  auto law = provider && provider->common ? provider->common(g) : std::nullopt;
+  // G is quantified for each fixed input in a declared domain. Equal physical
+  // scales (or an exact downstream cancellation) do not supply that domain.
+  bool haveInputDomains = true;
+  for (const auto &n : g.nodes) {
+    if (n.op == Op::Source && !n.source_bound) {
+      haveInputDomains = false;
+      r.missing_contract_terms.insert("node/" + n.id + "/declared_input_domain");
+    }
+  }
+  auto law = haveInputDomains && provider && provider->common ? provider->common(g) : std::nullopt;
   AffineErrorForm global;
   if (!law || law->evidence != Evidence::ValidatedAnalytic) {
     law.reset();

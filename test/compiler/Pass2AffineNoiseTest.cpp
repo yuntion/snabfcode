@@ -21,6 +21,7 @@ Node node(std::string id, Op op, std::vector<size_t> args = {}, int level = 1) {
 Node source(std::string id, std::string draw, uint64_t scale = 65536) {
   auto n = node(std::move(id), Op::Source);
   n.input_draw = std::move(draw);
+  n.source_bound = 1; // fixture hypotheses are for fixed real inputs in [-1,1]
   n.encoded_scale = Exact(std::to_string(scale));
   n.effective_encoder_scale = n.encoded_scale;
   return n;
@@ -125,6 +126,31 @@ void jointAndFanout() {
   expect(!verifyNoiseCertificate(g, o, &p).accepts(), "two independent definitions of one physical draw");
 }
 
+void declaredInputDomainGate() {
+  auto g = fixture(); auto o = certify(g); auto p = proofs();
+  // Equal scales and a provider that returns bounds for *everything* used to
+  // hide a missing source envelope. One missing input invalidates the joint G.
+  g.nodes[1].source_bound.reset();
+  bool queried = false;
+  auto common = p.common;
+  p.common = [&](const Topology &t) { queried = true; return common(t); };
+  p.site = [&](const SiteQuery &) -> Bound { queried = true; return bound(); };
+  for (auto mode : {Mode::Probability, Mode::Engineering}) {
+    o.mode = mode;
+    auto r = verifyNoiseCertificate(g, o, &p);
+    expect(!queried && r.errors.empty() && r.accepts() == (mode == Mode::Engineering) &&
+           !r.probabilistic_cert_issued && !r.total_delta_valid && !r.sinks.at(0).certified_bound_units &&
+           r.missing_contract_terms.contains("node/w/declared_input_domain") &&
+           r.missing_contract_terms.contains("common/validated_joint_law_and_domain"),
+           "a missing fixed-input domain reached a proof provider");
+  }
+  g.nodes[1].source_bound = 0; // a declared singleton is not a missing domain
+  auto r = verifyNoiseCertificate(g, certify(g));
+  expect(!r.probabilistic_cert_issued && !r.missing_contract_terms.contains("node/w/declared_input_domain") &&
+         r.missing_contract_terms.contains("common/validated_joint_law_and_domain"), "input domain became a law");
+  expect(verifyNoiseCertificate(g, certify(g), &p).accepts() && queried, "declared singleton rejected");
+}
+
 void budgetsAndEvidence() {
   auto g = fixture(); g.outputs.push_back({"tap", 0});
   auto o = certify(g); auto p = proofs();
@@ -207,6 +233,7 @@ void physicalAndRounding() {
 
   auto joined = fixture(); joined.nodes[1].encoded_scale = below; joined.nodes[0].encoded_scale = exactBinary(upper);
   for (auto &n : joined.nodes) n.effective_encoder_scale = n.encoded_scale;
+  joined.nodes[1].source_bound.reset(); // nonzero drift is on the smaller, right operand
   r = verifyNoiseCertificate(joined, o, &p);
   expect(!r.accepts() && r.missing_contract_terms.contains("node/sum/unequal_physical_join_transfer"),
          "rounded-to-equal scales signed a certificate");
@@ -330,7 +357,7 @@ void malformedInputs() {
 
 int main() {
   try {
-    affineArithmetic(); jointAndFanout(); budgetsAndEvidence();
+    affineArithmetic(); jointAndFanout(); declaredInputDomainGate(); budgetsAndEvidence();
     physicalAndRounding(); dependentAndNonlinearSites(); malformedInputs();
     productionScaleBranches();
     std::cout << "Pass2AffineNoiseTest: passed\n";
