@@ -3,6 +3,7 @@
 #include "Pass3IR.h"
 #include "Pass4IR.h"
 #include "Target/Lattigo/DirectEmitter.h"
+#include "Target/Lattigo/EmitVerifier.h"
 #include "Pass2Lowering.h"
 #include "pass1/NativeRouting.h"
 #include "mlir/AsmParser/AsmParser.h"
@@ -19,6 +20,7 @@ void lowerCKKS(ModuleOp m) {
   }
   verifyPlan(m);
   verifyPass3(m);
+  lattigo_target::verifySealedInputForHEIR(m);
   if(auto rec=executableBootstrap(m)) {
     m->setAttr("snabf.export_bootstrap",rec); return; // already a typed Lattigo bootstrap; bind its evaluator after HEIR translation
   }

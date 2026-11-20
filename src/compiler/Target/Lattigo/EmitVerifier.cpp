@@ -87,6 +87,19 @@ public:
 };
 } // namespace
 
+void verifySealedInputForHEIR(ModuleOp m) {
+  if (!m->hasAttr(seal)) {
+    require(!m->hasAttr("snabf.encoding_receipts"), "unsealed_derived_encoding_program");
+    return; // historical HEIR inputs have no emission artifacts
+  }
+  require(m->hasAttr("snabf.pass3") && m->hasAttr("snabf.security_screen"),
+          "sealed_lower_requires_concrete_screened_parameters");
+  // A matching digest alone does not prove the receipt describes these SSA
+  // operands and parameters. In verify-only mode a missing binding is fatal.
+  (void)detail::bindEncodingProgram(m, ringProgram(m), /*firstCheck=*/false);
+  require(field<StringAttr>(m, seal).getValue() == fingerprint(m), "stale_emit_fingerprint");
+}
+
 void invalidateForExplicitPass4Replan(ModuleOp m) {
   constexpr StringLiteral receipts = "snabf.encoding_receipts";
   auto lowered = existing(m); // also rejects a lowering in the wrong domain
