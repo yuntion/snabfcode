@@ -1,6 +1,7 @@
 #include "Pass3IR.h"
 #include "Pass2IR.h"
 #include "pass3/ConcreteVerifier.h"
+#include "pass3/CostProfile.h"
 #include "pass3/ParameterMILP.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/JSON.h"
@@ -140,9 +141,12 @@ Input extract(ModuleOp m) {
       std::map<int, double> weights;
       for (int t = 0; t < ts.size(); t += 3) {
         int baby = ts[t + 1], giant = ts[t + 2];
-        if (!babies.contains(baby))
+        if (!babies.contains(baby)) {
           babies[baby] = make(prefix + "baby" + std::to_string(baby), O::Baby,
                               level, {a}, {1}, magnitude(a));
+          g.edges[babies[baby]].shift = baby;
+          g.edges[babies[baby]].routeSite = site;
+        }
         int parent = babies[baby];
         double w = maxRow[t / 3];
         int v = make(prefix + "mask" + std::to_string(ts[t]), O::Mask, level,
@@ -161,9 +165,12 @@ Input extract(ModuleOp m) {
       std::vector<int> all;
       for (auto &[giant, terms] : groups) {
         int v = sum("coset" + std::to_string(giant), terms);
-        if (giant)
+        if (giant) {
           v = make(prefix + "giant" + std::to_string(giant), O::Giant, level,
                    {v}, {1}, magnitude(v));
+          g.edges[v].shift = giant;
+          g.edges[v].routeSite = site;
+        }
         all.push_back(v);
       }
       int v = sum("merge", all);
@@ -300,9 +307,14 @@ DictionaryAttr options(Builder &b, const p::Options &o) {
   f("security_cap", o.securityCap);
   f("min_base", o.minBase);
   f("guard", o.guardBits);
+  if (o.costProfile) {
+    d.set("cost_mode",b.getStringAttr("calibrated-sites-v1"));
+    d.set("cost_profile_sha256",b.getStringAttr(o.costProfile->digest()));
+    d.set("cost_hardware_id",b.getStringAttr(o.costProfile->hardwareID()));
+  }
   return d.getDictionary(b.getContext());
 }
-p::Options readOptions(DictionaryAttr d) {
+p::Options readOptions(DictionaryAttr d, ModuleOp m) {
   p::Options o{int(num(d, "min_scale")), int(num(d, "max_scale")),
           int(num(d, "max_k")),     real(d, "tolerance"),
           real(d, "security_cap"),  real(d, "min_base"),
@@ -315,6 +327,12 @@ p::Options readOptions(DictionaryAttr d) {
       o.primeWidthMin=real(d,"prime_bw_min"); o.primeWidthMax=real(d,"prime_bw_max");
       o.auxMarginBits=int(num(d,"aux_prime_margin_bits"));
     }
+  }
+  auto profile=m->getAttrOfType<StringAttr>("snabf.gadget_cost_profile");
+  if (m->hasAttr("snabf.gadget_cost_profile") || d.contains("cost_mode") || d.contains("cost_profile_sha256") || d.contains("cost_hardware_id")) {
+    require(profile && field<StringAttr>(d,"cost_mode").getValue()=="calibrated-sites-v1", "missing_gadget_cost_profile_or_mode");
+    o.costProfile=p::CostProfile::parse(profile.str(),field<StringAttr>(d,"cost_hardware_id").str());
+    require(o.costProfile->digest()==field<StringAttr>(d,"cost_profile_sha256").str(),"stale_gadget_cost_profile");
   }
   return o;
 }
@@ -467,6 +485,18 @@ DictionaryAttr record(Builder &b, Input &in, const p::Options &o,
   d.set("scale", b.getI64IntegerAttr(s.scale));
   d.set("security_cap", b.getF64FloatAttr(o.securityCap));
   d.set("options", options(b, o));
+  if (o.costProfile) {
+    SmallVector<Attribute> charges;
+    double total=0;
+    for (const auto &price:p::replayPrices(in.g,*o.costProfile,s)) {
+      NamedAttrList charge;
+      charge.set("edges",b.getDenseI64ArrayAttr(SmallVector<int64_t>(price.edges.begin(),price.edges.end())));
+      charge.set("median_us",b.getF64FloatAttr(price.us));
+      charges.push_back(charge.getDictionary(b.getContext()));total+=price.us;
+    }
+    d.set("gadget_site_charges",b.getArrayAttr(charges));
+    d.set("gadget_objective_us",b.getF64FloatAttr(total));
+  }
   d.set("approximation", b.getF64FloatAttr(in.g.approximation));
   d.set("sink", b.getI64IntegerAttr(in.g.sink));
   d.set("key_id", in.profile.getKeyIdAttr());
@@ -571,7 +601,7 @@ DictionaryAttr boundaryParameters(ModuleOp m, DictionaryAttr base,
                                   DictionaryAttr check) {
   Builder b(m.getContext());
   auto in = extract(m);
-  auto o = readOptions(field<DictionaryAttr>(base, "options"));
+  auto o = readOptions(field<DictionaryAttr>(base, "options"),m);
   p::Solution s;
   s.q.assign(in.profile.getQ().begin(), in.profile.getQ().end());
   s.p.assign(in.profile.getP().begin(), in.profile.getP().end());
@@ -624,6 +654,8 @@ void publishPass3(ModuleOp m, const p::Options &o, bool fixed, StringRef audit,
     auto v = p::replay(in.g, o, s);
     require(v.reason.empty(), v.reason);
   }
+  require(o.costProfile || !m->hasAttr("snabf.gadget_cost_profile"),"unexpected_gadget_cost_profile_in_legacy_mode");
+  if (o.costProfile) m->setAttr("snabf.gadget_cost_profile",b.getStringAttr(o.costProfile->json()));
   auto r = record(b, in, o, s);
   m->setAttr("snabf.pass3", r);
   m->setAttr("snabf.pass3_required", b.getUnitAttr());
@@ -656,7 +688,8 @@ void publishPass3(ModuleOp m, const p::Options &o, bool fixed, StringRef audit,
     }
     json["continuous_scales"] = std::move(scales);
     json["tightening_cuts"] = std::move(cuts);
-    json["objective"] = s.objective;
+    json["objective"] = o.costProfile ? real(r,"gadget_objective_us") : s.objective;
+    if (o.costProfile) json["objective_units"] = "us";
     std::error_code ec;
     llvm::raw_fd_ostream out(audit, ec, llvm::sys::fs::OF_Text);
     require(!ec, "cannot write Pass 3 audit");
@@ -681,7 +714,7 @@ void verifyPass3(ModuleOp m) {
                 m->getAttrOfType<DictionaryAttr>("snabf.ring_search"),
             "missing_ring_search_or_policy");
   if (!profiled && !m->hasAttr("snabf.pass3_required") &&
-      !m->hasAttr("snabf.pass3"))
+      !m->hasAttr("snabf.pass3") && !m->hasAttr("snabf.gadget_cost_profile"))
     return;
   Builder b(m.getContext());
   auto d = field<DictionaryAttr>(m, "snabf.pass3");
@@ -697,7 +730,7 @@ void verifyPass3(ModuleOp m) {
   s.scale = in.profile.getDefaultLogScale();
   for (auto e : field<ArrayAttr>(d, "edges"))
     s.k.push_back(num(cast<DictionaryAttr>(e), "K"));
-  auto o = readOptions(field<DictionaryAttr>(d, "options"));
+  auto o = readOptions(field<DictionaryAttr>(d, "options"),m);
   auto v = p::replay(in.g, o, s);
   require(v.reason.empty(), v.reason);
   require(record(b, in, o, s) == d,

@@ -28,6 +28,7 @@ from pass2_evidence import Oracle, TOLERANCE, load, require, save, sha
 ARMS = ('no_trunc', 'joint', 'matched_exact')
 CELLS = ('1:narrow', '1:heterogeneous', '2:narrow', '2:heterogeneous')
 V1, V2 = 'snabf.a1.multip.v1', 'snabf.a1.multip.v2'
+V3 = 'snabf.a2.multip.v3'
 TEMPLATE = Path(__file__).with_name('phase2_multip_trials.go.in')
 ADAPTER = '''package planned
 import (
@@ -60,6 +61,7 @@ class StageFailure(ValueError):
         super().__init__(f'{label}: exit {code}; see {log.name}')
         text = log.read_text(errors='replace')
         known = ('Pass 3 infeasible under requested scale, precision and QP bounds',
+                 'no joint SiLU/route plan satisfies downstream level, approximation and rotation budgets',
                  '[SNABF_UNSUPPORTED_OP] op=ckks.bootstrap reason=no_lossless_encrypted_import',
                  'delta scale is negative',
                  '[SNABF_SECURITY_INFEASIBLE]', '[SNABF_SPECIALIZATION_CYCLE]', '[SNABF_SPECIALIZATION_LIMIT]')
@@ -169,6 +171,8 @@ def compile_arms(cell, a, src, alpha, hetero, env, opt):
             cmd.append('--heterogeneous-scales')
         if a.security_cache:
             cmd.extend(['--security-cache', a.security_cache.resolve()])
+        if getattr(a, 'cost_profile', None):
+            cmd.extend(['--cost-profile',a.cost_profile.resolve(), '--cost-hardware-id',a.cost_hardware_id])
         run_logged(cell, arm, cmd, ROOT, env)
         p, _ = check_plan(cell/arm, alpha, hetero, k)
         g = program_contract(cell/arm, p)
@@ -177,7 +181,7 @@ def compile_arms(cell, a, src, alpha, hetero, env, opt):
                 c['emit_sha256'] == g['emit_sha256'], 'incorrect compiler receipt')
         return p, g
 
-    for arm, k in zip(ARMS[:2], (0, 1)):
+    for arm, k in zip(ARMS[:2], (0, a.joint_max_k)):
         try:
             p, g = independent(arm, k)
             receipts[arm] = compiled_receipt(cell/arm, p, g, hetero)
@@ -195,11 +199,15 @@ def compile_arms(cell, a, src, alpha, hetero, env, opt):
 
 
 def fixed_policy(o):
-    return (f'--snabf-pass3=fixed-exact=true gadget-alpha={o["gadget_alpha"]} max-k=0 '
+    option = (f'--snabf-pass3=fixed-exact=true gadget-alpha={o["gadget_alpha"]} max-k=0 '
             f'heterogeneous-scales={str(o["heterogeneous_scales"]).lower()} heir-scale-anchor={str(o["heir_scale_anchor"]).lower()} '
             f'epsilon={o["tolerance"]} security-cap={o["security_cap"]} min-base={o["min_base"]} '
             f'min-scale={o["min_scale"]} max-scale={o["max_scale"]} guard={o["guard"]} '
             'source-arithmetic-fraction=1 security=source-security.json audit=parameters.json')
+    if 'cost_mode' in o:
+        require(o['cost_mode']=='calibrated-sites-v1','unknown Pass 3 pricing mode')
+        option += ' cost-profile=gadget-profile.json cost-hardware-id='+o['cost_hardware_id']
+    return option
 
 
 def matched_exact(cell, p, g, alpha, hetero, env, opt):
@@ -208,6 +216,8 @@ def matched_exact(cell, p, g, alpha, hetero, env, opt):
     w = matched/'work'
     w.mkdir(parents=True)
     shutil.copyfile(jw/'source-security.json', w/'source-security.json')
+    if 'cost_mode' in p['options']:
+        shutil.copyfile(jw/'gadget-profile.json', w/'gadget-profile.json')
     policy = fixed_policy(p['options'])  # Reuse the audited joint policy, not CLI defaults.
     def native(stage, *args):
         run_logged(cell, 'matched_'+stage, [opt, '--allow-unregistered-dialect', '--verify-each',
@@ -273,11 +283,11 @@ def verify_events(events, program, alpha):
     return dict(scope='one untimed replay; counters cover truncated gadget sites only', observed_sites=len(events), **totals)
 
 
-def replay_admission(cell, alpha, hetero):
+def replay_admission(cell, alpha, hetero, joint_max_k=1):
     ledger = load(cell/'admission.json')
     require(set(ledger) == set(ARMS), 'incomplete admission ledger')
     plans, programs = {}, {}
-    for arm, k in zip(ARMS, (0, 1, 0)):
+    for arm, k in zip(ARMS, (0, joint_max_k, 0)):
         if ledger[arm]['status'] != 'compiled':
             continue
         d = cell/arm
@@ -304,11 +314,11 @@ def replay_admission(cell, alpha, hetero):
     return ledger
 
 
-def summary(cell, alpha, hetero, corpus, *, legacy=False):
+def summary(cell, alpha, hetero, corpus, *, legacy=False, joint_max_k=1):
     observations = load(cell/'observed.json')
     out, progs, times = {}, {}, {arm: [] for arm in ARMS}
     errors = {arm: [0.0, 0.0, 0, 0] for arm in (*ARMS, 'paired')}
-    for name, k in zip(ARMS, (0, 1, 0)):
+    for name, k in zip(ARMS, (0, joint_max_k, 0)):
         d = cell/name
         p, security = check_plan(d, alpha, hetero, k, legacy_narrow=legacy)
         g = progs[name] = program_contract(d, p)
@@ -398,8 +408,11 @@ def manifest(root):
 def replay(root):
     require(load(root/'hashes.json') == manifest(root), 'manifest member/digest mismatch')
     record = load(root/'results.json')
-    require(record['schema'] in (V1, V2) and len(record['requested_cells']) == len(record['cells']) and
+    require(record['schema'] in (V1, V2, V3) and len(record['requested_cells']) == len(record['cells']) and
             set(record['requested_cells']) == set(record['cells']) <= set(CELLS), 'unknown schema or incomplete cell inventory')
+    joint_max_k = record['joint_max_k'] if record['schema'] == V3 else 1
+    require(type(joint_max_k) is int and 0 <= joint_max_k <= 4 and
+            (record['schema'] == V3 or 'joint_max_k' not in record), 'invalid recorded joint truncation policy')
     require(record['source_sha256'] == sha(root/'source.mlir') and record['corpus_sha256'] == sha(root/'corpus.json'), 'changed source or corpus')
     corpus = load(root/'corpus.json')
     if record['oracle'] == 'source':
@@ -409,15 +422,24 @@ def replay(root):
     for name, row in record['cells'].items():
         alpha, scale = name.split(':')
         cell = root/('a'+alpha+'-'+scale)
-        if record['schema'] == V2 and (cell/'admission.json').is_file():
-            ledger = replay_admission(cell, int(alpha), scale=='heterogeneous')
+        if 'measured_profile_sha256' in record:
+            require(record['schema']==V3, 'measured pricing requires the A2 schema')
+            for arm in ARMS:
+                arm_root = cell/arm/'work'
+                if (arm_root/'parameters.json').is_file():
+                    opt = load(arm_root/'parameters.json')['options']
+                    require(digest_file(arm_root/'gadget-profile.json')==record['measured_profile_sha256']
+                            and opt.get('cost_hardware_id')==record['cost_hardware_id']
+                            and opt.get('cost_mode')=='calibrated-sites-v1', 'stale measured ablation policy')
+        if record['schema'] != V1 and (cell/'admission.json').is_file():
+            ledger = replay_admission(cell, int(alpha), scale=='heterogeneous', joint_max_k)
             require('error' in row or all(v['status']=='compiled' for v in ledger.values()), 'measurement without full admission')
         if 'error' in row:
             if (cell/'admission.json').is_file():
                 require(row['admission'] == load(cell/'admission.json'), 'admission ledger mismatch')
             continue
         require((cell/'admission.json').is_file(), 'missing admission for measured cell')
-        require(row == summary(cell, int(alpha), scale=='heterogeneous', corpus, legacy=record['schema']==V1),
+        require(row == summary(cell, int(alpha), scale=='heterogeneous', corpus, legacy=record['schema']==V1, joint_max_k=joint_max_k),
                 'measurement replay mismatch: '+name)
     return record
 
@@ -445,6 +467,10 @@ def execute(a):
                   input_bound=a.input_bound, trials=len(corpus), oracle='external' if a.corpus else 'source',
                   tools={str(x): digest_file(x) for x in (opt, ext/'go/bin/go', ROOT/'src/tools/snabf_compile.py', TEMPLATE, Path(__file__)) if x.is_file()},
                   timing='generated Eval only; matched uses joint runtime, keys, plaintexts and ciphertext; one separate observed replay', cells={})
+    if a.joint_max_k != 1 or getattr(a,'cost_profile',None):
+        record.update(schema=V3, joint_max_k=a.joint_max_k)
+    if getattr(a,'cost_profile',None):
+        record.update(measured_profile_sha256=digest_file(a.cost_profile),cost_hardware_id=a.cost_hardware_id)
     for name in requested:
         alpha, scale = name.split(':')
         cell = root/('a'+alpha+'-'+scale)
@@ -455,7 +481,7 @@ def execute(a):
             run = prepare_runner(cell)
             run_logged(cell, 'encrypted', [ext/'go/bin/go', 'test', '-mod=readonly', '-count=1', '-timeout', '0', '-v', '.'], run,
                        dict(env, SNABF_A1_CELL=str(cell), SNABF_A1_CORPUS=str(root/'corpus.json')))
-            record['cells'][name] = summary(cell, int(alpha), scale=='heterogeneous', corpus)
+            record['cells'][name] = summary(cell, int(alpha), scale=='heterogeneous', corpus, joint_max_k=a.joint_max_k)
         except (ValueError, OSError, KeyError, TypeError) as exc:
             record['cells'][name] = dict(error=str(exc), failure=failure(exc), measured=False,
                                          admission=load(cell/'admission.json') if (cell/'admission.json').exists() else {})
@@ -476,10 +502,15 @@ def main():
     p.add_argument('--input-bound', type=float, default=1.0)
     p.add_argument('--log-n', type=int, default=15)
     p.add_argument('--q-count', type=int, default=8)
+    p.add_argument('--joint-max-k', type=int, choices=range(5), default=1,
+                   help='largest candidate centered prefix for joint only (A1 default: 1)')
     p.add_argument('--min-slots', type=int, default=4096)
     p.add_argument('--security-cache', type=Path)
+    p.add_argument('--cost-profile', type=Path)
+    p.add_argument('--cost-hardware-id')
     p.add_argument('--snabf-opt', type=Path)
     a = p.parse_args()
+    if bool(a.cost_profile) != bool(a.cost_hardware_id): p.error('--cost-profile and --cost-hardware-id are a pair')
     if a.replay and not (a.mlir or a.out):
         result = replay(a.replay.resolve())
     elif a.mlir and a.out and not a.replay:

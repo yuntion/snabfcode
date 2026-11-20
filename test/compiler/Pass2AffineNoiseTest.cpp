@@ -22,6 +22,7 @@ Node source(std::string id, std::string draw, uint64_t scale = 65536) {
   auto n = node(std::move(id), Op::Source);
   n.input_draw = std::move(draw);
   n.encoded_scale = Exact(std::to_string(scale));
+  n.effective_encoder_scale = n.encoded_scale;
   return n;
 }
 Topology fixture() {
@@ -170,6 +171,7 @@ void physicalAndRounding() {
              {source("u", "u", 1ULL << 57), node("rs", Op::Rescale, {0}, 0),
               node("down", Op::Down, {1}, 0)}, {{"out", 2}}};
   g.nodes[2].domain = 1; g.nodes[2].evk = "K-to-T";
+  g.nodes[0].source_bound = 1;
   auto p = proofs(); noGroup(p);
   p.site = [](const SiteQuery &s) -> Bound { return bound(0, s.role == Role::Project ? 1 : 0); };
   auto o = certify(g); o.precision_bits = 0;
@@ -197,13 +199,14 @@ void physicalAndRounding() {
   auto mid = Exact((exactBinary(upper) + exactBinary(std::nextafter(upper, 0.))) / 2);
   Exact below = mid + Exact(1, mpz_class(1) << 60);
   expect(below * below < 2 && below > mid, "incorrect boundary fixture");
-  one.nodes[0].encoded_scale = below;
+  one.nodes[0].effective_encoder_scale = one.nodes[0].encoded_scale = below;
   r = verifyNoiseCertificate(one, o, &p);
   expect(r.all_contracts_present && !r.sinks[0].margin_passed, "nearest rounding manufactured a passing margin");
-  one.nodes[0].encoded_scale = exactBinary(upper);
+  one.nodes[0].effective_encoder_scale = one.nodes[0].encoded_scale = exactBinary(upper);
   expect(verifyNoiseCertificate(one, o, &p).probabilistic_cert_issued, "upper adjacent representable tolerance rejected");
 
   auto joined = fixture(); joined.nodes[1].encoded_scale = below; joined.nodes[0].encoded_scale = exactBinary(upper);
+  for (auto &n : joined.nodes) n.effective_encoder_scale = n.encoded_scale;
   r = verifyNoiseCertificate(joined, o, &p);
   expect(!r.accepts() && r.missing_contract_terms.contains("node/sum/unequal_physical_join_transfer"),
          "rounded-to-equal scales signed a certificate");
@@ -247,13 +250,45 @@ void dependentAndNonlinearSites() {
   // A signed plaintext multiplier that is exactly -1 cancels the shared
   // input on re-addition; it still owes an encoding and multiplication proof.
   g.nodes = {source("u", "u"), node("minus", Op::ScalarMulPlain, {0}), node("sum", Op::Add, {1, 0})};
-  g.nodes[1].real_scalar = -1; g.nodes[1].encoded_scale = 1;
+  g.nodes[1].real_scalar = -1; g.nodes[1].effective_encoder_scale = g.nodes[1].encoded_scale = 1;
   p.site = [](const SiteQuery &s) -> Bound { return bound(0, s.role == Role::Encrypt ? 5 : 0); };
   r = verifyNoiseCertificate(g, o, &p);
   expect(r.probabilistic_cert_issued && r.sinks[0].total_variance_proxy_v == 0, "lost signed scalar gain");
   g.nodes[1].real_scalar = 0;
   p.site = [](const SiteQuery &s) -> Bound { return s.role == Role::PlainEncode ? Bound{} : Bound(bound()); };
   expect(!verifyNoiseCertificate(g, o, &p).accepts(), "zero multiplier erased a required primitive");
+}
+
+void productionScaleBranches() {
+  const auto meta = plannedEncodingScale(0.5);
+  expect(meta == Exact("240615969168004511545033772477625056927/170141183460469231731687303715884105728") &&
+         effectiveEncoderScale(meta, 53) == Exact("6369051672525773/4503599627370496") &&
+         effectiveEncoderScale(meta, 60) == meta, "encoder branch versus 128-bit metadata");
+  auto g = fixture();
+  g.nodes[0] = source("left", "L", 4); g.nodes[0].source_bound = 3;
+  g.nodes[1] = source("right", "R", 9); g.nodes[1].source_bound = 5;
+  auto p = proofs(); noGroup(p);
+  auto r = verifyNoiseCertificate(g, certify(g), &p);
+  auto &join = r.edge_inventory.at(2);
+  expect(r.errors.empty() && join.join_branch == "multiply_left" && join.multiplier_a == "2" &&
+         join.multiplier_b == "1" && join.residual_a == "-1" && join.scale_bias == "3" &&
+         r.sink_forms.at("out").linearTerms().at("L").signed_coeff == 2,
+         "actual AddNew integer multiplier or ideal-message charge lost");
+  g.nodes[2].inputs = {1, 0}; r = verifyNoiseCertificate(g, certify(g), &p);
+  expect(r.edge_inventory.at(2).join_branch == "multiply_right" && r.edge_inventory.at(2).scale_bias == "3",
+         "asymmetric AddNew alignment");
+  g.nodes[1].effective_encoder_scale.reset(); r = verifyNoiseCertificate(g, certify(g), &p);
+  expect(!r.accepts() && r.missing_contract_terms.contains("node/right/missing_encoding_scale_binding") &&
+         r.sinks[0].physical_scale_exact.empty(), "missing effective source binding defaulted to metadata");
+
+  Topology hi{{{"K", 8, {97, 113, 193}, {241}, 2}},
+              {source("u", "u"), node("rs", Op::Rescale, {0}, 0)}, {{"out", 1}}};
+  hi.nodes[0].level = 2; hi.nodes[0].source_bound = 1;
+  r = verifyNoiseCertificate(hi);
+  auto expected = roundCKKSScale(roundCKKSScale(Exact(65536, 193)) / 113);
+  expect(r.errors.empty() && r.sinks.at(0).physical_scale_exact == expected.get_str(), "two-prime sequential rescale");
+  hi.nodes[1].level = 1;
+  expect(!verifyNoiseCertificate(hi).errors.empty(), "wrong rescale count accepted");
 }
 
 void malformedInputs() {
@@ -297,6 +332,7 @@ int main() {
   try {
     affineArithmetic(); jointAndFanout(); budgetsAndEvidence();
     physicalAndRounding(); dependentAndNonlinearSites(); malformedInputs();
+    productionScaleBranches();
     std::cout << "Pass2AffineNoiseTest: passed\n";
   } catch (const std::exception &e) {
     std::cerr << "Pass2AffineNoiseTest: " << e.what() << '\n';

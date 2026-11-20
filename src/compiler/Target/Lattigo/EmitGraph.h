@@ -14,11 +14,14 @@ struct Edge {
   ArrayRef<int64_t> inputs;
   ArrayRef<double> values;
   int64_t shift = 0, site = -1;
+  DictionaryAttr encoding;
+  std::string outputScale;
 };
 struct EmitGraph {
   explicit EmitGraph(DictionaryAttr);
   struct Operand { DictionaryAttr value, provided, required; std::string input; ArrayAttr consumers; };
   DictionaryAttr program, transition, switchingDomain;
+  DictionaryAttr encodingPlan;
   std::vector<Operand> operands;
   int64_t source, target, width, slots, sink;
   std::vector<Edge> edges;
@@ -26,6 +29,9 @@ struct EmitGraph {
   std::set<int64_t> relin;
   std::map<std::pair<int64_t,int64_t>, std::vector<size_t>> hoists;
 };
+// At first check only, materialize the plan before sealing. All consumers
+// regenerate it from the graph and require exact equality; never repair it.
+DictionaryAttr bindEncodingProgram(ModuleOp, DictionaryAttr rawProgram, bool firstCheck);
 inline int64_t num(DictionaryAttr d, StringRef k) { return field<IntegerAttr>(d,k).getInt(); }
 inline double real(DictionaryAttr d, StringRef k) { return field<FloatAttr>(d,k).getValueAsDouble(); }
 inline ArrayRef<int64_t> ints(DictionaryAttr d,StringRef k) { return field<DenseI64ArrayAttr>(d,k).asArrayRef(); }

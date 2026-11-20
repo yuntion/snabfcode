@@ -167,6 +167,7 @@ def main():
     dest.add_argument('--out',type=Path,help='new output directory')
     dest.add_argument('--check-reconstruction',type=Path,metavar='DIR',help='audit saved single/mixed program.json and checked.mlir, including negative controls; no Go or decrypt claim')
     parser.add_argument('--seed',type=int,default=2341); parser.add_argument('--security-cache',type=Path)
+    parser.add_argument('--interval-mode',choices=('naive','affine'),help='opt into a specific native candidate-domain policy during source compilation')
     mode=parser.add_mutually_exclusive_group(); mode.add_argument('--witness-only',action='store_true'); mode.add_argument('--frontend-only',action='store_true')
     a=parser.parse_args()
     if a.check_reconstruction:
@@ -192,6 +193,7 @@ def main():
              '--input-bound','1','--precision-bits','12','--mode','keep-source','--emit-go',
              '--log-n','14' if case=='single' else '15','--q-count','8' if case=='single' else '16',
              '--security-cache',(a.security_cache or root/'security-cache').resolve()]
+        if a.interval_mode is not None: cmd.extend(('--interval-mode',a.interval_mode))
         subprocess.run(cmd,cwd=ROOT,env=env,check=True)
         subprocess.run([opt,'--allow-unregistered-dialect','--verify-each','--snabf-check-plan',model/'work/planned.mlir','-o',d/'rechecked.mlir'],env=env,check=True)
         test=model/'c1_trials_test.go'; shutil.copyfile(Path(__file__).with_name('phase2_cut_trials.go.in'),test)

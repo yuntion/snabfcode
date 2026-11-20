@@ -1,4 +1,6 @@
 #include "DirectEmitter.h"
+#include "EmitGraph.h"
+#include "EmitVerifier.h"
 #include "Pass2IR.h"
 #include "Pass3IR.h"
 #include "Pass4IR.h"
@@ -52,7 +54,7 @@ DictionaryAttr request(ModuleOp m) {
       require(!field<BoolAttr>(s, "enabled").getValue(),
               "bootstrap_not_emittable_in_epoch_graph");
   });
-  return ringProgram(m);
+  return detail::bindEncodingProgram(m, ringProgram(m), false);
 }
 
 // Same-directory temporaries ensure rename is atomic. The caller stages both
@@ -85,13 +87,58 @@ public:
 };
 } // namespace
 
+void verifySealedInputForHEIR(ModuleOp m) {
+  if (!m->hasAttr(seal)) {
+    require(!m->hasAttr("snabf.encoding_receipts"), "unsealed_derived_encoding_program");
+    return; // historical HEIR inputs have no emission artifacts
+  }
+  require(m->hasAttr("snabf.pass3") && m->hasAttr("snabf.security_screen"),
+          "sealed_lower_requires_concrete_screened_parameters");
+  // A matching digest alone does not prove the receipt describes these SSA
+  // operands and parameters. In verify-only mode a missing binding is fatal.
+  (void)detail::bindEncodingProgram(m, ringProgram(m), /*firstCheck=*/false);
+  require(field<StringAttr>(m, seal).getValue() == fingerprint(m), "stale_emit_fingerprint");
+}
+
+void invalidateForExplicitPass4Replan(ModuleOp m) {
+  constexpr StringLiteral receipts = "snabf.encoding_receipts";
+  auto lowered = existing(m); // also rejects a lowering in the wrong domain
+  if (!m->hasAttr(seal)) {
+    require(!lowered && !m->hasAttr(receipts), "unsealed_derived_encoding_program");
+    return;
+  }
+  // dfca54c and B2 use the same full-module fingerprint. Receipts, when
+  // present, are part of it; never strip them to try for a legacy match.
+  require(field<StringAttr>(m, seal).getValue() == fingerprint(m), "stale_emit_fingerprint");
+  require(m->hasAttr("snabf.pass3") && m->hasAttr("snabf.security_screen"),
+          "direct_target_requires_concrete_screened_parameters");
+  if (!isMixed(m)) {
+    verifyPlan(m);
+    verifyPass3(m);
+  } // planRings has already replayed the mixed plan under its recorded policy.
+  auto raw = ringProgram(m);
+  // Lowering is excluded from the seal, so compare its entire payload. An
+  // unbound legacy program is validated as such, never given input receipts.
+  auto expected = m->hasAttr(receipts) ? detail::bindEncodingProgram(m, raw, false) : raw;
+  if (lowered) {
+    require(lowered == expected, "stale_epoch_lowering");
+    m->removeAttr(artifact(m));
+  }
+  m->removeAttr(receipts);
+  m->removeAttr(seal);
+}
+
 void checkAndSeal(ModuleOp m) {
   replay(m);
   if (!m->hasAttr("snabf.pass3")) return; // legacy HEIR path
+  if (!m->hasAttr(seal))
+    require(!existing(m) && !m->hasAttr("snabf.encoding_receipts"), "unsealed_derived_encoding_program");
+  auto program = detail::bindEncodingProgram(m, ringProgram(m), !m->hasAttr(seal));
   auto hash = fingerprint(m);
+  if (m->hasAttr(seal))
+    require(field<StringAttr>(m, seal).getValue() == hash, "stale_emit_fingerprint");
   if (auto p = existing(m))
-    require(p == ringProgram(m) && field<StringAttr>(m, seal).getValue() == hash,
-            "stale_epoch_lowering");
+    require(p == program, "stale_epoch_lowering");
   m->setAttr(seal, StringAttr::get(m.getContext(), hash));
 }
 void lowerDirect(ModuleOp m) {

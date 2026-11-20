@@ -26,7 +26,8 @@ def Pass2Candidates : ModuleStage<"snabf-pass2-candidates", "Certify full activa
     Option<"epsilon","epsilon","double","0.0002","Full activation approximation error in decoded units">,
     Option<"minLevel","min-output-level","int64_t","0","Required suffix output level">,
     Option<"maxError","max-output-error","double","-1","Optional propagated deterministic approximation component at sinks">,
-    Option<"family","template-family","std::string","\"all\"","Allowed template family: all, direct, or composed (explicit ablation)">];
+    Option<"family","template-family","std::string","\"all\"","Allowed template family: all, direct, or composed (explicit ablation)">,
+    Option<"intervalMode","interval-mode","std::string","\"\"","Candidate input enclosure: naive (legacy default) or affine">];
 }
 def Plan : ModuleStage<"snabf-plan","Select candidates over SSA, re-solve violated sink budgets"> {
   let dependentDialects = ["::snabf::ir::SNABF", "::mlir::func::FuncDialect", "::mlir::heir::lattigo::LattigoDialect"];
@@ -49,6 +50,8 @@ def Pass3Parameters : ModuleStage<"snabf-pass3", "Optimize and concretize RNS, s
     Option<"widthMax","prime-bw-max","double","59.0","Upper continuous prime width (at most 59)">,
     Option<"auxMargin","aux-prime-margin-bits","int","2","Minimum extra bits of P above every original Q block (at least two)">,
     Option<"sourceFraction","source-arithmetic-fraction","double","1.0","Fraction of post-approximation headroom allocated to source parameter synthesis">,
+    Option<"costProfileFile","cost-profile","std::string","\"\"","Optional measured site profile, matched on concrete ordered Q/P">,
+    Option<"costHardware","cost-hardware-id","std::string","\"\"","Independent expected hardware fingerprint for the site profile">,
     Option<"cap","security-cap","double","350","Pre-screen QP bits (concrete estimator also required)">,Option<"minBase","min-base","double","24","Minimum q0 bit width">,
     Option<"guard","guard","double","1","Message headroom bits">,Option<"fixed","fixed-exact","bool","false","Exact matched-parameter ablation">,
     Option<"audit","audit","std::string","\"\"","Proposal and concrete arithmetic JSON">,Option<"security","security","std::string","\"\"","Concrete estimator report for this profile and key inventory">];

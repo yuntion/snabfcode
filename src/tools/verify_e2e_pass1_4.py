@@ -294,7 +294,7 @@ def c1_reconstruction(program, sites):
                 f"{out['ID']}: unbound or unaligned final add")
 
 
-def c1_verify(root, *, public_only=False):
+def c1_verify(root, *, public_only=False, slot_archive=False):
     from gelu_witness import verify_public
     result={}
     for case in ('single','mixed'):
@@ -310,7 +310,8 @@ def c1_verify(root, *, public_only=False):
         for ir in (work/'checked.mlir',work/'lowered.mlir',d/'rechecked.mlir'):
             require(re.findall(r'snabf\.emit_sha256 = "([0-9a-f]{64})"',ir.read_text())==[receipt],'independent checker/IR receipt mismatch')
         require(re.findall(r'^const PlanSHA256 = "([a-f0-9]{64})"$',(model/'model.go').read_text(),re.M)==[receipt],'Go receipt mismatch')
-        summary['observed_key_bytes']=keys(p,p['ring_search'],load(d/'keys.json'))
+        if not slot_archive:
+            summary['observed_key_bytes']=keys(p,p['ring_search'],load(d/'keys.json'))
         sites=c1_selected(work/'checked.mlir',case); c1_reconstruction(p,sites)
         width,slots=p['width'],p['slots']; require(width==len(corpus[0]['x']) and slots>=width and slots%width==0,'wrong logical/physical width')
         sink=edges[p['sink']]; peak=0.; count=0; squared=[]
@@ -325,7 +326,8 @@ def c1_verify(root, *, public_only=False):
                     peak=max(peak,delta); count+=1
         summary.update(selected=sites,emit_sha256=receipt,physical_slots_checked=count,linf=peak,mse=math.fsum(squared)/count,threshold=TOLERANCE,violations=0,
                        trials_sha256=sha(d/'trials.jsonl'))
-    return dict(schema='snabf.c1.public-witness.v1' if public_only else 'snabf.c1.decrypted.v1',cases=result)
+    schema='snabf.c1.public-witness.v1' if public_only else ('snabf.c1.decrypted-slots-only.v1' if slot_archive else 'snabf.c1.decrypted.v1')
+    return dict(schema=schema,cases=result)
 
 
 if __name__ == '__main__':
@@ -335,10 +337,11 @@ if __name__ == '__main__':
     mode.add_argument('--reuse64-pair',type=Path,metavar='STRICT_RUN')
     mode.add_argument('--c1-witness',action='store_true',help='source/erf/exp replay only; no encryption claim')
     mode.add_argument('--c1-gelu',action='store_true',help='source replay plus checked DirectGo and all decrypted slots')
+    mode.add_argument('--c1-gelu-slots',action='store_true',help='portable plaintext/slot and program checks only; does not replay key inventory')
     p.add_argument('--output',type=Path)
     a = p.parse_args()
-    c1=a.c1_witness or a.c1_gelu
-    result = c1_verify(a.run,public_only=a.c1_witness) if c1 else (reuse64_pair(a.run,a.reuse64_pair) if a.reuse64_pair else verify(a.run))
+    c1=a.c1_witness or a.c1_gelu or a.c1_gelu_slots
+    result = c1_verify(a.run,public_only=a.c1_witness,slot_archive=a.c1_gelu_slots) if c1 else (reuse64_pair(a.run,a.reuse64_pair) if a.reuse64_pair else verify(a.run))
     if a.output:
         save(a.output,result)
     print(json.dumps(result if c1 or a.reuse64_pair else {k:result[k] for k in ('outcome','source_ring','target_ring','observed_key_bytes','measurements')},allow_nan=False))

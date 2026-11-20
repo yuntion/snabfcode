@@ -1,9 +1,11 @@
 #pragma once
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace snabf::pass3 {
+class CostProfile;
 enum class Op {
   Source,
   Drop,
@@ -29,6 +31,7 @@ struct Edge {
   int maskLevel = -1; // Mask encodes at q[maskLevel]; Coefficient is adjustable
   int poly = -1, node = -1;
   int ring = 0; // 0 means the source profile; Down's switching arithmetic is in the source ring.
+  int shift = 0, routeSite = -1; // Actual emitted rotation and hoist grouping.
 };
 struct PolyNode {
   std::string op;
@@ -58,6 +61,7 @@ struct Options {
   // enforced as an exact integer inequality on each instantiated block.
   double primeWidthMin = 24., primeWidthMax = 59.;
   int auxMarginBits = 2;
+  std::shared_ptr<const CostProfile> costProfile; // null: frozen legacy proxy
   bool customLimits() const { return primeWidthMin != 24. || primeWidthMax != 59. || auxMarginBits != 2; }
   bool blockSearch() const { return alpha != -1 || heterogeneous || customLimits(); }
   bool admits(int count) const {

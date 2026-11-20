@@ -1,5 +1,6 @@
 #include "Pipeline.h"
 #include "Pass2IR.h"
+#include "AffineIntervalAnalyzer.h"
 #include "pass1/NativeRouting.h"
 #include "mlir/Analysis/DataFlowFramework.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -18,6 +19,146 @@ double upperSum(double a,double b) {
   require(x.isFinite(),"interval sum overflow");return x.convertToDouble();
 }
 namespace {
+bool affineMode(ModuleOp m) {
+  if (!m->hasAttr("snabf.interval_mode")) return false;
+  auto mode=field<StringAttr>(m,"snabf.interval_mode").getValue();
+  require(mode=="naive" || mode=="affine", "invalid snabf.interval_mode");
+  if (mode=="naive") return false;
+  require(m->hasAttr("snabf.activation_sources"), "affine interval mode requires a source-proven logical graph");
+  return true;
+}
+
+struct AffineFact { affine::Interval domain; DictionaryAttr report; };
+using AffineFacts = llvm::DenseMap<Value,AffineFact>;
+
+// This is the encoder's single periodic logical vector map, not merely a
+// divisibility test. PackedMulti, padding, and unknown maps cannot alias SSA
+// symbols here. Each diagonal replica is checked separately by the core.
+int64_t periodicWidth(CtType t, ProfileOp profile) {
+  auto logical=t.getLogical();
+  require(profile && logical.hasStaticShape() && logical.getRank()==1,
+          "affine interval: expected a static rank-one periodic layout");
+  auto width=logical.getNumElements(), period=int64_t(profile.getSlots());
+  require(width>0 && period>0 && period%width==0 && (t.getN()/2)%period==0,
+          "affine interval: invalid physical/logical period");
+  auto expected = "#tensor_ext.original_type<originalType = " + spelling(logical) +
+      ", layout = #tensor_ext.layout<\"{ [i0] -> [ct, slot] : ct = 0 and (-i0 + slot) mod " +
+      std::to_string(width) + " = 0 and 0 <= i0 <= " + std::to_string(width-1) +
+      " and 0 <= slot <= " + std::to_string(period-1) + " }\">>";
+  require(spelling(profile.getLayout())==expected, "affine interval: unproven periodic source layout");
+  return width;
+}
+
+DictionaryAttr affineReport(Builder& b, const affine::AffineIntervalAnalyzer& engine,
+                            affine::AffineIntervalAnalyzer::Value v, StringRef rule, double error) {
+  SmallVector<double> lo, hi, naiveLo, naiveHi, rem, rounding;
+  SmallVector<int64_t> symbols, condensed;
+  for (const auto& s:engine.slots(v)) {
+    lo.push_back(s.enclosure.lo); hi.push_back(s.enclosure.hi);
+    naiveLo.push_back(s.naive.lo); naiveHi.push_back(s.naive.hi);
+    rem.push_back(s.form.remainder); rounding.push_back(s.roundingRadius);
+    symbols.push_back(s.form.coefficients.size()); condensed.push_back(s.condensed);
+  }
+  NamedAttrList d;
+  d.set("schema",b.getStringAttr("affine-logical-slots.v1"));
+  d.set("scope",b.getStringAttr("ideal_and_admitted_real_polynomials_before_ckks"));
+  d.set("rule",b.getStringAttr(rule)); d.set("local_polynomial_error_cap",b.getF64FloatAttr(error));
+  d.set("precision_bits",b.getI64IntegerAttr(engine.precision()));
+  d.set("symbol_limit",b.getI64IntegerAttr(engine.symbolLimit()));
+  d.set("lo",b.getDenseF64ArrayAttr(lo)); d.set("hi",b.getDenseF64ArrayAttr(hi));
+  d.set("naive_lo",b.getDenseF64ArrayAttr(naiveLo)); d.set("naive_hi",b.getDenseF64ArrayAttr(naiveHi));
+  d.set("symbols",b.getDenseI64ArrayAttr(symbols)); d.set("condensed",b.getDenseI64ArrayAttr(condensed));
+  d.set("remainder",b.getDenseF64ArrayAttr(rem)); d.set("rounding_radius",b.getDenseF64ArrayAttr(rounding));
+  return d.getDictionary(b.getContext());
+}
+
+// Topological, choice-independent pass. By induction a candidate family is
+// covered if EVERY admitted real polynomial satisfies its own same-input
+// residual cap on the incoming enclosure. These are not CKKS noise bounds.
+AffineFacts affineFacts(ModuleOp m, bool reports) {
+  AffineFacts facts;
+  if (!affineMode(m)) return facts;
+  Builder b(m.getContext());
+  affine::AffineIntervalAnalyzer engine;
+  using Handle=affine::AffineIntervalAnalyzer::Value;
+  llvm::DenseMap<Value,Handle> edges;
+  llvm::DenseMap<Value,std::pair<double,Handle>> ports;
+  auto input=[&](Value v) {
+    auto it=edges.find(v); require(it!=edges.end(),"non-topological affine SSA input");
+    return it->second;
+  };
+  m.walk([&](Operation* o) {
+    if (o->getNumResults()!=1 || !isa<CtType>(o->getResult(0).getType())) return;
+    Value v=o->getResult(0); auto t=cast<CtType>(v.getType());
+    auto profile=SymbolTable::lookupNearestSymbolFrom<ProfileOp>(o,t.getProfile());
+    int64_t width=periodicWidth(t,profile);
+    StringRef rule; double error=0;
+    auto eval=[&]() -> Handle {
+      if (auto s=dyn_cast<SourceOp>(o)) {
+        rule="source_periodic";
+        double bound=field<FloatAttr>(o,"input_bound").getValueAsDouble();
+        require(std::isfinite(bound) && bound>0,"invalid affine source bound");
+        auto ext=s.getCipher().getDefiningOp();
+        require(ext && name(ext)=="tensor.extract" && ext->getNumOperands()==2,"unbound affine source port");
+        auto arg=dyn_cast<BlockArgument>(ext->getOperand(0));
+        auto func=o->getParentOfType<func::FuncOp>();
+        auto idx=ext->getOperand(1).getDefiningOp();
+        require(arg && func && arg.getOwner()==&func.getBody().front() && idx && name(idx)=="arith.constant" &&
+                field<IntegerAttr>(idx,"value").getInt()==0 &&
+                func.getArgAttr(arg.getArgNumber(),"tensor_ext.original_type")==profile.getLayout(),
+                "affine interval: source is not the witnessed ct=0 input port");
+        if (auto it=ports.find(arg); it!=ports.end()) {
+          require(it->second.first==bound && engine.slots(it->second.second).size()==size_t(width),
+                  "conflicting affine domains for one input port");
+          return it->second.second;
+        }
+        auto id=engine.source(std::vector<affine::Interval>(width,{-bound,bound}));
+        ports.try_emplace(arg,std::make_pair(bound,id)); return id;
+      }
+      if (auto l=dyn_cast<LintransOp>(o)) {
+        rule="signed_periodic_diagonals";
+        auto offsets=l.getDiagonals(); auto w=preparedWeights(l.getTable(),offsets);
+        auto shape=w.getType().getShape(); auto e=w.getElementType();
+        require(shape.size()==2 && shape[0]==int64_t(offsets.size()) && shape[1]==int64_t(profile.getSlots()) &&
+                (e.isF32() || e.isF64()),"affine interval: unbound binary32/64 diagonal table");
+        std::vector<double> weights; weights.reserve(w.getNumElements());
+        for (auto a:w.getValues<APFloat>()) weights.push_back(a.convertToDouble());
+        return engine.periodicDiagonals(input(l.getInput()),shape[1],{offsets.data(),offsets.size()},weights);
+      }
+      if (auto p=dyn_cast<PolyEvalOp>(o)) {
+        auto kind=field<StringAttr>(p,"activation").getValue();
+        require(kind=="silu" || kind=="gelu","unsupported affine logical activation");
+        error=field<FloatAttr>(p,"approx_budget").getValueAsDouble();
+        rule=kind=="silu"?"silu_halfline_residual":"erf_gelu_halfline_residual";
+        return engine.activate(input(p.getInput()),kind=="silu"?affine::Activation::SiLU:affine::Activation::ErfGeLU,error);
+      }
+      if (auto s=dyn_cast<StepOp>(o); s && s.getKind()=="ckks.add" && o->getNumOperands()==2) {
+        rule="residual_add"; return engine.add(input(o->getOperand(0)),input(o->getOperand(1)));
+      }
+      if (auto c=dyn_cast<ConvertOp>(o)) {
+        require(c.getLayoutContract()=="trace-invariant","unsupported affine layout conversion");
+        // A conversion may preserve this logical vector only under the existing
+        // trace-invariant single-lane convention; never infer packed-lane sharing.
+        for (auto desc:{c.getProvidedAttr(),c.getRequiredAttr()}) {
+          require(bool(desc),"missing affine conversion layout proof"); auto d=desc.getFields();
+          require(field<StringAttr>(d,"packing_mode").getValue()=="periodic_single" &&
+                  field<IntegerAttr>(d,"logical_width").getInt()==width && field<IntegerAttr>(d,"stride").getInt()==1 &&
+                  field<IntegerAttr>(d,"period").getInt()==int64_t(profile.getSlots()) &&
+                  field<DenseI64ArrayAttr>(d,"offsets").asArrayRef()==ArrayRef<int64_t>({0}) &&
+                  field<DenseI64ArrayAttr>(d,"active_lanes").asArrayRef()==ArrayRef<int64_t>({0}) &&
+                  field<DenseI64ArrayAttr>(d,"mask_signature").empty(),"unsupported affine conversion lane map");
+        }
+        rule="trace_periodic_identity"; return input(c.getInput());
+      }
+      throw ContractError("unsupported affine SSA transfer: "+name(o).str());
+    };
+    Handle id=eval(); require(engine.slots(id).size()==size_t(width),"affine logical slot count changed");
+    edges.try_emplace(v,id);
+    facts.try_emplace(v,AffineFact{engine.domain(id),reports?affineReport(b,engine,id,rule,error):DictionaryAttr{}});
+  });
+  return facts;
+}
+
 DictionaryAttr inventory(Builder &b, const RoutingPlan &p) {
   SmallVector<Attribute> keys;
   for (auto &[k, refs] : p.referenceCounts)
@@ -36,6 +177,7 @@ struct Flow {
   double lo = 0, hi = 0, approx = 0;
   bool pass2 = false;
   DictionaryAttr conditional;
+  DictionaryAttr affineSlots;
   int64_t level = 0, scale = 0, depth = 0;
   SmallVector<int64_t> witness;
   bool operator==(const Flow &) const = default;
@@ -70,7 +212,9 @@ double norm(DenseFPElementsAttr weights, bool matrix) {
 }
 struct BudgetFlow : DataFlowAnalysis {
   using DataFlowAnalysis::DataFlowAnalysis;
+  AffineFacts facts;
   LogicalResult initialize(Operation *top) override {
+    facts=affineFacts(cast<ModuleOp>(top),true);
     top->walk([&](Operation *o) {
       if (o->getNumResults() == 1 && isa<CtType>(o->getResult(0).getType()))
         (void)visit(getProgramPointBefore(o));
@@ -213,6 +357,13 @@ struct BudgetFlow : DataFlowAnalysis {
     } else
       throw ContractError("no validated transfer for " + name(o).str());
     if (!logical || !isa<PolyEvalOp>(o)) { f.lo=-f.bound; f.hi=f.bound; }
+    if (auto it=facts.find(o->getResult(0)); it!=facts.end()) {
+      // The old transfer follows the selected real polynomial. Independently,
+      // the per-slot proof covers every admissible choice including this one.
+      f.lo=std::max(f.lo,it->second.domain.lo); f.hi=std::min(f.hi,it->second.domain.hi);
+      require(f.lo<=f.hi,"empty selected/affine trajectory intersection");
+      f.bound=std::max(-f.lo,f.hi); f.affineSlots=it->second.report;
+    }
     require(f.level==t.getLevel() && (logical ? f.scale==int64_t(profile.getDefaultLogScale()) : f.scale==native.logScale),
             "recomputed level/nominal scale disagree at " + name(o));
     auto target = getOrCreate<State>(o->getResult(0));
@@ -228,6 +379,7 @@ BudgetAttr budget(Builder &b, const Flow &f) {
   d.set("level", b.getI64IntegerAttr(f.level));
   d.set("nominal_log_scale", b.getI64IntegerAttr(f.scale));
   d.set("interval", b.getDenseF64ArrayAttr({f.lo,f.hi}));
+  if (f.affineSlots) d.set("affine_slots",f.affineSlots);
   if (f.pass2) {
     d.set("approx_error",b.getF64FloatAttr(f.approx));
     d.set("canonical_approx_component",b.getF64FloatAttr(std::ldexp(f.approx,f.scale)));
@@ -285,6 +437,12 @@ std::vector<RouteDepthCut> analyze(ModuleOp m, bool checkOnly) {
 }
 }  // namespace
 double linearNorm(DenseFPElementsAttr w,bool m){return norm(w,m);}
+llvm::DenseMap<Value,std::pair<double,double>> affinePlanningDomains(ModuleOp m) {
+  llvm::DenseMap<Value,std::pair<double,double>> domains;
+  for (const auto& [v,f]:affineFacts(m,false))
+    domains.try_emplace(v,std::make_pair(f.domain.lo,f.domain.hi));
+  return domains;
+}
 
 static bool hasLinear(ModuleOp m) {
   bool found = false;
@@ -452,6 +610,7 @@ SmallVector<PolyCut> traceViolations(ModuleOp m) {
 }
 
 void planModule(ModuleOp m,bool independent) {
+  (void)affineMode(m);  // Diagnose invalid requests even on an early exit.
   if(!m->hasAttr("snabf.activation_sources")){selectRoutes(m,independent);return;}
   refreshPolynomials(m,false);
   Builder b(m.getContext()); SmallVector<PolyEvalOp> polys; SmallVector<LintransOp> lins;
@@ -521,6 +680,7 @@ void planModule(ModuleOp m,bool independent) {
   replay(cache.at(levels));m->setAttr("snabf.poly_decisions",b.getArrayAttr(events));m->setAttr("snabf.joint_objective",b.getF64FloatAttr(best));
 }
 void verifyPlan(ModuleOp m) {
+  (void)affineMode(m);
   auto boot = evaluateBootstraps(m, true);
   if (!hasLinear(m)) {
     require(boot, "no selected implementation");

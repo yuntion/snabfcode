@@ -19,6 +19,9 @@ Exact sqrtUpper(const Exact &);
 Exact logUpper(const Exact &);
 // Lattigo v6.2.0 non-modular rlwe.Scale: 128-bit big.Float, nearest-even.
 Exact roundCKKSScale(const Exact &);
+// Input to a new encoding call, not an inference about an old Go Exp2.
+Exact plannedEncodingScale(double binary64Log);
+Exact effectiveEncoderScale(const Exact &metadata, unsigned encoderPrecision);
 
 enum class NoiseSourceKind { FreshEncrypt, FreshEncode, ProvenIndependent };
 enum class DependentKind { RescaleRound, GadgetTrunc, SharedEvkSwitch,
