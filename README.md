@@ -122,3 +122,40 @@ linear layer, and a switching-key security rejection. The last two must run in
 the source domain without a conversion key. The pinned HEIR translator emits
 the shared ordinary CKKS functions; the online model calls them from straight-line
 Go alongside the selected SN-ABF kernels. The reproduction does not edit that Go.
+
+## Phase 2: multi-P search, exact GeLU and noise audit
+
+The static source entry recognizes the supported linear, residual, SiLU and
+exact erf-GeLU patterns before upstream lowering. It does not accept arbitrary
+ONNX operators or replace erf-GeLU with tanh-GeLU. New run directories must
+not already exist. On Linux with the pinned dependencies:
+
+```bash
+cd /home/fhecompiler
+export SNABF_OPT="$PWD/build/native/ir/snabf-opt"
+export LD_LIBRARY_PATH="$PWD/extern/mlir24/usr/lib/llvm-24/lib:$PWD/extern/mlir24/usr/lib/x86_64-linux-gnu:$PWD/extern/highs-install/lib:${LD_LIBRARY_PATH:-}"
+run=$(mktemp -d)
+python3 test/compiler/phase2_gelu_e2e.py --out "$run/gelu" --security-cache "$HOME/.cache/snabf/measure-v1"
+python3 src/tools/verify_e2e_pass1_4.py "$run/gelu" --c1-gelu
+python3 src/tools/replay_noise_audit.py "$run/gelu/mixed/model" --snabf-opt "$SNABF_OPT"
+python3 test/compiler/phase2_multip_ablation.py --mlir /path/to/reuse64.mlir --out "$run/multip"
+python3 test/compiler/phase2_multip_ablation.py --replay "$run/multip"
+```
+
+`--gadget-alpha 1..4` selects a fixed P count, `0` searches `{1,2}`; omitting
+it (with no heterogeneous flag) preserves legacy single-P plans. Partly zero
+CRT digits still require an external product. `--heterogeneous-scales` in the
+source compiler enables the wider search **within the pinned HEIR integer
+rescale bin**. The standalone native solver can search without this constraint;
+such a result is not automatically HEIR-emittable. Inspect the actual non-base
+Q spread, measured transforms and serialized bytes before interpreting a run.
+The continuous bounds `--prime-bw-min`/`--prime-bw-max` default to 24/59;
+q0 retains its own floor. `--aux-prime-margin-bits` defaults to two; larger
+margins are checked against the products of the actual integer primes.
+Only `joint` and `matched_exact` share a ciphertext, concrete basis and keys.
+
+By default, `audits/noise_cert_audit.json` reports known and missing primitive
+contracts; it is not a proof of the observed accuracy or a failure probability.
+`--certify-failure-bits 40` requires a complete analytic certificate: without
+one the compiler returns nonzero, retains a denial audit next to the requested
+output, and publishes no model. Classical estimator screening remains separate.

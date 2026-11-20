@@ -17,7 +17,8 @@ def Pass1Candidates : ModuleStage<"snabf-pass1-candidates","Publish subgroup-tow
   let dependentDialects = ["::snabf::ir::SNABF", "::mlir::heir::lattigo::LattigoDialect"];
 }
 def MarkActivations : ModuleStage<"snabf-mark-activations", "Identify source SiLU semantics before HEIR polynomial approximation"> {
-  let options = [Option<"staticEntry", "static-entry", "bool", "false", "Validate the single-input static source subset before HEIR lowering">];
+  let options = [Option<"staticEntry", "static-entry", "bool", "false", "Validate the single-input static source subset before HEIR lowering">,
+    Option<"receipt", "receipt", "std::string", "\"\"", "Write the checked source activation pipeline requirements">];
   let dependentDialects = ["::mlir::linalg::LinalgDialect", "::mlir::arith::ArithDialect", "::mlir::math::MathDialect"];
 }
 def Pass2Candidates : ModuleStage<"snabf-pass2-candidates", "Certify full activation DAGs and publish the Pass 2 Pareto frontier"> {
@@ -32,12 +33,21 @@ def Plan : ModuleStage<"snabf-plan","Select candidates over SSA, re-solve violat
   let options = [Option<"independent","independent","bool","false","Decide per layer, score physical key union">];
 }
 def CheckPlan : ModuleStage<"snabf-check-plan","Recompute budget transfers, selected routes and key inventory"> {
-  let options = [Option<"requireDown","require-ring-down","bool","false","Reject a checked fallback when a physical down-conversion was requested">];
+  let options = [Option<"requireDown","require-ring-down","bool","false","Reject a checked fallback when a physical down-conversion was requested">,
+    Option<"noiseAudit","noise-audit","std::string","\"\"","Write an independent conditional-noise audit of the checked program">,
+    Option<"requireNoiseCert","require-noise-cert","bool","false","Fail unless the Theorem 1 noise budget passes for every sink">,
+    Option<"precisionBits","precision-bits","unsigned","12","Decoded precision in bits for the noise audit">];
   let dependentDialects = ["::snabf::ir::SNABF", "::mlir::func::FuncDialect", "::mlir::heir::lattigo::LattigoDialect"];
 }
 def Pass3Parameters : ModuleStage<"snabf-pass3", "Optimize and concretize RNS, scales and centered-prefix gadget sites"> {
   let options=[Option<"minScale","min-scale","int","36","Smallest default encoding exponent">, Option<"maxScale","max-scale","int","46","Largest default encoding exponent">,
     Option<"maxK","max-k","int","1","Maximum supported centered CRT prefix">, Option<"tolerance","epsilon","double","0.000244140625","Decoded output tolerance">,
+    Option<"gadgetAlpha","gadget-alpha","int","-1","Fixed key block width (1..4), 0 searches 1 and 2, absent preserves the frozen one-P profile">,
+    Option<"hetero","heterogeneous-scales","bool","false","Optimize rescale limb widths outside the narrow band">,
+    Option<"heirAnchor","heir-scale-anchor","bool","false","Restrict heterogeneous rescale primes to the pinned HEIR integer scale bin">,
+    Option<"widthMin","prime-bw-min","double","24.0","Lower continuous non-base/special prime width (at least 20)">,
+    Option<"widthMax","prime-bw-max","double","59.0","Upper continuous prime width (at most 59)">,
+    Option<"auxMargin","aux-prime-margin-bits","int","2","Minimum extra bits of P above every original Q block (at least two)">,
     Option<"sourceFraction","source-arithmetic-fraction","double","1.0","Fraction of post-approximation headroom allocated to source parameter synthesis">,
     Option<"cap","security-cap","double","350","Pre-screen QP bits (concrete estimator also required)">,Option<"minBase","min-base","double","24","Minimum q0 bit width">,
     Option<"guard","guard","double","1","Message headroom bits">,Option<"fixed","fixed-exact","bool","false","Exact matched-parameter ablation">,

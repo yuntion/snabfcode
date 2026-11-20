@@ -202,7 +202,10 @@ void importCKKS(ModuleOp m, int64_t bytes, double bound, double hoist,
       next = PolyEvalOp::create(rw, o->getLoc(), out, o->getOperand(0),
                                 field<ArrayAttr>(o, "coefficients"));
     else {
-      if (k != "ckks.mul_plain" && k != "ckks.mul" && k != "ckks.add" && k != "ckks.rescale" &&
+      // Transient only: the source-proven erf join must consume the encoded
+      // +1, or liftActivationRegions rejects the module before verification.
+      const bool erfOffset = k == "ckks.add_plain" && m->hasAttr("snabf.protect_erf") && m->hasAttr("snabf.activation_sources");
+      if (!erfOffset && k != "ckks.mul_plain" && k != "ckks.mul" && k != "ckks.add" && k != "ckks.rescale" &&
           k != "ckks.level_reduce" && k != "ckks.relinearize") {
         o->emitError() << "[SNABF_UNSUPPORTED_OP] op=" << k << " reason=no_lossless_encrypted_import";
         throw ContractError(("no lossless import for " + k).str());

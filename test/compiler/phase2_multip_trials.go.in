@@ -1,0 +1,155 @@
+package ablation_test
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"slices"
+	"testing"
+	"time"
+
+	"github.com/tuneinsight/lattigo/v6/core/rlwe"
+	joint "snabf.local/ablation/joint"
+	exact "snabf.local/ablation/matched_exact"
+	base "snabf.local/ablation/no_trunc"
+	"snabf.local/compiler/src/backend/gadget"
+	epoch "snabf.local/compiler/src/backend/ringswitch/epochs"
+)
+
+func digestCT(t *testing.T, ct *rlwe.Ciphertext) string {
+	t.Helper()
+	b, err := ct.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := sha256.Sum256(b)
+	return hex.EncodeToString(d[:])
+}
+
+func keyEvidence(t *testing.T, r *epoch.Runtime) map[string]any {
+	t.Helper()
+	if r.Program.Source != r.Program.Target || len(r.Program.Epochs) != 1 || r.Program.Switch != nil {
+		t.Fatal("non-keep-source model")
+	}
+	e := r.Evaluator(r.Program.Source)
+	p, spec := e.GetParameters(), r.Program.Epochs[0]
+	if p.N() != spec.N || p.LogDefaultScale() != spec.Scale || !slices.Equal(p.Q(), spec.Q) || !slices.Equal(p.P(), spec.P) {
+		t.Fatal("bound ring differs from emitted key basis")
+	}
+	h := sha256.New()
+	for _, key := range r.Keys {
+		switch key.Role {
+		case "relin":
+			v, err := e.CheckAndGetRelinearizationKey()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if size, err := v.WriteTo(h); err != nil || size != int64(key.Bytes) {
+				t.Fatal("relin serialization disagrees with binding", err)
+			}
+		case "galois":
+			v, err := e.CheckAndGetGaloisKey(key.Galois)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if size, err := v.WriteTo(h); err != nil || size != int64(key.Bytes) {
+				t.Fatal("Galois serialization disagrees with binding", err)
+			}
+		case "public": // length observed by epochs.Bind on the generating key object
+		default:
+			t.Fatal("unexpected keep-source key", key)
+		}
+	}
+	return map[string]any{"n": p.N(), "q": p.Q(), "p": p.P(), "scale": p.LogDefaultScale(), "keys": r.Keys, "evaluation_keys_sha256": hex.EncodeToString(h.Sum(nil))}
+}
+
+func TestMeasuredArms(t *testing.T) {
+	dir := os.Getenv("SNABF_A1_CELL")
+	data, err := os.ReadFile(os.Getenv("SNABF_A1_CORPUS"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var corpus []struct{ X []float64 }
+	if err = json.Unmarshal(data, &corpus); err != nil || len(corpus) == 0 {
+		t.Fatal("invalid corpus", err)
+	}
+	b, err := base.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	j, err := joint.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// There is intentionally NO exact.New(). Both paired programs call through
+	// the same runtime, same plaintexts, evaluator, encryption and decryption keys.
+	runtimes := [3]*epoch.Runtime{b, j, j}
+	evals := [3]epoch.Evaluation{base.EvalWith, joint.EvalWith, exact.EvalWith}
+	names := [3]string{"no_trunc", "joint", "matched_exact"}
+	labels := [3]string{"independent", "paired", "paired"}
+	bindings := map[string]any{"independent": keyEvidence(t, b), "paired": keyEvidence(t, j)}
+	proofs := [3]string{base.PlanSHA256, joint.PlanSHA256, exact.PlanSHA256}
+	f, err := os.OpenFile(filepath.Join(dir, "trials.jsonl"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	var first [3]*rlwe.Ciphertext
+	var firstOut [3]string
+	for i, sample := range corpus {
+		var inputs [3]*rlwe.Ciphertext
+		for a := 0; a < 2; a++ {
+			if inputs[a], err = runtimes[a].Encrypt(sample.X); err != nil {
+				t.Fatal(err)
+			}
+		}
+		inputs[2] = inputs[1]
+		rows := map[string]any{}
+		for off := range names {
+			a := (off + i) % len(names)
+			r := runtimes[a]
+			in := inputs[a].CopyNew()
+			id := digestCT(t, in)
+			start := time.Now()
+			ct, err := evals[a](r, in)
+			ns := time.Since(start).Nanoseconds()
+			if err != nil {
+				t.Fatal(err)
+			}
+			v, err := r.Decode(ct)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows[names[a]] = map[string]any{"key_group": labels[a], "input_sha256": id, "eval_ns": ns, "decoded": v, "level": ct.Level(), "log_scale": ct.LogScale()}
+			if i == 0 {
+				first[a], firstOut[a] = inputs[a], digestCT(t, ct)
+			}
+		}
+		if err = enc.Encode(map[string]any{"trial": i, "arms": rows}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	observed := map[string]any{}
+	for a, name := range names {
+		events := []gadget.Event{}
+		func() {
+			gadget.Observe = func(ev gadget.Event) { events = append(events, ev) }
+			defer func() { gadget.Observe = nil }()
+			ct, err := evals[a](runtimes[a], first[a].CopyNew())
+			if err != nil || digestCT(t, ct) != firstOut[a] {
+				t.Fatal("diagnostic replay changed timed output", err)
+			}
+		}()
+		observed[name] = map[string]any{"trial": 0, "input_sha256": digestCT(t, first[a]), "output_sha256": firstOut[a], "key_group": labels[a], "emit_sha256": proofs[a], "events": events}
+	}
+	data, err = json.MarshalIndent(map[string]any{"bindings": bindings, "observed": observed}, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(dir, "observed.json"), data, 0600); err != nil {
+		t.Fatal(err)
+	}
+}

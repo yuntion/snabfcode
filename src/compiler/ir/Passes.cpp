@@ -1,6 +1,7 @@
 #include "Pipeline.h"
 #include "Pass2IR.h"
 #include "Pass3IR.h"
+#include "NoiseCertIR.h"
 #include "Pass4IR.h"
 #include "Target/Lattigo/DirectEmitter.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -67,6 +68,15 @@ struct Marker : impl::MarkActivationsBase<Marker> {
     if (failed(diagnosed(getOperation(), [&] {
           auto m = getOperation();
           markActivationSources(m);
+          if (!receipt.empty()) {
+            std::error_code ec;
+            llvm::raw_fd_ostream out(receipt,ec,llvm::sys::fs::OF_Text);
+            require(!ec,"cannot write activation receipt");
+            llvm::json::Object flags{{"schema","snabf.activation-pipeline.v1"},
+              {"protect_erf",bool(m->getAttrOfType<UnitAttr>("snabf.protect_erf"))}};
+            out << llvm::formatv("{0}\n",llvm::json::Value(std::move(flags)));
+            out.flush(); require(!out.has_error(),"activation receipt write failed");
+          }
           if (staticEntry && !m->hasAttr("snabf.initial_profile"))
             m->setAttr("snabf.initial_profile", StringAttr::get(&getContext(), "epoch_0"));
         }))) signalPassFailure();
@@ -88,7 +98,7 @@ struct Pass1 : impl::Pass1CandidatesBase<Pass1> {
 };
 struct Parameters3 : impl::Pass3ParametersBase<Parameters3> {
  using Base::Base;
- void runOnOperation() override {if(failed(diagnosed(getOperation(),[&]{publishPass3(getOperation(),{minScale,maxScale,maxK,tolerance,cap,minBase,guard},fixed,audit,security,sourceFraction);})))signalPassFailure();}
+ void runOnOperation() override {if(failed(diagnosed(getOperation(),[&]{publishPass3(getOperation(),{minScale,maxScale,maxK,tolerance,cap,minBase,guard,gadgetAlpha,hetero,heirAnchor,widthMin,widthMax,auxMargin},fixed,audit,security,sourceFraction);})))signalPassFailure();}
 };
 struct Rings : impl::DynamicRingsBase<Rings> {
   using Base::Base;
@@ -111,6 +121,8 @@ struct Checker : impl::CheckPlanBase<Checker> {
           auto m = getOperation();
           lattigo_target::checkAndSeal(m);
           if (requireDown) requireCheckedRingDown(m);
+          if (!noiseAudit.empty() || requireNoiseCert)
+            auditNoisePlan(m,noiseAudit,requireNoiseCert,precisionBits);
         })))
       signalPassFailure();
   }

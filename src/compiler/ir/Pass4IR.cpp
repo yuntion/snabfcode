@@ -563,13 +563,25 @@ Screen screen(ProfileOp p, int64_t n, int l, int64_t switchBits,
   out.record = checks.getDictionary(b.getContext());
   return out;
 }
+double blockWork(DictionaryAttr edge, int64_t n, int alpha) {
+  auto blocks = field<DenseI64ArrayAttr>(edge, "fixed_block_active");
+  int l = num(edge, "Level"), limbs = l + 1 - num(edge, "K");
+  int active = llvm::count(blocks.asArrayRef(), int64_t(1));
+  return limbWork(n, l) * (active * (l + 1 + alpha) + limbs) / (l + 1);
+}
 double cost(DictionaryAttr params, int64_t sourceN, int64_t small,
             double switchPrice) {
   double total = 0;
+  int alpha=field<DenseI64ArrayAttr>(params,"p").size();
   for (auto item : field<ArrayAttr>(params, "edges")) {
     auto d = cast<DictionaryAttr>(item);
     auto op = field<StringAttr>(d, "op").getValue();
     int l = num(d, "Level");
+    if (d.contains("fixed_block_active")) {
+      int n = op=="ring_down" || !small ? sourceN : num(d,"kernel_ring");
+      total += (op=="ring_down" ? switchPrice : 1.) * blockWork(d,n,alpha);
+      continue;
+    }
     if (op == "ring_down") {
       total += conversionWork(sourceN, l, switchPrice);
       continue;
@@ -658,7 +670,8 @@ DictionaryAttr details(ModuleOp m, DictionaryAttr par, double price,
     auto tr = transition(Action::Down, from, to, 1, price);
     require(tr.emittable, tr.reason);
     require(op.getProvidedAttr() == attr(b, provided) && op.getRequiredAttr() == attr(b, to), "stale_slot_layout_contract");
-    work += tr.cost;
+    work += e.contains("fixed_block_active")
+                ? price * blockWork(e, a.getN(), p.getP().size()) : tr.cost;
     SmallVector<Attribute> users;
     for (Operation &user : *l->getBlock()) for (auto &use : user.getOpOperands()) if (use.get() == op.getOut())
       users.push_back(b.getDictionaryAttr({b.getNamedAttr("user", b.getStringAttr(name(&user))),

@@ -1,5 +1,6 @@
 #include "ConcreteVerifier.h"
 #include "PrimeInstantiator.h"
+#include <boost/multiprecision/cpp_int.hpp>
 #include <algorithm>
 #include <cmath>
 #include <numeric>
@@ -96,7 +97,7 @@ std::vector<double> replayScales(const Graph &g, const Solution &s) {
 }
 Violation replay(const Graph &g, const Options &o, Solution &s) {
   validate(g, o);
-  if (int(s.q.size()) != g.levels || s.p.size() != 1 ||
+  if (int(s.q.size()) != g.levels || !o.admits(int(s.p.size())) ||
       s.k.size() != g.edges.size() || s.scale < o.minScale ||
       s.scale > o.maxScale)
     return {"inconsistent parameter shape"};
@@ -107,7 +108,9 @@ Violation replay(const Graph &g, const Options &o, Solution &s) {
     total += std::log2((long double)v);
     prefix.push_back(total);
   }
-  total += std::log2((long double)s.p[0]);
+  long double auxWidth = 0;
+  for (auto p : s.p) auxWidth += std::log2((long double)p);
+  total += auxWidth;
   for (auto v : {s.q, s.p})
     for (int64_t q : v)
       if (q < 3 || q >= (1LL << 60) || q % (2LL * g.n) != 1 ||
@@ -115,9 +118,32 @@ Violation replay(const Graph &g, const Options &o, Solution &s) {
         return {"invalid concrete NTT basis"};
   if (total > o.securityCap)
     return {"QP exceeds security envelope", -2, double(total - o.securityCap)};
+  if (o.heirScaleAnchor) {
+    using boost::multiprecision::cpp_int;
+    const cpp_int lower = cpp_int(1) << (2*s.scale-1), upper = lower << 2;
+    for (size_t l = 1; l < s.q.size(); ++l) {
+      cpp_int square = cpp_int(s.q[l]) * s.q[l];
+      if (square < lower || square >= upper || std::llround(std::log2(static_cast<double>(s.q[l]))) != s.scale)
+        return {"rescale prime outside HEIR integer scale anchor"};
+    }
+  }
+  if (o.blockSearch()) {
+    // Compare the requested margin on the concrete integer basis.
+    using boost::multiprecision::cpp_int;
+    cpp_int aux = 1;
+    for (auto p : s.p) aux *= p;
+    for (size_t b = 0; b < s.q.size(); b += s.p.size()) {
+      cpp_int need = cpp_int(1) << o.auxMarginBits;
+      long double bits = o.auxMarginBits;
+      for (size_t j = b; j < std::min(b + s.p.size(), s.q.size()); ++j) {
+        need *= s.q[j]; bits += std::log2((long double)s.q[j]);
+      }
+      if (aux < need) return {"concrete special-basis block margin", -3, double(bits - auxWidth), int(b)};
+    }
+  }
   s.physical = replayScales(g, s);
   s.errors.clear();
-  double P = s.p[0];
+  double P = double(specialModulus(s.p));
   for (size_t i = 0; i < g.edges.size(); ++i) {
     auto &e = g.edges[i];
     int N = e.ring ? e.ring : g.n;
@@ -144,13 +170,13 @@ Violation replay(const Graph &g, const Options &o, Solution &s) {
     if (e.op == Op::Rescale)
       err += round / scale;
     if (keyOp(e.op) || e.op==Op::Down) {
-      long double key = 0, D = 1;
-      for (int j = 0; j <= e.level; ++j) {
-        if (j < k)
-          D *= s.q[j];
-        else
-          key += .5L * N * N * 20 * (s.q[j] + 1.L) / P;
+      long double key = switchKeyError(s.q, s.p, e.level, k, N), D = 1;
+      if (!o.blockSearch()) {
+        // v1 engineering receipts rounded the one-P denominator to binary64.
+        key=0;
+        for (int j=k;j<=e.level;++j) key+=10.L*N*N*(s.q[j]+1.L)/P;
       }
+      for (int j = 0; j < k; ++j) D *= s.q[j];
       err +=
           double(key + round + (k ? residualFactor(e.op, N) * (D - 1) : 0)) /
           scale;

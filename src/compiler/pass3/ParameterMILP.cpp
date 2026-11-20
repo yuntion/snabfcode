@@ -47,6 +47,7 @@ struct Model {
   // unnecessary.
   int upperExp(int x, double lo, double hi, double slope, double origin) {
     auto f = [&](double u) { return std::exp2(slope * (u - origin)); };
+    if (hi == lo) return var(f(lo), f(lo));
     int t = var(std::min(f(lo), f(hi)), std::max(f(lo), f(hi)));
     int num = std::max(1, int(std::ceil((hi - lo) * 2)));
     for (int j = 0; j < num; ++j) {
@@ -65,7 +66,26 @@ struct Model {
     return y;
   }
 };
-std::optional<Solution> fixed(const Graph &g, const Options &o, int d) {
+// One-hot k names zero original limbs; u_b stays active until the entire
+// original key block is zero. Both costs are work proxies, not timing data.
+std::vector<int> priceBlocks(Model &m, int level, int alpha,
+                             const std::vector<int> &z, double weight) {
+  std::vector<int> active;
+  for (int j = 0; j <= level; ++j) {
+    int kept = m.var(0, 1, weight, true);
+    Row relation{{kept, 1}};
+    for (int k=0; k<int(z.size()) && k<=j; ++k)
+      if (z[k] >= 0) relation[z[k]] = -1;
+    m.row(0, relation, 0);
+    if (j == level || (j+1)%alpha == 0) {
+      int u = m.var(0, 1, weight * (level + 1 + alpha), true);
+      m.row(0, {{u,1},{kept,-1}}, 0);
+      active.push_back(u);
+    }
+  }
+  return active;
+}
+std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha) {
   Model m;
   const double inf = kHighsInf;
   double b0 = o.minBase;
@@ -75,20 +95,48 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d) {
                     std::floor(scaleClass(g, i) * d + o.guardBits +
                                std::log2(std::max(1., g.edges[i].magnitude))) -
                         .25);
-  const double plo = d + 2, phi = std::min(59.9, double(d + 19));
-  if (plo >= phi || b0 + 2 >= 60)
+  const bool block = o.blockSearch();
+  if (b0 >= (block ? o.primeWidthMax : 60.))
     return {};
   std::vector<int> q, sc, noise;
   std::vector<double> lb, ub;
   Row total;
   for (int l = 0; l < g.levels; l++) {
-    lb.push_back(l ? d - .025 : b0);
-    ub.push_back(l ? d + .025 : b0 + 2);
+    lb.push_back(l ? (o.heterogeneous ? o.primeWidthMin : d - .025) : b0);
+    ub.push_back(l ? (o.heterogeneous ? o.primeWidthMax : d + .025) : std::min(block ? o.primeWidthMax : 59.99, b0 + 2));
+    if (l && block) {
+      lb.back() = std::max(lb.back(), o.primeWidthMin);
+      ub.back() = std::min(ub.back(), o.primeWidthMax);
+    }
+    if (l && o.heirScaleAnchor) {
+      // The physical prime is instantiated later: leave room on both sides
+      // of the half-integer rounding boundary and replay the actual prime.
+      lb.back() = std::max(lb.back(), d - .49);
+      ub.back() = std::min(ub.back(), d + .49);
+    }
+    if (lb[l] > ub[l]) return {};
     q.push_back(m.var(lb[l], ub[l], .10));
     total[q.back()] = 1;
   }
-  int p = m.var(plo, phi, .10);
-  total[p] = 1;
+  const double plo = block ? std::max(o.primeWidthMin * alpha, double(d+o.auxMarginBits)) : double(d+2);
+  const double phi = block ? o.primeWidthMax * alpha : std::min(59.9, double(d+19));
+  if (plo >= phi) return {};
+  std::vector<int> aux;
+  int p = m.var(plo, phi, block ? 0 : .10);
+  if (block) {
+    Row sum{{p,1}};
+    for (int j=0; j<alpha; ++j) {
+      int v=m.var(o.primeWidthMin,o.primeWidthMax,.10);
+      aux.push_back(v); total[v]=1; sum[v]=-1;
+      if (j) m.row(0, {{aux[j-1],1},{v,-1}}, inf);
+    }
+    m.row(0,sum,0);
+    for (int j=0;j<g.levels;j+=alpha) {
+      Row margin{{p,1}};
+      for (int t=j;t<std::min(j+alpha,g.levels);++t) margin[q[t]]=-1;
+      m.row(o.auxMarginBits,margin,inf);
+    }
+  } else { aux.push_back(p); total[p]=1; }
   m.row(-inf, total, o.securityCap);
   int pinv = m.upperExp(p, plo, phi, -1, plo);
   std::vector<std::vector<int>> z(g.edges.size());
@@ -98,7 +146,7 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d) {
   for (int i = 0; i < int(g.edges.size()); ++i) {
     auto &e = g.edges[i];
     int cls = scaleClass(g, i);
-    double nominal = cls * d, slack = .20;
+    double nominal = cls * d, slack = o.heterogeneous ? 2. : .20;
     int s = m.var(nominal - slack, nominal + slack);
     sc.push_back(s);
     int en = m.var(0, i == g.sink ? 1 - g.approximation / eta : 8);
@@ -127,7 +175,7 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d) {
       if (e.poly < 0)
         fixed = d;
       else {
-        int ps = m.var(d - .45, d + .45);
+        int ps = m.var(d - (o.heterogeneous ? 4. : .45), d + (o.heterogeneous ? 4. : .45));
         eq[ps]--;
       }
       break;
@@ -159,15 +207,21 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d) {
       base = rounding(n) * inv;
     if (e.op == Op::AddPlain)
       base = n * inv;
-    if (e.op == Op::Mask || e.op == Op::Coefficient)
+    if (o.heterogeneous && e.op==Op::Mask) {
+      int l=e.maskLevel;
+      int invQ=m.upperExp(q[l],lb[l],ub[l],-1,lb[l]);
+      er[invQ]-=(g.edges[e.inputs[0]].magnitude + 8*eta)*n*std::exp2(-lb[l])/eta;
+    } else if (e.op == Op::Mask || e.op == Op::Coefficient)
       base = (g.edges[e.inputs[0]].magnitude + 8 * eta) * n *
-             std::exp2(-d + .48) / eta;
+             std::exp2(o.heterogeneous ? -d + 4. : -d + .48) / eta;
     if (keyOp(e.op)) {
       base = rounding(n) * inv;
       double key = 0;
-      for (int j = 0; j <= e.level; ++j)
-        key += 10. * n * n * (std::exp2(ub[j]) + 1) * std::exp2(-plo) * inv;
-      er[pinv] -= key;
+      if (!block) {
+        for (int j = 0; j <= e.level; ++j)
+          key += 10. * n * n * (std::exp2(ub[j]) + 1) * std::exp2(-plo) * inv;
+        er[pinv] -= key;
+      }
       Row one;
       int kmax = std::min(o.maxK, e.level);
       double lo = 0, hi = 0;
@@ -179,7 +233,7 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d) {
               8 * eta)
             break;
         }
-        int choose = m.var(0, 1, activeDigitBlocks(e.level, k, 1) * (e.level + 2), true);
+        int choose = m.var(0, 1, block ? 0 : activeDigitBlocks(e.level,k,1)*(e.level+2), true);
         z[i].push_back(choose);
         one[choose] = 1;
         if (k) {
@@ -202,7 +256,22 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d) {
         }
       }
       m.row(1, one, 1);
-      for (int j = 0; j + 1 < int(z[i].size()); ++j) {
+      if (block) {
+        auto u = priceBlocks(m,e.level,alpha,z[i],1.);
+        for (int first=0;first<=e.level;first+=alpha) {
+          Row eq{{p,-1}};
+          double lowQ=0, highQ=0;
+          for (int j=first;j<std::min(first+alpha,e.level+1);++j) {
+            eq[q[j]]=1; lowQ+=lb[j]; highQ+=ub[j];
+          }
+          double low=std::max(double(o.auxMarginBits),plo-highQ), high=phi-lowQ;
+          if (low>high) return {};
+          int gap=m.var(low,high); eq[gap]=1; m.row(0,eq,0);
+          int ratio=m.upperExp(gap,low,high,-1,low);
+          int term=m.product(u.at(first/alpha),ratio,0.,1.);
+          er[term]-=10.*n*n*inv*std::exp2(-low)*(1+std::exp2(-lowQ));
+        }
+      } else for (int j = 0; j + 1 < int(z[i].size()); ++j) {
         int b = m.var(0, 1, 0, true);
         Row flag{{b, 1}};
         for (int k = j + 1; k < int(z[i].size()); ++k)
@@ -231,7 +300,10 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d) {
       s.bits.push_back(v[col]);
       s.q.push_back(nearestPrime(n, v[col], used));
     }
-    s.p = {nearestPrime(n, s.pBits, used)};
+    for (int col : aux) {
+      s.auxBits.push_back(v[col]);
+      s.p.push_back(nearestPrime(n,v[col],used));
+    }
     for (int c : sc)
       s.scales.push_back(v[c]);
     for (auto &choices : z) {
@@ -263,6 +335,13 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d) {
       for (double x : s.bits)
         sum += x;
       m.row(-inf, total, sum - step);
+    } else if (bad.level == -3) {
+      Row r{{p,1}};
+      double current=s.pBits;
+      for(int j=bad.blockFirst;j<std::min(bad.blockFirst+alpha,g.levels);++j) {
+        r[q[j]]=-1; current-=s.bits[j];
+      }
+      m.row(current+step,r,inf);
     } else
       return {};
   }
@@ -273,7 +352,7 @@ Solution optimizeAtBoundary(const Graph &g,const Options &o,Solution s){
   validate(g,o);Model m;auto scales=replayScales(g,s);std::vector<int> err;std::vector<std::vector<int>> flags;
   double eta=o.tolerance;
   for(int i=0;i<int(g.edges.size());++i){const auto &e=g.edges[i];int n=e.ring?e.ring:g.n;
-    double scale=std::exp2(scales[i]),p=s.p.at(0),round=rounding(n),S=secretBound(n);
+    double scale=std::exp2(scales[i]),p=double(specialModulus(s.p)),round=rounding(n),S=secretBound(n);
     int y=m.var(0,i==g.sink?1.-g.approximation/eta:8.);Row row{{y,1}};double fixed=0;flags.emplace_back();
     for(size_t j=0;j<e.inputs.size();++j)row[err.at(e.inputs[j])]-=e.gains[j];
     if(e.op==Op::Multiply)row[err.at(e.inputs[0])]-=8*eta;
@@ -282,11 +361,12 @@ Solution optimizeAtBoundary(const Graph &g,const Options &o,Solution s){
     if(e.op==Op::AddPlain)fixed=n/scale;
     if(e.op==Op::Rescale)fixed=round/scale;
     if(keyOp(e.op)||e.op==Op::Down){Row one;long double D=1;int maxK=e.op==Op::Down?0:std::min(o.maxK,e.level);
-      for(int k=0;k<=maxK;++k){long double key=0;for(int j=k;j<=e.level;++j)key+=10.L*n*n*(s.q.at(j)+1.L)/p;
+      for(int k=0;k<=maxK;++k){long double key=switchKeyError(s.q,s.p,e.level,k,n);
         long double inc=(key+round+(k?residualFactor(e.op,n)*(D-1):0))/(scale*eta);
-        if(inc<=8){int z=m.var(0,1,double(n)/g.n*activeDigitBlocks(e.level,k,int(s.p.size()))*(e.level+2),true);flags.back().push_back(z);one[z]=1;row[z]-=double(inc);}else flags.back().push_back(-1);
+        if(inc<=8){int z=m.var(0,1,o.blockSearch()?0:double(n)/g.n*activeDigitBlocks(e.level,k,int(s.p.size()))*(e.level+2),true);flags.back().push_back(z);one[z]=1;row[z]-=double(inc);}else flags.back().push_back(-1);
         D*=s.q.at(k);
       }m.row(1,one,1);
+      if (o.blockSearch()) priceBlocks(m,e.level,int(s.p.size()),flags.back(),double(n)/g.n);
     }
     m.row(fixed/eta,row,kHighsInf);err.push_back(y);
   }
@@ -298,8 +378,9 @@ Solution optimizeAtBoundary(const Graph &g,const Options &o,Solution s){
 Solution optimize(const Graph &g, const Options &o) {
   validate(g, o);
   std::optional<Solution> best;
+  for (int alpha=1; alpha<=4; ++alpha) if(o.admits(alpha))
   for (int d = o.minScale; d <= o.maxScale; ++d) {
-    auto s = fixed(g, o, d);
+    auto s = fixed(g, o, d, alpha);
     if (s && (!best || s->objective < best->objective - 1e-8))
       best = std::move(s);
   }

@@ -5,6 +5,7 @@ struct Violation {
   std::string reason;
   int level = -1;
   double deficit = 0;
+  int blockFirst = -1;
 };
 Violation replay(const Graph &, const Options &, Solution &);
 // Construct the same system used to encode polynomial coefficients: inputs,

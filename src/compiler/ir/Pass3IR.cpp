@@ -287,6 +287,15 @@ DictionaryAttr options(Builder &b, const p::Options &o) {
   i("min_scale", o.minScale);
   i("max_scale", o.maxScale);
   i("max_k", o.maxK);
+  if (o.blockSearch()) {
+    i("gadget_alpha", o.alpha);
+    d.set("heterogeneous_scales", b.getBoolAttr(o.heterogeneous));
+    d.set("heir_scale_anchor", b.getBoolAttr(o.heirScaleAnchor));
+    if (o.customLimits()) {
+      f("prime_bw_min", o.primeWidthMin); f("prime_bw_max", o.primeWidthMax);
+      i("aux_prime_margin_bits", o.auxMarginBits);
+    }
+  }
   f("tolerance", o.tolerance);
   f("security_cap", o.securityCap);
   f("min_base", o.minBase);
@@ -294,10 +303,20 @@ DictionaryAttr options(Builder &b, const p::Options &o) {
   return d.getDictionary(b.getContext());
 }
 p::Options readOptions(DictionaryAttr d) {
-  return {int(num(d, "min_scale")), int(num(d, "max_scale")),
+  p::Options o{int(num(d, "min_scale")), int(num(d, "max_scale")),
           int(num(d, "max_k")),     real(d, "tolerance"),
           real(d, "security_cap"),  real(d, "min_base"),
           real(d, "guard")};
+  if (d.contains("gadget_alpha")) {
+    o.alpha=int(num(d,"gadget_alpha"));
+    o.heterogeneous=field<BoolAttr>(d,"heterogeneous_scales").getValue();
+    o.heirScaleAnchor=field<BoolAttr>(d,"heir_scale_anchor").getValue();
+    if (d.contains("prime_bw_min") || d.contains("prime_bw_max") || d.contains("aux_prime_margin_bits")) {
+      o.primeWidthMin=real(d,"prime_bw_min"); o.primeWidthMax=real(d,"prime_bw_max");
+      o.auxMarginBits=int(num(d,"aux_prime_margin_bits"));
+    }
+  }
+  return o;
 }
 // Conditional bounds in canonical units. Hoeffding's range bound applies to
 // the centered error even for dependent sites; no assumption of zero mean or
@@ -325,9 +344,7 @@ void noiseFields(Builder &b, NamedAttrList &a, const p::Graph &g,
   put("moddown_or_rescale_rounding",
       e.op == O::Rescale || sw ? p::rounding(n) : 0);
   if (sw) {
-    long double key = 0;
-    for (int j = s.k[i]; j <= e.level; ++j)
-      key += 10.L * n * n * (s.q[j] + 1.L) / s.p[0];
+    long double key = p::switchKeyError(s.q,s.p,e.level,s.k[i],n);
     put("ordinary_switch_key_error", key);
   }
 }
@@ -427,6 +444,13 @@ DictionaryAttr record(Builder &b, Input &in, const p::Options &o,
     a.set("op", b.getStringAttr(p::name(e.op)));
     a.set("Level", b.getI64IntegerAttr(e.level));
     a.set("K", b.getI64IntegerAttr(s.k[i]));
+    if (o.blockSearch() && (p::keyOp(e.op) || e.op==O::Down)) {
+      SmallVector<int64_t> active;
+      for (int j=0; j<=e.level; j+=int(s.p.size()))
+        active.push_back(std::min(e.level,j+int(s.p.size())-1)>=s.k[i]);
+      a.set("fixed_block_active", b.getDenseI64ArrayAttr(active));
+      a.set("planned_full_blocks_skipped", b.getI64IntegerAttr(s.k[i]/s.p.size()));
+    }
     a.set("inputs", b.getDenseI64ArrayAttr(SmallVector<int64_t>(
                         e.inputs.begin(), e.inputs.end())));
     a.set("gains", b.getDenseF64ArrayAttr(e.gains));
@@ -447,8 +471,8 @@ DictionaryAttr record(Builder &b, Input &in, const p::Options &o,
   d.set("sink", b.getI64IntegerAttr(in.g.sink));
   d.set("key_id", in.profile.getKeyIdAttr());
   d.set("arithmetic_model",
-        b.getStringAttr("centered-prefix.oneP.v1; conditional bounded "
-                        "encoding; common ternary-key event"));
+        b.getStringAttr(o.blockSearch() ? "centered-prefix.fixed-blocks.v2; conditional bounded encoding; common ternary-key event"
+                        : "centered-prefix.oneP.v1; conditional bounded encoding; common ternary-key event"));
   if (mixed) {
     // Unlike the frozen single-profile Pass 3 ABI, these records are scoped.
     d.set("key_domains", keyDomains(b, in));
@@ -499,6 +523,16 @@ void checkSecurity(StringRef text, DictionaryAttr plan) {
             "stale estimator key inventory");
   auto q = field<DenseI64ArrayAttr>(plan, "q").asArrayRef(),
        p = field<DenseI64ArrayAttr>(plan, "p").asArrayRef();
+  if (field<DictionaryAttr>(plan,"options").contains("gadget_alpha")) {
+    auto bound=[&](StringRef name,ArrayRef<int64_t> primes){
+      auto *a=obj->getArray(name);
+      if (!a || a->size()!=primes.size()) return false;
+      for(size_t i=0;i<primes.size();++i)
+        if((*a)[i].getAsInteger()!=primes[i]) return false;
+      return true;
+    };
+    require(bound("ordered_q",q) && bound("ordered_p",p),"stale_ordered_estimator_basis");
+  }
   boost::multiprecision::cpp_int cap = 1;
   cap <<= int(std::ceil(real(plan, "security_cap")));
   for (auto [id, mod] : std::vector<std::pair<std::string, std::string>>{
@@ -615,6 +649,11 @@ void publishPass3(ModuleOp m, const p::Options &o, bool fixed, StringRef audit,
       cuts.push_back(c);
     json["continuous_q"] = std::move(bits);
     json["continuous_p"] = s.pBits;
+    if (o.blockSearch()) {
+      llvm::json::Array aux;
+      for (double x : s.auxBits) aux.push_back(x);
+      json["continuous_p_limbs"] = std::move(aux);
+    }
     json["continuous_scales"] = std::move(scales);
     json["tightening_cuts"] = std::move(cuts);
     json["objective"] = s.objective;

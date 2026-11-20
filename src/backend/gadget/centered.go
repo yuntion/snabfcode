@@ -1,22 +1,35 @@
-// Package gadget implements the one-P, pure-RNS centered-prefix gadget.
+// Package gadget implements fixed-key, pure-RNS centered-prefix key switching.
 package gadget
 
 import (
 	"fmt"
+
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
 	"github.com/tuneinsight/lattigo/v6/ring"
 	"github.com/tuneinsight/lattigo/v6/ring/ringqp"
 	"github.com/tuneinsight/lattigo/v6/schemes/ckks"
-	"math"
-	"math/big"
 )
 
 type Site struct {
 	ID       string
 	Level, K int
 }
+
+// CenteredGadgetStats is per external product invocation. Block counts describe
+// the physical key. Signed transform savings are native minus actual, BEFORE
+// the identical ModDown; a shared decomposition is charged only once per batch.
+type CenteredGadgetStats struct {
+	Alpha, LevelQ, TruncatedLimbsK                            int
+	OriginalBlocks, FullBlocksSkipped, ActiveExternalProducts int
+	PartialBlockZeroLimbs                                     int
+	NativeForwardNTT, NativeInverseNTT                        int
+	MeasuredLimbNTTsSaved, MeasuredLimbINTTsSaved             int
+	MeasuredSingleLimbNTTsSaved                               int // forward + inverse
+}
+
 type Event struct {
 	Site
+	CenteredGadgetStats
 	RowsExecuted, RowsSkipped, ForwardNTT, InverseNTT, Decompositions int
 	ResidualMax, ResidualMean, ResidualMeanSquare                     float64
 	LogScale                                                          float64
@@ -24,182 +37,155 @@ type Event struct {
 	ResidualVariance                                                  float64
 }
 
-// An observer is installed only around a serial diagnostic inference, never in timed trials.
+// Observe is for serial diagnostics only. A non-nil observer opts in to a
+// measured native reference; neither that replay nor events occur for k=0.
 var Observe func(Event)
 
-func centered(x, q uint64) int64 {
-	if x > q/2 {
-		return int64(x) - int64(q)
-	}
-	return int64(x)
-}
-func subCentered(x uint64, r int64, q uint64) uint64 {
-	// q0 need not be smaller than the retained qi.
-	v := r % int64(q)
-	if v < 0 {
-		v += int64(q)
-	}
-	x += q - uint64(v)
-	if x >= q {
-		x -= q
-	}
-	return x
-}
-
-// x' = x - center_D(x), D=product(q[:k]). The residual is ONE integer
-// per coefficient, not k independently centered CRT digits. All first k
-// components of x' are identically zero. The remaining rows keep modulus Q.
-func project(rq *ring.Ring, in ring.Poly, k int, stats *Event) ring.Poly {
-	a := rq.NewPoly()
-	rq.INTT(in, a)
-	stats.InverseNTT += rq.Level() + 1
-	q := rq.ModuliChain()
-	var mx, sum, ss float64
-	note := func(r float64) {
-		if Observe != nil {
-			mx = math.Max(mx, math.Abs(r))
-			sum += r
-			ss += r * r
-		}
-	}
-	if k == 1 {
-		for j, x := range a.Coeffs[0] {
-			r := centered(x, q[0])
-			note(float64(r))
-			for i := 1; i <= rq.Level(); i++ {
-				a.Coeffs[i][j] = subCentered(a.Coeffs[i][j], r, q[i])
-			}
-		}
-	} else {
-		z := make([]*big.Int, rq.N())
-		for j := range z {
-			z[j] = new(big.Int)
-		}
-		rq.AtLevel(k-1).PolyToBigintCentered(a, 1, z)
-		// Lattigo v6.2 centers floor(D/2) on the negative side; restore the
-		// unique nearest representative for the odd-modulus boundary as well.
-		D := rq.AtLevel(k - 1).ModulusAtLevel[k-1]
-		half := new(big.Int).Rsh(new(big.Int).Set(D), 1)
-		negative := new(big.Int).Neg(half)
-		for _, r := range z {
-			if r.Cmp(negative) < 0 {
-				r.Add(r, D)
-			}
-		}
-		var qi, tmp big.Int
-		for j, r := range z {
-			f, _ := r.Float64()
-			note(f)
-			for i := k; i <= rq.Level(); i++ {
-				qi.SetUint64(q[i])
-				u := tmp.Mod(r, &qi).Uint64()
-				a.Coeffs[i][j] = subCentered(a.Coeffs[i][j], int64(u), q[i])
-			}
-		}
-	}
-	for i := 0; i < k; i++ {
-		clear(a.Coeffs[i])
-	}
-	n := float64(rq.N())
-	stats.ResidualMax = mx
-	stats.ResidualMean = sum / n
-	stats.ResidualMeanSquare = ss / n
-	stats.ResidualVariance = math.Max(0, ss/n-(sum/n)*(sum/n))
-	return a
-}
-
-// One hoist can feed several automorphisms. Transform every surviving row
-// once, including its native limb (whose input NTT changed under projection).
 type hoist struct {
-	rows []ringqp.Poly
+	rows []ringqp.Poly // indexed by ORIGINAL key block; nil Q storage means skipped
 	info Event
 }
 
 func decompose(e *ckks.Evaluator, in ring.Poly, s Site) (*hoist, error) {
 	p := e.GetParameters()
-	if p.PCount() != 1 || s.K < 1 || s.K > s.Level || in.Level() < s.Level {
-		return nil, fmt.Errorf("unsupported centered gadget site %+v", s)
+	alpha := p.PCount()
+	if alpha < 1 || alpha > 4 || s.K < 1 || s.K > s.Level || s.Level > p.MaxLevelQ() || in.Level() < s.Level {
+		return nil, fmt.Errorf("unsupported centered gadget site %+v (alpha=%d)", s, alpha)
 	}
-	rq := p.RingQ().AtLevel(s.Level)
-	rqp := p.RingQP().AtLevel(s.Level, 0)
-	h := &hoist{info: Event{Site: s}}
-	a := project(rq, in, s.K, &h.info)
-	for i := s.K; i <= s.Level; i++ {
-		row := rqp.NewPoly()
-		e.Decomposer.DecomposeAndSplit(s.Level, 0, 1, i, a, row.Q, row.P)
-		rqp.NTT(row, row)
-		h.rows = append(h.rows, row)
-		h.info.ForwardNTT += s.Level + 2
+	qp := p.RingQP().AtLevel(s.Level, alpha-1)
+	h := &hoist{rows: make([]ringqp.Poly, p.BaseRNSDecompositionVectorSize(s.Level, alpha-1))}
+	h.info.Site, h.info.Alpha, h.info.LevelQ = s, alpha, s.Level
+	a := project(qp.RingQ, in, s.K, &h.info)
+	for b := range h.rows {
+		lo, end := b*alpha, min((b+1)*alpha, s.Level+1)
+		if end <= s.K {
+			continue // no digit storage, basis extension, transforms or later MAC
+		}
+		row := qp.NewPoly()
+		if lo < s.K {
+			extendBoundary(qp, a, lo, s.K, end, row)
+		} else {
+			e.Decomposer.DecomposeAndSplit(s.Level, alpha-1, alpha, b, a, row.Q, row.P)
+		}
 		h.info.Decompositions++
+		for i, sr := range qp.RingQ.SubRings[:s.Level+1] {
+			src := row.Q.Coeffs[i]
+			if lo <= i && i < end {
+				if i < s.K {
+					h.info.PartialBlockZeroLimbs++
+					continue // native limb in THIS digit only; already zero in new row
+				}
+				src = a.Coeffs[i] // never reuse the unprojected input NTT
+			}
+			sr.NTT(src, row.Q.Coeffs[i])
+			h.info.ForwardNTT++
+		}
+		for i, sr := range qp.RingP.SubRings[:alpha] {
+			sr.NTT(row.P.Coeffs[i], row.P.Coeffs[i])
+			h.info.ForwardNTT++
+		}
+		h.rows[b] = row
 	}
 	return h, nil
 }
-func (h *hoist) product(e *ckks.Evaluator, key *rlwe.GadgetCiphertext, ct *rlwe.Ciphertext, site Site, first bool, nativeNTT int) (*rlwe.Ciphertext, error) {
-	l := site.Level
-	if key.LevelP() != 0 || key.BaseTwoDecomposition != 0 || key.LevelQ() < l || !ct.IsNTT || ct.IsMontgomery {
-		return nil, fmt.Errorf("incompatible evaluation key/domain")
+
+func checkKey(p *ckks.Parameters, key *rlwe.GadgetCiphertext, ct *rlwe.Ciphertext, s Site) error {
+	alpha := p.PCount()
+	if !ct.IsNTT || ct.IsMontgomery || alpha < 1 || alpha > 4 || s.Level > p.MaxLevelQ() {
+		return fmt.Errorf("unsupported centered key-switch domain at %+v (alpha=%d, NTT=%t, Montgomery=%t)", s, alpha, ct.IsNTT, ct.IsMontgomery)
 	}
-	qp := e.GetParameters().RingQP().AtLevel(l, 0)
-	acc := rlwe.NewElementExtended(e.GetParameters(), 1, l, 0)
-	*acc.MetaData = *ct.MetaData
-	ev := h.info
-	ev.Site = site
-	ev.LogScale = ct.LogScale()
-	if !first {
-		ev.ForwardNTT = 0
-		ev.InverseNTT = 0
-		ev.Decompositions = 0
+	beta := p.BaseRNSDecompositionVectorSize(s.Level, alpha-1)
+	if key.BaseTwoDecomposition != 0 || len(key.Value) < beta {
+		return fmt.Errorf("incompatible pure-RNS evaluation key at %+v", s)
 	}
-	ev.RowsSkipped = site.K
-	ev.NativeDecompNTT = nativeNTT
-	ev.NetDecompNTTSaved = nativeNTT - ev.ForwardNTT - ev.InverseNTT
-	for i, row := range h.rows {
-		keyrow := key.Value[site.K+i][0]
-		for j := 0; j < 2; j++ {
-			if i == 0 {
-				qp.MulCoeffsMontgomery(keyrow[j], row, acc.Value[j])
-			} else {
-				qp.MulCoeffsMontgomeryThenAdd(keyrow[j], row, acc.Value[j])
+	for _, row := range key.Value[:beta] {
+		if len(row) != 1 || len(row[0]) != 2 {
+			return fmt.Errorf("expected two expanded key polynomials per fixed block at %+v", s)
+		}
+		for _, poly := range row[0] {
+			if poly.LevelP() != alpha-1 || poly.LevelQ() < s.Level || poly.Q.N() != p.N() || poly.P.N() != p.N() {
+				return fmt.Errorf("incompatible evaluation key levels/ring at %+v", s)
 			}
 		}
-		ev.RowsExecuted++
-	}
-	out := ckks.NewCiphertext(*e.GetParameters(), 1, l)
-	*out.MetaData = *ct.MetaData
-	e.ModDown(l, 0, acc, out)
-	if Observe != nil {
-		Observe(ev)
-	}
-	return out, nil
-}
-func check(s Site, ct *rlwe.Ciphertext) error {
-	if ct.Level() != s.Level || s.K < 0 || s.K > s.Level {
-		return fmt.Errorf("stale gadget site %+v at L%d", s, ct.Level())
 	}
 	return nil
 }
+
+func (h *hoist) product(e *ckks.Evaluator, key *rlwe.GadgetCiphertext, ct *rlwe.Ciphertext, s Site, first bool, native transformCounts) *rlwe.Ciphertext {
+	l, lp := s.Level, h.info.Alpha-1
+	qp := e.GetParameters().RingQP().AtLevel(l, lp)
+	acc := rlwe.NewElementExtended(e.GetParameters(), 1, l, lp)
+	*acc.MetaData = *ct.MetaData
+	ev := h.info
+	ev.Site, ev.LogScale = s, ct.LogScale()
+	if !first {
+		ev.ForwardNTT, ev.InverseNTT, ev.Decompositions = 0, 0, 0
+	}
+	for b, row := range h.rows {
+		ev.OriginalBlocks++
+		if row.Q.Coeffs == nil {
+			ev.FullBlocksSkipped++
+			continue
+		}
+		for j, keypoly := range key.Value[b][0] {
+			if ev.ActiveExternalProducts == 0 {
+				qp.MulCoeffsMontgomery(keypoly, row, acc.Value[j])
+			} else {
+				qp.MulCoeffsMontgomeryThenAdd(keypoly, row, acc.Value[j])
+			}
+		}
+		ev.ActiveExternalProducts++
+	}
+	out := ckks.NewCiphertext(*e.GetParameters(), 1, l)
+	*out.MetaData = *ct.MetaData
+	e.ModDown(l, lp, acc, out)
+	if Observe != nil {
+		ev.RowsExecuted, ev.RowsSkipped = ev.ActiveExternalProducts, ev.FullBlocksSkipped
+		ev.NativeForwardNTT, ev.NativeInverseNTT = native.forward, native.inverse
+		ev.MeasuredLimbNTTsSaved = native.forward - ev.ForwardNTT
+		ev.MeasuredLimbINTTsSaved = native.inverse - ev.InverseNTT
+		ev.MeasuredSingleLimbNTTsSaved = ev.MeasuredLimbNTTsSaved + ev.MeasuredLimbINTTsSaved
+		ev.NativeDecompNTT, ev.NetDecompNTTSaved = native.forward+native.inverse, ev.MeasuredSingleLimbNTTsSaved
+		Observe(ev)
+	}
+	return out
+}
+
+func check(s Site, ct *rlwe.Ciphertext) error {
+	if ct == nil || ct.MetaData == nil || ct.Level() != s.Level || s.K < 0 || s.K > s.Level {
+		return fmt.Errorf("invalid operand or stale gadget site %+v", s)
+	}
+	return nil
+}
+
 func Relinearize(e *ckks.Evaluator, ct, out *rlwe.Ciphertext, s Site) error {
 	if err := check(s, ct); err != nil {
 		return err
 	}
-	if ct.Degree() != 2 || out.Level() < s.Level {
+	if ct.Degree() != 2 || out == nil || out.Degree() < 1 || out.Level() < s.Level {
 		return fmt.Errorf("invalid relin operand")
 	}
 	if s.K == 0 {
 		return e.Relinearize(ct, out)
 	}
-	key, err := e.GetRelinearizationKey()
+	key, err := e.CheckAndGetRelinearizationKey()
 	if err != nil {
+		return err
+	}
+	if err = checkKey(e.GetParameters(), &key.GadgetCiphertext, ct, s); err != nil {
 		return err
 	}
 	h, err := decompose(e, ct.Value[2], s)
 	if err != nil {
 		return err
 	}
-	tmp, err := h.product(e, &key.GadgetCiphertext, ct, s, true, (s.Level+1)*(s.Level+3))
-	if err != nil {
-		return err
+	var native transformCounts
+	if Observe != nil {
+		if native, err = measureNative(e.GetRLWEParameters(), s.Level, ct.Value[2], &key.GadgetCiphertext, false); err != nil {
+			return err
+		}
 	}
+	tmp := h.product(e, &key.GadgetCiphertext, ct, s, true, native)
 	rq := e.GetParameters().RingQ().AtLevel(s.Level)
 	rq.Add(ct.Value[0], tmp.Value[0], out.Value[0])
 	rq.Add(ct.Value[1], tmp.Value[1], out.Value[1])
@@ -207,21 +193,20 @@ func Relinearize(e *ckks.Evaluator, ct, out *rlwe.Ciphertext, s Site) error {
 	*out.MetaData = *ct.MetaData
 	return nil
 }
+
 func RelinearizeNew(e *ckks.Evaluator, ct *rlwe.Ciphertext, s Site) (*rlwe.Ciphertext, error) {
+	if err := check(s, ct); err != nil {
+		return nil, err
+	}
+	if s.K == 0 {
+		return e.RelinearizeNew(ct)
+	}
 	out := ckks.NewCiphertext(*e.GetParameters(), 1, ct.Level())
 	return out, Relinearize(e, ct, out, s)
 }
 
 func rotations(e *ckks.Evaluator, ct *rlwe.Ciphertext, shifts []int, sites map[int]Site, shared bool) (map[int]*rlwe.Ciphertext, error) {
-	out := map[int]*rlwe.Ciphertext{}
-	byK := map[int]*hoist{}
-	var exact []int
-	credit := true
-	for _, v := range shifts {
-		if sites[v].K == 0 {
-			credit = false
-		}
-	}
+	nExact := 0
 	for _, v := range shifts {
 		s, ok := sites[v]
 		if !ok {
@@ -230,36 +215,66 @@ func rotations(e *ckks.Evaluator, ct *rlwe.Ciphertext, shifts []int, sites map[i
 		if err := check(s, ct); err != nil {
 			return nil, err
 		}
+		if ct.Degree() != 1 {
+			return nil, fmt.Errorf("invalid rotation operand")
+		}
 		if s.K == 0 {
-			exact = append(exact, v)
+			nExact++
+		} else if e.GetParameters().GaloisElement(v) == 1 {
+			return nil, fmt.Errorf("cannot truncate an identity rotation: no key switch at %+v", s)
+		}
+	}
+	if nExact > 0 && nExact == len(shifts) {
+		return e.RotateHoistedNew(ct, shifts)
+	}
+	var out map[int]*rlwe.Ciphertext
+	if nExact != 0 {
+		exact := make([]int, 0, nExact)
+		for _, v := range shifts {
+			if sites[v].K == 0 {
+				exact = append(exact, v)
+			}
+		}
+		var err error
+		if out, err = e.RotateHoistedNew(ct, exact); err != nil {
+			return nil, err
+		}
+	} else {
+		out = make(map[int]*rlwe.Ciphertext, len(shifts))
+	}
+	byK := make(map[int]*hoist)
+	// One native hoist would serve ALL these shifts. If exact members are
+	// present it was already paid in both arms; only extra work remains.
+	credit := nExact == 0
+	for _, v := range shifts {
+		s := sites[v]
+		if s.K == 0 {
 			continue
+		}
+		gal := e.GetParameters().GaloisElement(v)
+		key, err := e.CheckAndGetGaloisKey(gal)
+		if err != nil {
+			return nil, err
+		}
+		if err = checkKey(e.GetParameters(), &key.GadgetCiphertext, ct, s); err != nil {
+			return nil, err
 		}
 		h := byK[s.K]
 		first := h == nil
 		if first {
-			var err error
-			h, err = decompose(e, ct.Value[1], s)
-			if err != nil {
+			if h, err = decompose(e, ct.Value[1], s); err != nil {
 				return nil, err
 			}
 			byK[s.K] = h
 		}
-		gal := e.GetParameters().GaloisElement(v)
-		key, err := e.GetGaloisKey(gal)
-		if err != nil {
-			return nil, err
-		}
-		native := 0
-		if !shared {
-			native = (s.Level + 1) * (s.Level + 3)
-		} else if credit {
-			native = (s.Level + 1) * (s.Level + 2)
+		var native transformCounts
+		if Observe != nil && (!shared || credit) {
+			if native, err = measureNative(e.GetRLWEParameters(), s.Level, ct.Value[1], &key.GadgetCiphertext, shared); err != nil {
+				return nil, err
+			}
 			credit = false
 		}
-		t, err := h.product(e, &key.GadgetCiphertext, ct, s, first, native)
-		if err != nil {
-			return nil, err
-		}
+		t := h.product(e, &key.GadgetCiphertext, ct, s, first, native)
 		rq := e.GetParameters().RingQ().AtLevel(s.Level)
 		rq.Add(t.Value[0], ct.Value[0], t.Value[0])
 		dst := ckks.NewCiphertext(*e.GetParameters(), 1, s.Level)
@@ -269,30 +284,13 @@ func rotations(e *ckks.Evaluator, ct *rlwe.Ciphertext, shifts []int, sites map[i
 		}
 		out[v] = dst
 	}
-	if len(exact) > 0 {
-		if shared {
-			r, err := e.RotateHoistedNew(ct, exact)
-			if err != nil {
-				return nil, err
-			}
-			for k, v := range r {
-				out[k] = v
-			}
-		} else {
-			for _, v := range exact {
-				r, err := e.RotateNew(ct, v)
-				if err != nil {
-					return nil, err
-				}
-				out[v] = r
-			}
-		}
-	}
 	return out, nil
 }
+
 func Babies(e *ckks.Evaluator, ct *rlwe.Ciphertext, v []int, s map[int]Site) (map[int]*rlwe.Ciphertext, error) {
 	return rotations(e, ct, v, s, true)
 }
+
 func Giant(e *ckks.Evaluator, ct *rlwe.Ciphertext, v int, s Site) (*rlwe.Ciphertext, error) {
 	if err := check(s, ct); err != nil {
 		return nil, err

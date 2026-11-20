@@ -48,10 +48,28 @@ struct Graph {
 struct Options {
   int minScale = 36, maxScale = 46, maxK = 1;
   double tolerance = 1. / 4096, securityCap = 350, minBase = 24, guardBits = 1;
+  // -1 preserves frozen one-P receipts; 0 searches {1,2}; otherwise pin |P|.
+  int alpha = -1;
+  bool heterogeneous = false;
+  // The pinned HEIR materializer rounds dropped moduli to integer log scales.
+  // Keep every drop in the default-scale bin when specializing a HEIR graph.
+  bool heirScaleAnchor = false;
+  // Continuous prime widths (q0 has its own minBase). Margin is also
+  // enforced as an exact integer inequality on each instantiated block.
+  double primeWidthMin = 24., primeWidthMax = 59.;
+  int auxMarginBits = 2;
+  bool customLimits() const { return primeWidthMin != 24. || primeWidthMax != 59. || auxMarginBits != 2; }
+  bool blockSearch() const { return alpha != -1 || heterogeneous || customLimits(); }
+  bool admits(int count) const {
+    return alpha == 0 ? (count == 1 || count == 2) : count == (alpha < 0 ? 1 : alpha);
+  }
 };
 bool keyOp(Op);
 // Fixed EVK blocks, not a new partition of the surviving suffix.
 int activeDigitBlocks(int level, int k, int alpha);
+long double specialModulus(const std::vector<int64_t> &p);
+long double switchKeyError(const std::vector<int64_t> &q,
+                           const std::vector<int64_t> &p, int level, int k, int n);
 double secretBound(int n);
 double
 residualFactor(Op, int n); // canonical residual bound per unit omitted product
@@ -60,6 +78,7 @@ struct Solution {
   int scale = 0;
   std::vector<double> bits, scales;
   double pBits = 0, objective = 0;
+  std::vector<double> auxBits;
   std::vector<int> k;
   std::vector<int64_t> q, p;
   std::vector<double> physical, errors;

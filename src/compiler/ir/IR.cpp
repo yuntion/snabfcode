@@ -126,8 +126,8 @@ LogicalResult LintransOp::verify() {
 }
 LogicalResult PolyEvalOp::verify() {
   if (auto activation = (*this)->getAttrOfType<StringAttr>("activation")) {
-    if (activation.getValue() != "silu" || !getCoefficients().empty())
-      return emitOpError("a logical SiLU owns its full DAG, not an imported Chebyshev series");
+    if ((activation.getValue() != "silu" && activation.getValue() != "gelu") || !getCoefficients().empty())
+      return emitOpError("expected a supported source activation owning its full DAG, not an imported Chebyshev series");
     return ordinary(*this);
   }
   if (getCoefficients().empty() ||

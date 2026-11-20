@@ -21,7 +21,7 @@ DictionaryAttr record(Builder &b, const PolyCandidate &c) {
   i("rescales",c.cost.rescales); i("adds",c.cost.additions); i("alignment_drops",c.cost.alignmentDrops);
   i("nominal_ps_mults",c.nominalPSMults); i("nominal_core_depth",c.nominalDepth);
   f("activation_error",c.approximationError); f("gain",c.outputGain);
-  // Both registered SiLU reference chains are exact identities in real arithmetic.
+  // This is the template's mathematical identity error, not its fitted residual.
   f("template_error",c.templateRefError); f("core_error",c.stages.back().errorOut);
   f("core_gain",c.coreGain); f("bypass_gain",c.bypassGain);
   d.set("input_interval",range(b,c.idealInput)); d.set("output_interval",range(b,c.actualOutput));
@@ -116,7 +116,8 @@ void refreshPolynomials(ModuleOp m,bool verify) {
     else if(isa<ConvertOp>(o)){out=input(0);}
     else if(auto l=dyn_cast<LintransOp>(o)){out=input(0);out.bound=upperProduct(out.bound,linearNorm(preparedWeights(l.getTable(),l.getDiagonals()),true)); --out.level;}
     else if (auto p=dyn_cast<PolyEvalOp>(o)) {
-      require(field<StringAttr>(p,"activation").getValue()=="silu", "unsupported activation contract");
+      auto activation=field<StringAttr>(p,"activation").getValue();
+      require(activation=="silu" || activation=="gelu", "unsupported activation contract");
       out=input(0); auto depth=field<IntegerAttr>(p,"depth_budget").getInt();
       auto eps=field<FloatAttr>(p,"approx_budget").getValueAsDouble();
       require(depth>=0 && depth<=INT32_MAX && std::isfinite(eps) && eps>=0 && out.level>=0 && out.bound>0, "invalid logical activation domain or budget");
@@ -124,12 +125,12 @@ void refreshPolynomials(ModuleOp m,bool verify) {
       auto family=field<StringAttr>(p,"allowed_templates").getValue();
       require(family=="all"||family=="direct"||family=="composed","invalid template admission policy");
       options.direct=family!="composed";options.composed=family!="direct";
-      auto result=synthesizeSiLU({-out.bound,out.bound},options); SmallVector<Attribute> records;
+      auto result=synthesizePolynomials(activation.str(),{-out.bound,out.bound},options); SmallVector<Attribute> records;
       unsigned least=UINT32_MAX; double largest=0;
       for(auto &c:result.frontier){auto raw=record(b,c); NamedAttrList fields(raw);
         fields.set("transfer",transferRecord(p,raw,out.level));records.push_back(fields.getDictionary(b.getContext()));
         least=std::min(least,c.cost.depth);largest=std::max({largest,-c.actualOutput.lo,c.actualOutput.hi});}
-      require(!records.empty(),"empty SiLU Pareto frontier under full activation error and RNS depth budgets");
+      require(!records.empty(),"empty " + activation + " Pareto frontier under full activation error and RNS depth budgets");
       auto frontier=b.getArrayAttr(records);
       if (verify) {
         require(p->getAttr("poly_frontier")==frontier,"stale Pass 2 frontier or certificate");

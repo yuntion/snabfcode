@@ -15,6 +15,25 @@ int activeDigitBlocks(int level, int k, int alpha) {
     throw std::invalid_argument("invalid_fixed_gadget_partition");
   return 1 + (level / alpha - k / alpha);
 }
+long double specialModulus(const std::vector<int64_t> &p) {
+  if (p.empty() || p.size() > 4) throw std::invalid_argument("unsupported_special_basis");
+  long double product = 1;
+  for (int64_t v : p) product *= v;
+  return product;
+}
+long double switchKeyError(const std::vector<int64_t> &q, const std::vector<int64_t> &p,
+                           int level, int k, int n) {
+  const int alpha = int(p.size());
+  const long double P = specialModulus(p);
+  long double error = 0;
+  // Even a partially zero block is a CRT digit in the ORIGINAL product basis.
+  for (int b = k / alpha * alpha; b <= level; b += alpha) {
+    long double digit = 1;
+    for (int j = b; j < std::min(b + alpha, level + 1); ++j) digit *= q.at(j);
+    error += 10.L * n * n * (digit + 1.L) / P;
+  }
+  return error;
+}
 // Hoeffding on the real and imaginary projections of an iid centered
 // ternary key, union over N embeddings. No independence of gadget sites.
 double secretBound(int n) {
@@ -47,6 +66,9 @@ void validate(const Graph &g, const Options &o) {
       g.sink >= int(g.edges.size()) ||
       !(o.minBase >= 20 && o.minBase <= 60 && o.minScale >= 24 &&
         o.minScale <= o.maxScale && o.maxScale <= 52 && o.maxK >= 0 &&
+        o.alpha >= -1 && o.alpha <= 4 && (!o.heirScaleAnchor || o.heterogeneous) &&
+        o.primeWidthMin >= 20. && o.primeWidthMin < o.primeWidthMax && o.primeWidthMax <= 59. &&
+        o.auxMarginBits >= 2 && o.auxMarginBits <= 59 &&
         std::isfinite(o.securityCap) && o.securityCap > 0 &&
         std::isfinite(o.guardBits) && o.guardBits >= 1 &&
         std::isfinite(o.tolerance) && o.tolerance > g.approximation &&

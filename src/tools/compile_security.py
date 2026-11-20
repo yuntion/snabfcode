@@ -14,8 +14,11 @@ def source_evidence(plan, cache, estimator):
     instances = {k:dict(modulus=r['modulus'], attacks_log2_rop=costs[digest(r)]) for k,r in reqs.items()}
     # Emit measurements, never a cached verdict. C++ independently binds the
     # public inventory, exact Q/QP and envelope and replays the threshold.
-    return dict(ring=n, estimator=PIN, model=MODEL, secret=SECRET, error=ERROR, samples='unbounded',
-                inventory=plan['public_instances'], instances=instances)
+    report = dict(ring=n, estimator=PIN, model=MODEL, secret=SECRET, error=ERROR, samples='unbounded',
+                  inventory=plan['public_instances'], instances=instances)
+    if 'gadget_alpha' in plan['options']:
+        report.update(ordered_q=q, ordered_p=p)
+    return report
 
 
 def domain_evidence(plan, sizes, cache, estimator):

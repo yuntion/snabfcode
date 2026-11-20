@@ -192,13 +192,153 @@ def reuse64_pair(a, b, *, oracle_witness=None):
     return dict(positive_run=str(a),strict_run=str(b), only_policy_change='switching_key_security_bits:128->512', upstream=upstream,positive=x,strict=y)
 
 
+def c1_selected(path, case):
+    """Read the selected field only, never mistake a frontier alternative for the winner."""
+    def integer(text,key): return int(re.search(r'\b'+key+r' = (\d+) : i64',text)[1])
+    def string(text,key): return re.search(r'\b'+key+r' = "([^"]+)"',text)[1]
+    def arr(text,key,cast):
+        raw=re.search(r'\b'+key+r' = array<[if]64(?:: ([^>]+))?>',text)[1]
+        return list(map(cast,raw.split(', '))) if raw else []
+    def records(text,key):
+        return re.findall(r'\{([^{}]*)\}',re.search(r'\b'+key+r' = \[([^\[\]]+)\]',text)[1])
+    sites=[]; linear={}
+    for line in path.read_text().splitlines():
+        lin=re.match(r'^\s*(%[\w.]+) = "snabf\.lintrans"\(',line)
+        if lin:
+            linear[lin[1]]=f"lin{integer(line,'site')}.rescale"
+        if '"snabf.poly_eval"(' not in line: continue
+        operand=re.search(r'"snabf\.poly_eval"\((%[\w.]+)\)',line)
+        require(operand and operand[1] in linear,'C1 activation is not bound to a checked linear result')
+        prefix,sep,rec = line.partition('poly_selected = '); require(sep,'missing selected DAG')
+        kind=string(prefix,'activation'); template=string(rec,'template')
+        require((kind=='gelu' and template=='gelu_direct') or (kind=='silu' and template in ('silu_direct','silu_tanh_rational')),'template/source mismatch')
+        stages=records(rec,'stages'); ns=records(rec,'nodes'); work=records(rec,'work_by_consumed_depth')
+        depth=integer(rec,'delta_level'); out=integer(rec,'output')
+        require(out==len(ns)-1 and integer(ns[out],'depth')==depth and len(work)==depth+1,'invalid DAG/work depth')
+        if kind=='gelu': require(len(stages)==1 and string(stages[0],'reference')=='half_erf_sqrt2','not the direct erf stage')
+        for stage in stages:
+            ideal,actual,hull=[arr(stage,k,float) for k in ('i_in','a_in','j_in')]
+            coeffs=arr(stage,'coefficients',float)
+            require(hull==[min(ideal[0],actual[0]),max(ideal[1],actual[1])] and len(coeffs)==integer(stage,'degree')+1 and
+                    all(map(math.isfinite,coeffs)) and all(x==0 for x in coeffs[::2]), 'invalid hull or odd binary64 kernel')
+        half,mul=arr(ns[out],'args',int); core=integer(stages[-1],'output_node')
+        require(string(ns[out],'op')=='add' and string(ns[half],'op')=='linear' and arr(ns[half],'args',int)==[0] and
+                arr(ns[half],'weights',float)==[0.5] and string(ns[mul],'op')=='mul' and arr(ns[mul],'args',int)==[0,core] and
+                all(float(re.search(r'\bconstant = (\S+) : f64',ns[n])[1])==0 for n in (half,mul,out)), 'not x/2 + x*core')
+        # Bind the result of the selected odd stage, not any intermediate with that node number.
+        core_op=string(ns[core],'op'); core_suffix={'linear':'rescale','mul':'rescale','add':'add'}
+        require(core_op in core_suffix,'unsupported selected core result')
+        end='constant' if float(re.search(r'\bconstant = (\S+) : f64',ns[core])[1]) else core_suffix[core_op]
+        err=float(re.search(r'activation_error = ([^ ]+) : f64',rec)[1]); require(0 <= err <= TOLERANCE,'uncertified activation')
+        sites.append(dict(activation=kind,candidate=string(rec,'candidate_id'),depth=depth,activation_error=err,
+                          half=half,product=mul,core=core,output=out,input_edge=linear[operand[1]],core_end=end))
+    require([s['activation'] for s in sites]==(['silu','gelu'] if case=='mixed' else ['gelu']), 'incorrect source activation sequence')
+    return sites
+
+
+def c1_reconstruction(program, sites):
+    """Bind the checked x/2 + x*core DAG to its concrete DirectGo operands."""
+    edges=program['instructions']; by_id={e['ID']:e for e in edges}
+    require(len(by_id)==len(edges) and len(program['routes'])==len(sites)+1,'missing/duplicate C1 graph stage')
+    qs={e['n']:e['q'] for e in program['epochs']}
+    for i,e in enumerate(edges):
+        require(all(type(j) is int and 0<=j<i for j in e['inputs']),f"{e['ID']}: non-topological C1 operand")
+        require(e['n']==e['kernel_ring']==program['source_ring']==program['target_ring'] and e['n'] in qs and
+                type(e['Level']) is int and 0<=e['Level']<len(qs[e['n']]) and
+                math.isfinite(e['physical_log_scale']) and e['physical_log_scale']>0,f"{e['ID']}: invalid C1 ring, level or scale")
+
+    def typed(e, op, arity):
+        require(e['op']==op and len(e['inputs'])==arity,f"{e['ID']}: expected {op} with {arity} operand(s)")
+        return e
+
+    def node(name,op,arity):
+        require(name in by_id,f'{name}: missing concrete C1 edge')
+        return typed(by_id[name],op,arity)
+
+    def parent(e,k=0): return edges[e['inputs'][k]]
+    def origin(e):
+        # Only DirectGo DropLevel preserves the value AND physical scale. Never skip rescale/relin.
+        while e['op']=='drop':
+            a=parent(typed(e,'drop',1))
+            require(e['Level']<a['Level'] and e['physical_log_scale']==a['physical_log_scale'],
+                    f"{e['ID']}: drop must lower level and preserve physical scale")
+            e=a
+        return e
+
+    # The native scale replay allows 1e-8 log2 units when reconciling floating-point arithmetic.
+    def close(x,y): return math.isclose(x,y,rel_tol=0,abs_tol=1e-8)
+    def rescale(e,a):
+        require(parent(e) is a and e['Level']+1==a['Level'] and
+                close(e['physical_log_scale'],a['physical_log_scale']-math.log2(qs[a['n']][a['Level']])),
+                f"{e['ID']}: rescale operand, level or Q-based scale mismatch")
+
+    for i,s in enumerate(sites):
+        def part(n,end,op,arity): return node(f'poly{i}.n{n}.{end}',op,arity)
+        x=node(s['input_edge'],'rescale',1); rescale(x,parent(x))
+        half=part(s['half'],'pt0','coefficient',1); half_rs=part(s['half'],'rescale','rescale',1)
+        mul=part(s['product'],'mul','mul',2); relin=part(s['product'],'relin','relin',1)
+        prod_rs=part(s['product'],'rescale','rescale',1); out=part(s['output'],'add','add',2)
+        a,b=parent(mul),parent(mul,1); core=origin(b); end=s['core_end']
+        require(half['values']==[0.5] and half['Level']==parent(half)['Level'] and origin(parent(half)) is x and origin(a) is x,
+                f"{half['ID']}/{mul['ID']}: coefficient or original x bypass mismatch")
+        require(core['ID']==f"poly{i}.n{s['core']}.{end}" and core['op']==('add_plain' if end=='constant' else end),
+                f"{mul['ID']}: product does not consume the selected core result")
+        require(a['Level']==b['Level']==mul['Level'] and close(mul['physical_log_scale'],a['physical_log_scale']+b['physical_log_scale']),
+                f"{mul['ID']}: unaligned product levels or scale")
+        require(parent(relin) is mul and relin['Level']==mul['Level'] and relin['physical_log_scale']==mul['physical_log_scale'],
+                f"{relin['ID']}: unbound relinearization")
+        rescale(half_rs,half); rescale(prod_rs,relin)
+        left,right=parent(out),parent(out,1)
+        require(origin(left) is half_rs and origin(right) is prod_rs and left['Level']==right['Level']==out['Level'] and
+                all(close(e['physical_log_scale'],out['physical_log_scale']) for e in (left,right)),
+                f"{out['ID']}: unbound or unaligned final add")
+
+
+def c1_verify(root, *, public_only=False):
+    from gelu_witness import verify_public
+    result={}
+    for case in ('single','mixed'):
+        d=root/case; corpus,w=verify_public(d); require(w['graph']==case,'mislabelled C1 source')
+        summary=dict(trials=len(corpus),source_sha256=w['source_sha256'],witness_sha256=sha(d/'witness.json'),
+                     erf_values=len(w['erf_hidden_over_sqrt2']),exp_values=len(w['exp_negative_hidden']))
+        result[case]=summary
+        if public_only: continue
+        model=d/'model'; p=load(model/'program.json'); c=load(model/'compile.json'); work=model/'work'; edges=p['instructions']
+        receipt=p['emit_sha256']; require(re.fullmatch('[a-f0-9]{64}',receipt) and c['emit_sha256']==receipt and
+            p['emitter']=='snabf.direct-go.v1' and c['security_bits']==128 and c['mode']=='keep-source' and
+            p['source_ring']==p['target_ring']==c['target_ring'] and c['precision_bits']==12, 'wrong C1 compile policy/receipt')
+        for ir in (work/'checked.mlir',work/'lowered.mlir',d/'rechecked.mlir'):
+            require(re.findall(r'snabf\.emit_sha256 = "([0-9a-f]{64})"',ir.read_text())==[receipt],'independent checker/IR receipt mismatch')
+        require(re.findall(r'^const PlanSHA256 = "([a-f0-9]{64})"$',(model/'model.go').read_text(),re.M)==[receipt],'Go receipt mismatch')
+        summary['observed_key_bytes']=keys(p,p['ring_search'],load(d/'keys.json'))
+        sites=c1_selected(work/'checked.mlir',case); c1_reconstruction(p,sites)
+        width,slots=p['width'],p['slots']; require(width==len(corpus[0]['x']) and slots>=width and slots%width==0,'wrong logical/physical width')
+        sink=edges[p['sink']]; peak=0.; count=0; squared=[]
+        with (d/'trials.jsonl').open() as stream:
+            for line,trial in zip(stream,corpus,strict=True):
+                row=json.loads(line); y=row['decoded']; truth=trial['truth']
+                require(row['trial']==trial['trial'] and len(y)==slots and row['n']==sink['n'] and row['level']==sink['Level'] and
+                        math.isclose(row['log_scale'],sink['physical_log_scale'],rel_tol=0,abs_tol=1e-7), 'wrong decoded ABI or missing slot')
+                squared.append(math.fsum((v-truth[j%width])**2 for j,v in enumerate(y)))
+                for j,a in enumerate(y):
+                    delta=abs(a-truth[j%width]); require(delta<TOLERANCE,f'{case} trial {row["trial"]} slot {j}: error {delta} >= {TOLERANCE}')
+                    peak=max(peak,delta); count+=1
+        summary.update(selected=sites,emit_sha256=receipt,physical_slots_checked=count,linf=peak,mse=math.fsum(squared)/count,threshold=TOLERANCE,violations=0,
+                       trials_sha256=sha(d/'trials.jsonl'))
+    return dict(schema='snabf.c1.public-witness.v1' if public_only else 'snabf.c1.decrypted.v1',cases=result)
+
+
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('run',type=Path)
-    p.add_argument('--reuse64-pair',type=Path,metavar='STRICT_RUN')
+    mode=p.add_mutually_exclusive_group()
+    mode.add_argument('--reuse64-pair',type=Path,metavar='STRICT_RUN')
+    mode.add_argument('--c1-witness',action='store_true',help='source/erf/exp replay only; no encryption claim')
+    mode.add_argument('--c1-gelu',action='store_true',help='source replay plus checked DirectGo and all decrypted slots')
     p.add_argument('--output',type=Path)
     a = p.parse_args()
-    result = reuse64_pair(a.run,a.reuse64_pair) if a.reuse64_pair else verify(a.run)
+    c1=a.c1_witness or a.c1_gelu
+    result = c1_verify(a.run,public_only=a.c1_witness) if c1 else (reuse64_pair(a.run,a.reuse64_pair) if a.reuse64_pair else verify(a.run))
     if a.output:
         save(a.output,result)
-    print(json.dumps(result if a.reuse64_pair else {k:result[k] for k in ('outcome','source_ring','target_ring','observed_key_bytes','measurements')},allow_nan=False))
+    print(json.dumps(result if c1 or a.reuse64_pair else {k:result[k] for k in ('outcome','source_ring','target_ring','observed_key_bytes','measurements')},allow_nan=False))
