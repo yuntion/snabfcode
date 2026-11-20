@@ -3,6 +3,8 @@ import argparse
 import json
 import math
 import os
+import re
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -57,6 +59,15 @@ def gadget_options(a):
     return ''.join(' ' + opt for opt in options)
 
 
+def checked_pricing(a):
+    if a.cost_profile is None and a.cost_hardware_id is None:
+        return None
+    if (a.cost_profile is None or not re.fullmatch('[0-9a-f]{64}', a.cost_hardware_id or '')
+            or a.gadget_alpha is None or a.mode != 'keep-source'):
+        raise ValueError('[SNABF_INVALID_OPTIONS] measured pricing needs --cost-profile, --cost-hardware-id, explicit --gadget-alpha and --mode keep-source; cross-ring costs are not calibrated')
+    return a.cost_profile.resolve(strict=True)
+
+
 def compile_model(a):
     if a.security_bits != 128:
         raise ValueError('[SNABF_UNSUPPORTED_SECURITY_TARGET] ordinary domains currently replay 128 bits only')
@@ -69,6 +80,7 @@ def compile_model(a):
             2 <= a.q_count <= 32 and 1 <= a.min_slots <= 2**(a.log_n-1)):
         raise ValueError('[SNABF_INVALID_OPTIONS] invalid interval, ring, chain, slots or threshold')
     gadget = gadget_options(a)
+    cost_file = checked_pricing(a)
     env = os.environ.copy()
     ext = Path(env.get('SNABF_EXTERN', ROOT/'extern')).resolve()
     sdk = Path(env.get('SNABF_MLIR_ROOT',ext/'mlir24/usr/lib/llvm-24')).resolve()
@@ -95,6 +107,11 @@ def compile_model(a):
     with tempfile.TemporaryDirectory(prefix='.snabf-',dir=out.parent) as tmp:
         staging = Path(tmp); publish = staging/'publish'; publish.mkdir()
         w = publish/'work'; w.mkdir()
+        if cost_file is not None:
+            # Snapshot once so every specialization pass sees identical bytes.
+            shutil.copyfile(cost_file, w/'gadget-profile.json')
+            gadget += f' cost-profile=gadget-profile.json cost-hardware-id={a.cost_hardware_id}'
+        interval = '' if a.interval_mode is None else ' interval-mode='+a.interval_mode
         def run(*argv, cwd=w, capture=False):
             return subprocess.run(list(map(str,argv)), cwd=cwd,env=env,check=True,text=True,
                                   stdout=subprocess.PIPE if capture else None).stdout
@@ -126,7 +143,7 @@ def compile_model(a):
                 *ckks_pipeline(protect_erf, f'parameter-file=profile.json greedy-modulus-switch-after-mul=true greedy-level-budget={len(profile["Q"])-1} min-slot-count={a.min_slots}'),
                 *GENERIC,'marked.mlir','-o','heir.mlir')
             opt(f'--snabf-import-heir=input-bound={a.input_bound} key-bytes={size}',
-                '--snabf-pass1-candidates',f'--snabf-pass2-candidates=depth={a.q_count-1} epsilon={eps} max-output-error={eps}',
+                '--snabf-pass1-candidates',f'--snabf-pass2-candidates=depth={a.q_count-1} epsilon={eps} max-output-error={eps}'+interval,
                 '--snabf-plan','--snabf-check-plan','heir.mlir','-o','selected.mlir')
             opts = f'--snabf-pass3=epsilon={eps} min-base=20 security-cap={cap} source-arithmetic-fraction={fraction}' + gadget
             opt(opts+' audit=parameters.json','selected.mlir','-o','proposal.mlir')
@@ -182,6 +199,14 @@ def compile_model(a):
                     precision_bits=a.precision_bits,input_bound=a.input_bound,cut_profile=a.cut_profile,
                     verification='conditional' if issued else 'engineering',probabilistic_cert_issued=issued, specialization=history,
                     source_arithmetic_fraction=plan['source_arithmetic_fraction'])
+        if a.interval_mode is not None:
+            result['interval_mode'] = a.interval_mode
+        if cost_file is not None:
+            policy = plan['options']
+            if (policy.get('cost_mode') != 'calibrated-sites-v1' or policy.get('cost_hardware_id') != a.cost_hardware_id
+                    or not re.fullmatch('[0-9a-f]{64}', policy.get('cost_profile_sha256', ''))):
+                raise ValueError('[SNABF_STALE_COST_PROFILE] native receipt does not bind measured pricing')
+            result.update({k: policy[k] for k in ('cost_mode','cost_hardware_id','cost_profile_sha256')})
         if a.emit_go:
             opt('--snabf-lower-ckks=direct-go=true','checked.mlir','-o','lowered.mlir')
             opt('--snabf-bind-lattigo=ring-go=../model.go audit=../program.json','lowered.mlir','-o',os.devnull)
@@ -200,6 +225,9 @@ def main():
     p.add_argument('--input-bound',type=float,required=True); p.add_argument('--precision-bits',type=int,default=12)
     p.add_argument('--security-bits','--security',type=int,default=128)
     p.add_argument('--gadget-alpha', type=int, choices=range(5), help='explicit fixed-block v2 P count; 0 searches {1,2}; omit for legacy single-P')
+    p.add_argument('--cost-profile',type=Path,help='measured gadget invocations on ordered Q/P, keep-source only')
+    p.add_argument('--cost-hardware-id',help='expected hardware fingerprint, independently supplied by the operator')
+    p.add_argument('--interval-mode',choices=('affine','naive'),help='Pass 2 candidate domains (default: legacy naive)')
     p.add_argument('--heterogeneous-scales', action='store_true', help='v2 heterogeneous search constrained to the pinned HEIR integer rescale bin')
     p.add_argument('--scale-mode', choices=('narrow','heir-anchor'),
                    help='narrow by default; heir-anchor is the explicit pinned-HEIR ablation')

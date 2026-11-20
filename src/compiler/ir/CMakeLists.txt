@@ -28,6 +28,6 @@ add_custom_command(OUTPUT "${gen}/Passes.h.inc" COMMAND "${sdk}/bin/mlir-tblgen"
 add_library(snabf_pipeline STATIC Planning.cpp Lowering.cpp Pass2Lowering.cpp ActivationRegions.cpp PolyRecords.cpp TransferRecords.cpp Passes.cpp ../pass1/NativeRouting.cpp ../pass1/NativeBootstrap.cpp "${gen}/Passes.h.inc")
 target_sources(snabf_pipeline PRIVATE Pass3IR.cpp Pass4IR.cpp NoiseCertIR.cpp ../Target/Lattigo/RingEmitter.cpp
   ../Target/Lattigo/EmitVerifier.cpp ../Target/Lattigo/EmitGraph.cpp ../Target/Lattigo/DirectGo.cpp)
-target_link_libraries(snabf_pipeline PUBLIC snabf_import snabf_planner snabf_pass2 snabf_pass3 snabf_pass4 snabf_noise heir_lattigo)
+target_link_libraries(snabf_pipeline PUBLIC snabf_import snabf_planner snabf_pass2 snabf_pass3 snabf_pass4 snabf_noise snabf_affine_interval snabf_cost_profile heir_lattigo)
 add_executable(snabf-opt Driver.cpp)
 target_link_libraries(snabf-opt PRIVATE snabf_pipeline)

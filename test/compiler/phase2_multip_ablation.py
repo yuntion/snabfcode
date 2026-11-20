@@ -171,6 +171,8 @@ def compile_arms(cell, a, src, alpha, hetero, env, opt):
             cmd.append('--heterogeneous-scales')
         if a.security_cache:
             cmd.extend(['--security-cache', a.security_cache.resolve()])
+        if getattr(a, 'cost_profile', None):
+            cmd.extend(['--cost-profile',a.cost_profile.resolve(), '--cost-hardware-id',a.cost_hardware_id])
         run_logged(cell, arm, cmd, ROOT, env)
         p, _ = check_plan(cell/arm, alpha, hetero, k)
         g = program_contract(cell/arm, p)
@@ -197,11 +199,15 @@ def compile_arms(cell, a, src, alpha, hetero, env, opt):
 
 
 def fixed_policy(o):
-    return (f'--snabf-pass3=fixed-exact=true gadget-alpha={o["gadget_alpha"]} max-k=0 '
+    option = (f'--snabf-pass3=fixed-exact=true gadget-alpha={o["gadget_alpha"]} max-k=0 '
             f'heterogeneous-scales={str(o["heterogeneous_scales"]).lower()} heir-scale-anchor={str(o["heir_scale_anchor"]).lower()} '
             f'epsilon={o["tolerance"]} security-cap={o["security_cap"]} min-base={o["min_base"]} '
             f'min-scale={o["min_scale"]} max-scale={o["max_scale"]} guard={o["guard"]} '
             'source-arithmetic-fraction=1 security=source-security.json audit=parameters.json')
+    if 'cost_mode' in o:
+        require(o['cost_mode']=='calibrated-sites-v1','unknown Pass 3 pricing mode')
+        option += ' cost-profile=gadget-profile.json cost-hardware-id='+o['cost_hardware_id']
+    return option
 
 
 def matched_exact(cell, p, g, alpha, hetero, env, opt):
@@ -210,6 +216,8 @@ def matched_exact(cell, p, g, alpha, hetero, env, opt):
     w = matched/'work'
     w.mkdir(parents=True)
     shutil.copyfile(jw/'source-security.json', w/'source-security.json')
+    if 'cost_mode' in p['options']:
+        shutil.copyfile(jw/'gadget-profile.json', w/'gadget-profile.json')
     policy = fixed_policy(p['options'])  # Reuse the audited joint policy, not CLI defaults.
     def native(stage, *args):
         run_logged(cell, 'matched_'+stage, [opt, '--allow-unregistered-dialect', '--verify-each',
@@ -414,6 +422,15 @@ def replay(root):
     for name, row in record['cells'].items():
         alpha, scale = name.split(':')
         cell = root/('a'+alpha+'-'+scale)
+        if 'measured_profile_sha256' in record:
+            require(record['schema']==V3, 'measured pricing requires the A2 schema')
+            for arm in ARMS:
+                arm_root = cell/arm/'work'
+                if (arm_root/'parameters.json').is_file():
+                    opt = load(arm_root/'parameters.json')['options']
+                    require(digest_file(arm_root/'gadget-profile.json')==record['measured_profile_sha256']
+                            and opt.get('cost_hardware_id')==record['cost_hardware_id']
+                            and opt.get('cost_mode')=='calibrated-sites-v1', 'stale measured ablation policy')
         if record['schema'] != V1 and (cell/'admission.json').is_file():
             ledger = replay_admission(cell, int(alpha), scale=='heterogeneous', joint_max_k)
             require('error' in row or all(v['status']=='compiled' for v in ledger.values()), 'measurement without full admission')
@@ -450,8 +467,10 @@ def execute(a):
                   input_bound=a.input_bound, trials=len(corpus), oracle='external' if a.corpus else 'source',
                   tools={str(x): digest_file(x) for x in (opt, ext/'go/bin/go', ROOT/'src/tools/snabf_compile.py', TEMPLATE, Path(__file__)) if x.is_file()},
                   timing='generated Eval only; matched uses joint runtime, keys, plaintexts and ciphertext; one separate observed replay', cells={})
-    if a.joint_max_k != 1:
+    if a.joint_max_k != 1 or getattr(a,'cost_profile',None):
         record.update(schema=V3, joint_max_k=a.joint_max_k)
+    if getattr(a,'cost_profile',None):
+        record.update(measured_profile_sha256=digest_file(a.cost_profile),cost_hardware_id=a.cost_hardware_id)
     for name in requested:
         alpha, scale = name.split(':')
         cell = root/('a'+alpha+'-'+scale)
@@ -487,8 +506,11 @@ def main():
                    help='largest candidate centered prefix for joint only (A1 default: 1)')
     p.add_argument('--min-slots', type=int, default=4096)
     p.add_argument('--security-cache', type=Path)
+    p.add_argument('--cost-profile', type=Path)
+    p.add_argument('--cost-hardware-id')
     p.add_argument('--snabf-opt', type=Path)
     a = p.parse_args()
+    if bool(a.cost_profile) != bool(a.cost_hardware_id): p.error('--cost-profile and --cost-hardware-id are a pair')
     if a.replay and not (a.mlir or a.out):
         result = replay(a.replay.resolve())
     elif a.mlir and a.out and not a.replay:

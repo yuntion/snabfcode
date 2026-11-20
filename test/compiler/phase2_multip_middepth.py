@@ -137,7 +137,9 @@ def main():
                    help='explicit public input box; changes every corpus row and the certified precondition')
     p.add_argument('--log-n',type=int,choices=(15,16),default=15)
     p.add_argument('--security-cache',type=Path); p.add_argument('--snabf-opt',type=Path)
+    p.add_argument('--cost-profile',type=Path); p.add_argument('--cost-hardware-id')
     args = p.parse_args()
+    if bool(args.cost_profile) != bool(args.cost_hardware_id): p.error('supply both measured pricing options')
     if args.replay:
         if args.generate_only: p.error('--generate-only requires --out')
         fresh = assess(args.replay)
@@ -150,7 +152,8 @@ def main():
             print('Generated source and cleartext oracle only; no measured depth.'); return 0
         ab.execute(argparse.Namespace(mlir=d/'source.mlir',corpus=d/'corpus.json',out=d/'ablation',
             snabf_opt=args.snabf_opt,security_cache=args.security_cache,log_n=args.log_n,q_count=args.q_count,
-            min_slots=4096,input_bound=args.input_bound,trials=args.trials,cell=['1:narrow','2:narrow'],joint_max_k=2))
+            min_slots=4096,input_bound=args.input_bound,trials=args.trials,cell=['1:narrow','2:narrow'],joint_max_k=2,
+            cost_profile=args.cost_profile,cost_hardware_id=args.cost_hardware_id))
         fresh = assess(d)
         (d/'middepth.json').write_bytes(source.packed(fresh))
     print(json.dumps({k:fresh[k] for k in ('middepth_measured','matrix_pass')}))
