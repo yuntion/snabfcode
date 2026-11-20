@@ -55,6 +55,11 @@ int main() {
   ck(search(Evaluation{true, 10, {}}, {{"a", 8}}, 1, [](auto) {
        return Evaluation{true, 10, {}};
      }).target == 0);
+  auto candidates = std::vector<Proposal>{{"unsafe", 4}, {"legal", 8}, {"worse", 16}};
+  auto evaluate = [](const Proposal &p) { return Evaluation{p.target != 4, double(p.target), {}}; };
+  ck(search(Evaluation{true, 5, {}}, candidates, 3, evaluate).target == 0);
+  auto forced = search(Evaluation{true, 5, {}}, candidates, 3, evaluate, true);
+  ck(forced.target == 8 && forced.cost == 8 && !forced.trace.front().result.checked);
   try {
     search({}, {{"x", 4}}, 1, [](auto) {
       return Evaluation{false, 0, "level_insufficient"};

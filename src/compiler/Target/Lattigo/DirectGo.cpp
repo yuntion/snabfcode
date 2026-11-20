@@ -51,11 +51,20 @@ void bind(llvm::raw_ostream &o,const EmitGraph &g,StringRef digest) {
   if (auto d=g.transition) {
     o<<"\t\tSwitch: &epoch.Transition{FromKey:"<<quoted(str(d,"source_key"))<<", ToKey:"<<quoted(str(d,"target_key"))
      <<", LevelQ:"<<num(d,"switch_level_q")<<", LevelP:"<<num(d,"switch_level_p")<<", KeyBytes:"<<num(d,"switch_bytes")
-     <<", Parallel:"<<num(d,"parallel_factor")<<", Provided:";layout(o,field<DictionaryAttr>(d,"provided"));
-    o<<", Required:";layout(o,field<DictionaryAttr>(d,"required"));
-    auto cut=g.cutValue, use=cast<DictionaryAttr>(field<ArrayAttr>(cut,"uses")[0]), ext=g.switchingDomain;
-    o<<", Cut:epoch.CutOperand{SSA:"<<quoted(str(cut,"id"))<<", Edge:"<<quoted(str(cut,"edge_id"))<<", KeyID:"<<quoted(str(cut,"key_domain"))
-     <<", User:"<<quoted(str(use,"user"))<<", UserIndex:"<<num(use,"user_index")<<", Operand:"<<num(use,"operand")<<"}";
+     <<", Parallel:"<<num(d,"parallel_factor")<<", Operands:[]epoch.CutOperand{";
+    for (const auto &op:g.operands) {
+      auto cut=op.value, use=cast<DictionaryAttr>(field<ArrayAttr>(cut,"uses")[0]);
+      o<<"{SSA:"<<quoted(str(cut,"id"))<<", Edge:"<<quoted(op.input)<<", KeyID:"<<quoted(str(cut,"key_domain"))
+       <<", User:"<<quoted(str(use,"user"))<<", UserIndex:"<<num(use,"user_index")<<", Operand:"<<num(use,"operand")<<", Provided:";
+      layout(o,op.provided);o<<", Required:";layout(o,op.required);
+      if (op.consumers) {
+        o<<", Consumers:[]epoch.CutUse{";
+        for(auto a:op.consumers) { auto u=cast<DictionaryAttr>(a); o<<"{User:"<<quoted(str(u,"user"))<<", UserIndex:"<<num(u,"user_index")<<", Operand:"<<num(u,"operand")<<"},"; }
+        o<<"}";
+      }
+      o<<"},";
+    }
+    o<<"}"; auto ext=g.switchingDomain;
     o<<", Basis:epoch.SwitchBasis{Ring:"<<num(ext,"ring_dim")<<", EmbeddedRing:"<<num(ext,"embedded_secret_ring")<<", Q:";
     list(o,"uint64",ints(ext,"q"));o<<", P:";list(o,"uint64",ints(ext,"p"));o<<"}},\n";
   }
@@ -86,6 +95,8 @@ void evaluation(llvm::raw_ostream &o,const EmitGraph &g) {
       case Op::AddPlain: o<<"\t"<<v<<" := heir.AddPlain("<<ev<<", "<<a<<", "<<pt<<")\n"; break;
       case Op::Mul: o<<"\t"<<v<<" := heir.Mul("<<ev<<", "<<a<<", "<<value(e.inputs[1])<<")\n"; break;
       case Op::Add:
+        if (int64_t(j)==g.sink && e.inputs.size()==2)
+          o<<"\tif err = r.CheckJoin(site, "<<a<<", "<<value(e.inputs[1])<<"); err != nil { return nil, err }\n";
         o<<"\t"<<v<<" := heir.Add("<<ev<<", "<<a<<", "<<value(e.inputs[1])<<")\n";
         for(auto i:e.inputs.drop_front(2)) o<<"\t"<<v<<" = heir.Add("<<ev<<", "<<v<<", "<<value(i)<<")\n";
         break;

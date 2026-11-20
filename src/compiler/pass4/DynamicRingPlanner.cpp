@@ -6,7 +6,7 @@
 namespace snabf::pass4 {
 Decision search(std::optional<Evaluation> base,
                 const std::vector<Proposal> &proposals, unsigned limit,
-                const std::function<Evaluation(const Proposal &)> &eval) {
+                const std::function<Evaluation(const Proposal &)> &eval, bool requireDown) {
   if (!limit || limit > 16)
     throw std::invalid_argument("invalid_iteration_limit");
   Decision d{0, std::numeric_limits<double>::infinity(), false, {}, {}};
@@ -27,7 +27,7 @@ Decision search(std::optional<Evaluation> base,
     auto r = it->second;
     if (r.checked && (!std::isfinite(r.cost) || r.cost < 0))
       throw std::invalid_argument("invalid_evaluated_cost");
-    if (r.checked && r.cost < d.cost) {
+    if (r.checked && ((requireDown && !d.target) || r.cost < d.cost)) {
       d.cost = r.cost;
       d.target = p.target;
       d.winner = p.fingerprint;

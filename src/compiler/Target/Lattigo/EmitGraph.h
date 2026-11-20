@@ -17,7 +17,9 @@ struct Edge {
 };
 struct EmitGraph {
   explicit EmitGraph(DictionaryAttr);
-  DictionaryAttr program, transition, cutValue, switchingDomain;
+  struct Operand { DictionaryAttr value, provided, required; std::string input; ArrayAttr consumers; };
+  DictionaryAttr program, transition, switchingDomain;
+  std::vector<Operand> operands;
   int64_t source, target, width, slots, sink;
   std::vector<Edge> edges;
   std::map<int64_t, DictionaryAttr> families;

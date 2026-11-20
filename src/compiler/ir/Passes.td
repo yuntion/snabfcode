@@ -38,6 +38,7 @@ def CheckPlan : ModuleStage<"snabf-check-plan","Recompute budget transfers, sele
 def Pass3Parameters : ModuleStage<"snabf-pass3", "Optimize and concretize RNS, scales and centered-prefix gadget sites"> {
   let options=[Option<"minScale","min-scale","int","36","Smallest default encoding exponent">, Option<"maxScale","max-scale","int","46","Largest default encoding exponent">,
     Option<"maxK","max-k","int","1","Maximum supported centered CRT prefix">, Option<"tolerance","epsilon","double","0.000244140625","Decoded output tolerance">,
+    Option<"sourceFraction","source-arithmetic-fraction","double","1.0","Fraction of post-approximation headroom allocated to source parameter synthesis">,
     Option<"cap","security-cap","double","350","Pre-screen QP bits (concrete estimator also required)">,Option<"minBase","min-base","double","24","Minimum q0 bit width">,
     Option<"guard","guard","double","1","Message headroom bits">,Option<"fixed","fixed-exact","bool","false","Exact matched-parameter ablation">,
     Option<"audit","audit","std::string","\"\"","Proposal and concrete arithmetic JSON">,Option<"security","security","std::string","\"\"","Concrete estimator report for this profile and key inventory">];
@@ -47,6 +48,8 @@ def DynamicRings : ModuleStage<"snabf-pass4", "Replan and independently screen p
   let options = [Option<"minRing","min-ring","int64_t","4096","Minimum proposed physical ring">,
     Option<"maxIters","max-iters","unsigned","16","Maximum unique proposals">,
     Option<"price","switch-price","double","1.0","Relative cost of a cross-key external product">,
+    Option<"cutProfile","cut-profile","std::string","\"single-live-v1\"","single-live-v1 or dual-live-v1 (one periodic boundary)">,
+    Option<"forceDown","force-down","bool","false","Choose the least-cost feasible down proposal even without net benefit">,
     Option<"audit","audit","std::string","\"\"","Optional decision trace JSON">];
 }
 def LowerCKKS : ModuleStage<"snabf-lower-ckks","Materialize the selected implementations into HEIR CKKS"> {

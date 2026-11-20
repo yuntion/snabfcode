@@ -34,7 +34,8 @@ DictionaryAttr ringProgram(ModuleOp m) {
     require(spelling(prof.getLayout())==expected,"unsupported_direct_source_packing_map");
   });
   m.walk([&](ConvertOp c) {
-    cut = c.getInput().getType().getLevel();
+    require(cut < 0 || (cut == c.getOut().getType().getLevel() && small == c.getOut().getType().getN()), "multiple_or_incompatible_cut_domains");
+    cut = c.getOut().getType().getLevel();
     small = c.getOut().getType().getN();
   });
   out.set("source_ring", b.getI64IntegerAttr(large));

@@ -88,12 +88,12 @@ struct Pass1 : impl::Pass1CandidatesBase<Pass1> {
 };
 struct Parameters3 : impl::Pass3ParametersBase<Parameters3> {
  using Base::Base;
- void runOnOperation() override {if(failed(diagnosed(getOperation(),[&]{publishPass3(getOperation(),{minScale,maxScale,maxK,tolerance,cap,minBase,guard},fixed,audit,security);})))signalPassFailure();}
+ void runOnOperation() override {if(failed(diagnosed(getOperation(),[&]{publishPass3(getOperation(),{minScale,maxScale,maxK,tolerance,cap,minBase,guard},fixed,audit,security,sourceFraction);})))signalPassFailure();}
 };
 struct Rings : impl::DynamicRingsBase<Rings> {
   using Base::Base;
   void runOnOperation() override {
-    if (failed(diagnosed(getOperation(), [&]{planRings(getOperation(),minRing,maxIters,price,audit);}))) signalPassFailure();
+    if (failed(diagnosed(getOperation(), [&]{planRings(getOperation(),minRing,maxIters,price,audit,cutProfile,forceDown);}))) signalPassFailure();
   }
 };
 struct Planner : impl::PlanBase<Planner> {

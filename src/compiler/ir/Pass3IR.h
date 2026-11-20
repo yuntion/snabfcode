@@ -4,7 +4,7 @@
 #include "llvm/ADT/DenseMap.h"
 namespace snabf::ir {
 void publishPass3(ModuleOp, const pass3::Options &, bool fixed, StringRef audit,
-                  StringRef security);
+                  StringRef security, double sourceFraction);
 void verifyPass3(ModuleOp);
 DictionaryAttr boundaryParameters(ModuleOp, DictionaryAttr baseline,
                                   DictionaryAttr replay = {});

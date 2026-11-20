@@ -16,14 +16,19 @@ type Layout struct {
 type Transition struct {
 	FromKey, ToKey                     string
 	LevelQ, LevelP, KeyBytes, Parallel int
-	Provided, Required                 Layout
-	Cut                                CutOperand
+	Operands                           []CutOperand
 	Basis                              SwitchBasis
 }
 
 type CutOperand struct {
 	SSA, Edge, KeyID, User string
 	UserIndex, Operand     int
+	Provided, Required     Layout // physical layouts at the call, after any use-local drop
+	Consumers              []CutUse
+}
+type CutUse struct {
+	User               string
+	UserIndex, Operand int
 }
 type SwitchBasis struct {
 	Ring, EmbeddedRing int
@@ -58,11 +63,25 @@ func validateDomains(s Program) error {
 		return fmt.Errorf("missing or surplus conversion binding")
 	}
 	if t := s.Switch; t != nil {
-		if t.Cut.SSA == "" || t.Cut.Edge == "" || t.Cut.KeyID != a.KeyID || t.Cut.User != "snabf.convert" || t.Cut.Operand != 0 || t.Cut.UserIndex < 0 || t.Basis.Ring != a.N || t.Basis.EmbeddedRing != b.N || !slices.Equal(t.Basis.Q, b.Q) || !slices.Equal(t.Basis.P, b.P) {
+		if len(t.Operands) < 1 || len(t.Operands) > 2 || t.Basis.Ring != a.N || t.Basis.EmbeddedRing != b.N || !slices.Equal(t.Basis.Q, b.Q) || !slices.Equal(t.Basis.P, b.P) {
 			return fmt.Errorf("conversion cut/extended-key basis mismatch")
 		}
-		if a.N <= b.N || !t.Provided.periodic(a.N, s) || !t.Required.periodic(b.N, s) || t.Provided.Level != t.LevelQ || t.Required.Level != t.LevelQ || t.Required.LogScale != t.Provided.LogScale || t.Parallel != 1 || t.FromKey != a.KeyID || t.ToKey != b.KeyID || t.LevelQ != len(b.Q)-1 || t.LevelP != len(b.P)-1 || t.KeyBytes <= 0 || len(a.Q) < len(b.Q) || !slices.Equal(a.Q[:len(b.Q)], b.Q) || !slices.Equal(a.P, b.P) {
+		if a.N <= b.N || t.Parallel != 1 || t.FromKey != a.KeyID || t.ToKey != b.KeyID || t.LevelQ != len(b.Q)-1 || t.LevelP != len(b.P)-1 || t.KeyBytes <= 0 || len(a.Q) < len(b.Q) || !slices.Equal(a.Q[:len(b.Q)], b.Q) || !slices.Equal(a.P, b.P) {
 			return fmt.Errorf("conversion layout/key/basis mismatch")
+		}
+		ssa, edges, users := map[string]bool{}, map[string]bool{}, map[CutUse]bool{}
+		for i, op := range t.Operands {
+			if op.SSA == "" || ssa[op.SSA] || op.Edge == "" || edges[op.Edge] || op.KeyID != a.KeyID || op.User != "snabf.convert" || op.Operand != 0 || op.UserIndex < 0 || op.UserIndex != t.Operands[0].UserIndex+i ||
+				!op.Provided.periodic(a.N, s) || !op.Required.periodic(b.N, s) || op.Provided.Level != t.LevelQ || op.Required.Level != t.LevelQ || op.Provided.LogScale != op.Required.LogScale || (len(t.Operands) > 1 && len(op.Consumers) == 0) {
+				return fmt.Errorf("invalid conversion operand %d", i)
+			}
+			ssa[op.SSA], edges[op.Edge] = true, true
+			for _, u := range op.Consumers {
+				if users[u] || u.UserIndex <= op.UserIndex || !((u.User == "snabf.lintrans" && u.Operand == 0) || (u.User == "snabf.ckks_step" && (u.Operand == 0 || u.Operand == 1))) {
+					return fmt.Errorf("invalid conversion use")
+				}
+				users[u] = true
+			}
 		}
 	}
 	return nil

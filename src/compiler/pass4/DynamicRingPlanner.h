@@ -29,5 +29,5 @@ struct Decision {
 // actual SSA, MILP and estimator checks; an unchecked state cannot become best.
 Decision search(std::optional<Evaluation> baseline,
                 const std::vector<Proposal> &, unsigned maxIters,
-                const std::function<Evaluation(const Proposal &)> &);
+                const std::function<Evaluation(const Proposal &)> &, bool requireDown = false);
 } // namespace snabf::pass4

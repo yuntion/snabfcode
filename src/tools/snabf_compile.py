@@ -47,6 +47,9 @@ def compile_model(a):
     if out.is_symlink() or out.exists(): raise ValueError('[SNABF_OUTPUT_EXISTS] use a new output directory')
     out.parent.mkdir(parents=True, exist_ok=True)
     eps = 2.0**-a.precision_bits
+    fraction = a.source_arithmetic_fraction
+    if fraction is None: fraction = 0.5 if a.cut_profile == 'dual-live-v1' else 1.0
+    if not 0 < fraction <= 1: raise ValueError('[SNABF_INVALID_OPTIONS] source arithmetic fraction must be in (0,1]')
     with tempfile.TemporaryDirectory(prefix='.snabf-',dir=out.parent) as tmp:
         staging = Path(tmp); publish = staging/'publish'; publish.mkdir()
         w = publish/'work'; w.mkdir()
@@ -78,7 +81,7 @@ def compile_model(a):
             opt(f'--snabf-import-heir=input-bound={a.input_bound} key-bytes={size}',
                 '--snabf-pass1-candidates',f'--snabf-pass2-candidates=depth={a.q_count-1} epsilon={eps} max-output-error={eps}',
                 '--snabf-plan','--snabf-check-plan','heir.mlir','-o','selected.mlir')
-            opts = f'--snabf-pass3=epsilon={eps} min-base=20 security-cap={cap}'
+            opts = f'--snabf-pass3=epsilon={eps} min-base=20 security-cap={cap} source-arithmetic-fraction={fraction}'
             opt(opts+' audit=parameters.json','selected.mlir','-o','proposal.mlir')
             plan=json.loads((w/'parameters.json').read_text())
             new = dict(profile, Q=plan['q'],P=plan['p'],logDefaultScale=plan['scale'])
@@ -98,7 +101,8 @@ def compile_model(a):
             opt(opts+' security=source-security.json','selected.mlir','-o','screened.mlir')
             break
         else: raise ValueError('[SNABF_SPECIALIZATION_LIMIT] no checked fixed point')
-        p4 = '--snabf-pass4=audit=search.json'
+        p4 = f'--snabf-pass4=audit=search.json cut-profile={a.cut_profile}'
+        if a.mode == 'force-down': p4 += ' force-down=true'
         if a.mode == 'keep-source': p4+=f" min-ring={plan['ring']}"
         else:
             sizes=json.loads(run(tool('src/tools/pass4_keyshape'),'parameters.json',capture=True))
@@ -112,7 +116,8 @@ def compile_model(a):
                     source_ring=plan['ring'],target_ring=search['target'],security_bits=a.security_bits,
                     switching_key_security_bits=search['policy']['switching_key_security_bits'],
                     precision_bits=a.precision_bits,input_bound=a.input_bound,cut_profile=a.cut_profile,
-                    verification='engineering',probabilistic_cert_issued=False, specialization=history)
+                    verification='engineering',probabilistic_cert_issued=False, specialization=history,
+                    source_arithmetic_fraction=plan['source_arithmetic_fraction'])
         if a.emit_go:
             opt('--snabf-lower-ckks=direct-go=true','checked.mlir','-o','lowered.mlir')
             opt('--snabf-bind-lattigo=ring-go=../model.go audit=../program.json','lowered.mlir','-o',os.devnull)
@@ -132,7 +137,8 @@ def main():
     p.add_argument('--security-bits','--security',type=int,default=128)
     p.add_argument('--switch-security-bits',type=int,default=128)
     p.add_argument('--mode',choices=['adaptive','keep-source','force-down'],default='adaptive')
-    p.add_argument('--cut-profile',choices=['single-live-v1'],default='single-live-v1',help='currently emittable backend capability')
+    p.add_argument('--cut-profile',choices=['single-live-v1','dual-live-v1'],default='single-live-v1',help='one periodic boundary; dual-live-v1 enables the terminal residual join')
+    p.add_argument('--source-arithmetic-fraction',type=float,help='source search share of remaining arithmetic headroom (single: 1, dual: 0.5); never relaxes concrete acceptance')
     p.add_argument('--certify-failure-bits',type=int); p.add_argument('--emit-go',action='store_true')
     p.add_argument('--security-cache',type=Path,default=Path.home()/'.cache/snabf/measure-v1')
     p.add_argument('--snabf-opt',type=Path); p.add_argument('--log-n',type=int,default=14)

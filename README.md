@@ -13,7 +13,13 @@ python3 test/compiler/phase2_static_smoke.py  # generates 3 matvecs, 2 SiLUs and
 python3 test/compiler/test_phase2_entry.py -v
 ```
 
-Use a **new** output directory. The compiler publishes `work/checked.mlir`, `compile.json` and, with `--emit-go`, `model.go` and `program.json` together after `go build` succeeds. Cache hits are owner-private local estimator measurements, not signed approvals. On a miss, `sage` and the pinned `LATTICE_ESTIMATOR` checkout (by default under `extern`) must be available. `adaptive` may retain the source ring; `force-down` requires a checked profitable physical switch. To replay a published adaptive plan, set `SNABF_PASS4_ESTIMATES` to its `work/domains.json`; unset it for keep-source. `single-live-v1` is the only emittable cut profile. No probabilistic certificate is issued. See [phase 2 decisions](doc/phase2-decisions.md).
+Use a **new** output directory. The compiler publishes `work/checked.mlir`, `compile.json` and, with `--emit-go`, `model.go` and `program.json` together after `go build` succeeds. Cache hits are owner-private local estimator measurements, not signed approvals. On a miss, `sage` and the pinned `LATTICE_ESTIMATOR` checkout (by default under `extern`) must be available. `adaptive` requires net benefit; `force-down` requires a verified, not necessarily profitable switch. Set `SNABF_PASS4_ESTIMATES` to the compiled `work/domains.json` for replay, or unset it for keep-source. `single-live-v1` (default) preserves the old crossing-residual rejection. Opt in to `--cut-profile dual-live-v1` for at most two live values on one periodic boundary with a terminal linear or residual-add suffix. This is not arbitrary multi-ciphertext repacking. No probabilistic certificate is issued. See [phase 2 decisions](doc/phase2-decisions.md).
+
+For the three-arm encrypted regression, pass **only the source MLIR** (no checkpoint, cached plan or frozen truth). The runner derives a common corpus from the source, compiles each arm, checks all slots and writes `acceptance.json`, negative gate results, and `SHA256SUMS` in a new output directory:
+
+```bash
+python3 test/compiler/phase2_dual_live.py --source /path/to/cross_residual/source.mlir --out /tmp/dev2-new-run
+```
 
 The first full experiment is specified in [E01](doc/experiment-01.md).
 The fixed-profile control and [native Pass 1](doc/pass1-revision/results.md) run end to end.

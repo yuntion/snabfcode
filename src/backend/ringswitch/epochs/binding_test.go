@@ -58,20 +58,22 @@ func TestRejectUnboundSwitchBeforeKeyGeneration(t *testing.T) {
 	a := Epoch{N: large, Scale: 35, Q: []uint64{17, 19, 23}, P: []uint64{31}, KeyID: "a"}
 	b := Epoch{N: small, Scale: 35, Q: a.Q[:2], P: a.P, KeyID: "b"}
 	s := Program{Source: large, Target: small, Width: 2, Slots: 8, Epochs: []Epoch{a, b}}
-	tr := Transition{FromKey: "a", ToKey: "b", LevelQ: 1, LevelP: 0, KeyBytes: 1, Parallel: 1, Provided: l, Required: target,
-		Cut: CutOperand{SSA: "op1.r0", Edge: "poly.n3", KeyID: "a", User: "snabf.convert"}, Basis: SwitchBasis{Ring: large, EmbeddedRing: small, Q: b.Q, P: b.P}}
+	tr := Transition{FromKey: "a", ToKey: "b", LevelQ: 1, LevelP: 0, KeyBytes: 1, Parallel: 1,
+		Operands: []CutOperand{{SSA: "op1.r0", Edge: "poly.n3", KeyID: "a", User: "snabf.convert", Provided: l, Required: target}}, Basis: SwitchBasis{Ring: large, EmbeddedRing: small, Q: b.Q, P: b.P}}
 	s.Switch = &tr
 	if err := validateDomains(s); err != nil {
 		t.Fatal(err)
 	}
 	for name, alter := range map[string]func(*Transition){
 		"domain": func(x *Transition) { x.ToKey = x.FromKey }, "level": func(x *Transition) { x.LevelQ++ },
-		"scale": func(x *Transition) { x.Required.LogScale++ }, "lane": func(x *Transition) { x.Provided.Active = []int{0, 1} },
-		"storage": func(x *Transition) { x.Cut.User = "tensor.insert" }, "crossing": func(x *Transition) { x.Cut.KeyID = "b" },
+		"scale": func(x *Transition) { x.Operands[0].Required.LogScale++ }, "lane": func(x *Transition) { x.Operands[0].Provided.Active = []int{0, 1} },
+		"storage": func(x *Transition) { x.Operands[0].User = "tensor.insert" }, "crossing": func(x *Transition) { x.Operands[0].KeyID = "b" },
+		"empty": func(x *Transition) { x.Operands = nil }, "duplicate": func(x *Transition) { x.Operands = append(x.Operands, x.Operands[0]) },
 		"basis": func(x *Transition) { x.Basis.Q = a.Q }, "ring": func(x *Transition) { x.Basis.EmbeddedRing = large },
 	} {
 		t.Run(name, func(t *testing.T) {
 			x := tr
+			x.Operands = append([]CutOperand(nil), tr.Operands...)
 			alter(&x)
 			s.Switch = &x
 			if validateDomains(s) == nil {

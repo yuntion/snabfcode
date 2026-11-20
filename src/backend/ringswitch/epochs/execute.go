@@ -37,8 +37,8 @@ type KeyRecord struct {
 	Role                     string
 	N, LevelQ, LevelP, Bytes int
 	Galois                   uint64
-	KeyID string
-	TargetKeyID string `json:",omitempty"`
+	KeyID                    string
+	TargetKeyID              string `json:",omitempty"`
 }
 type family struct {
 	p    ckks.Parameters
@@ -54,7 +54,30 @@ type Runtime struct {
 	convert  *backend.SparseDownConverter
 	plain    map[int]*rlwe.Plaintext
 	evaluate Evaluation
+	last     EvalObservation // per Eval; like the CKKS evaluator, this runtime is not concurrent
 }
+type PhysicalPort struct {
+	N, Level int
+	LogScale float64
+}
+type EvalObservation struct {
+	Converted []string
+	Join      []PhysicalPort
+	JoinSite  string
+}
+
+func (r *Runtime) LastEval() EvalObservation {
+	return EvalObservation{Converted: slices.Clone(r.last.Converted), Join: slices.Clone(r.last.Join), JoinSite: r.last.JoinSite}
+}
+func (r *Runtime) CheckJoin(site string, a, b *rlwe.Ciphertext) error {
+	if a == nil || b == nil || a.MetaData == nil || b.MetaData == nil || len(a.Value) == 0 || len(b.Value) == 0 || a.Value[0].N() != r.Program.Target || b.Value[0].N() != r.Program.Target || a.Level() != b.Level() || !finite(a.LogScale()) || !finite(b.LogScale()) || math.Abs(a.LogScale()-b.LogScale()) > 1e-8 {
+		return fmt.Errorf("unaligned physical terminal add: %s", site)
+	}
+	r.last.JoinSite = site
+	r.last.Join = []PhysicalPort{{a.Value[0].N(), a.Level(), a.LogScale()}, {b.Value[0].N(), b.Level(), b.LogScale()}}
+	return nil
+}
+
 type binaryKey interface{ MarshalBinary() ([]byte, error) }
 
 func (r *Runtime) key(role string, n, l, p int, g uint64, k binaryKey) (int, error) {
@@ -62,9 +85,16 @@ func (r *Runtime) key(role string, n, l, p int, g uint64, k binaryKey) (int, err
 	if e != nil {
 		return 0, e
 	}
-	record:=KeyRecord{Role:role,N:n,LevelQ:l,LevelP:p,Bytes:len(b),Galois:g}
-	for _,e:=range r.Program.Epochs {if e.N==n {record.KeyID=e.KeyID;break}}
-	if role=="down" {record.TargetKeyID=r.Program.Switch.ToKey}
+	record := KeyRecord{Role: role, N: n, LevelQ: l, LevelP: p, Bytes: len(b), Galois: g}
+	for _, e := range r.Program.Epochs {
+		if e.N == n {
+			record.KeyID = e.KeyID
+			break
+		}
+	}
+	if role == "down" {
+		record.TargetKeyID = r.Program.Switch.ToKey
+	}
 	r.Keys = append(r.Keys, record)
 	return len(b), nil
 }
@@ -187,7 +217,12 @@ func (r *Runtime) Encrypt(x []float64) (*rlwe.Ciphertext, error) {
 	return r.encrypt.EncryptNew(pt)
 }
 func (r *Runtime) Eval(input *rlwe.Ciphertext) (*rlwe.Ciphertext, error) {
-	return r.evaluate(r, input)
+	r.last = EvalObservation{}
+	v, err := r.evaluate(r, input)
+	if err == nil && r.Program.Switch != nil && len(r.last.Converted) != len(r.Program.Switch.Operands) {
+		return nil, fmt.Errorf("unconverted live ciphertext")
+	}
+	return v, err
 }
 
 func (r *Runtime) Evaluator(n int) *ckks.Evaluator { return r.families[n].eval }
@@ -203,13 +238,23 @@ func (r *Runtime) Check(id string, v *rlwe.Ciphertext, n, l int, scale float64) 
 
 func (r *Runtime) Down(edge string, v *rlwe.Ciphertext) (*rlwe.Ciphertext, error) {
 	t := r.Program.Switch
-	if r.convert == nil || t == nil || edge != t.Cut.Edge {
+	if r.convert == nil || t == nil || slices.Contains(r.last.Converted, edge) {
 		return nil, fmt.Errorf("unbound conversion")
 	}
-	if err := r.Check("DownConv input", v, t.Provided.N, t.LevelQ, t.Provided.LogScale); err != nil {
-		return nil, err
+	for _, op := range t.Operands {
+		if edge != op.Edge {
+			continue
+		}
+		if err := r.Check("DownConv input", v, op.Provided.N, t.LevelQ, op.Provided.LogScale); err != nil {
+			return nil, err
+		}
+		out, err := r.convert.Convert(v)
+		if err == nil {
+			r.last.Converted = append(r.last.Converted, edge)
+		}
+		return out, err
 	}
-	return r.convert.Convert(v)
+	return nil, fmt.Errorf("unbound conversion: %s", edge)
 }
 func (r *Runtime) Decode(ct *rlwe.Ciphertext) ([]float64, error) {
 	if ct == nil || ct.MetaData == nil || len(ct.Value) == 0 || ct.Value[0].N() != r.Program.Target || ct.Slots() != r.Program.Slots {

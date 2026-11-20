@@ -131,7 +131,8 @@ struct BudgetFlow : DataFlowAnalysis {
       f.level = t.getLevel();
       f.scale = native.logScale;
     } else if (auto c = dyn_cast<ConvertOp>(o)) {
-      require(epoch && c.getLayoutContract()=="trace-invariant" && f.level==t.getLevel(),"unsupported conversion transfer");
+      require(epoch && c.getLayoutContract()=="trace-invariant" && f.level>=t.getLevel(),"unsupported conversion transfer");
+      f.level=t.getLevel(); // Pass 3 materializes a use-local level drop, with unchanged scale.
     } else if (auto lt = dyn_cast<LintransOp>(o)) {
       auto weights = preparedWeights(lt.getTable(), lt.getDiagonals());
       auto opNorm = norm(weights, true);
@@ -377,7 +378,13 @@ bool schedule(ModuleOp m, bool check) {
     }
     else {
       l=cast<CtType>(o->getOperand(0).getType()).getLevel();
-      if(auto c=dyn_cast<ConvertOp>(o)) {auto p=SymbolTable::lookupNearestSymbolFrom<ProfileOp>(o,t.getProfile());if(!p || l!=int64_t(p.getQ().size())-1){ok=false;return;}}
+      if (auto c = dyn_cast<ConvertOp>(o)) {
+        auto p = SymbolTable::lookupNearestSymbolFrom<ProfileOp>(o, t.getProfile());
+        if (!p) { ok = false; return; }
+        int64_t cut = int64_t(p.getQ().size()) - 1;
+        if (l < cut || (l != cut && !c->getAttrOfType<UnitAttr>("snabf.cut_align"))) { ok = false; return; }
+        l = cut;
+      }
       else if(isa<LintransOp>(o)) --l;
       else if(isa<PolyEvalOp>(o)) l-=field<IntegerAttr>(field<DictionaryAttr>(o,"poly_selected"),"delta_level").getInt();
       else if(auto s=dyn_cast<StepOp>(o);s && s.getKind()=="ckks.add") l=std::min(l,cast<CtType>(o->getOperand(1).getType()).getLevel());

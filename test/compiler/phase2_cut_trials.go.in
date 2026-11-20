@@ -1,0 +1,59 @@
+package planned
+
+import (
+	"encoding/json"
+	"os"
+	"testing"
+	"time"
+)
+
+// Observe the real key objects, successful converter calls, add operands and
+// decoded slots. The acceptance oracle runs separately, against the source.
+func TestCrossingTrials(t *testing.T) {
+	r, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inputs [][]float64
+	data, err := os.ReadFile(os.Getenv("SNABF_INPUTS"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(data, &inputs); err != nil || len(inputs) == 0 {
+		t.Fatal("invalid inputs", err)
+	}
+	keys, err := json.Marshal(r.Keys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(os.Getenv("SNABF_KEYS"), keys, 0600); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.OpenFile(os.Getenv("SNABF_TRIALS"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enc := json.NewEncoder(f)
+	for i, x := range inputs {
+		in, err := r.Encrypt(x)
+		if err != nil {
+			t.Fatal(err)
+		}
+		start := time.Now()
+		out, err := r.Eval(in)
+		elapsed := time.Since(start)
+		if err != nil {
+			t.Fatal(err)
+		}
+		v, err := r.Decode(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = enc.Encode(map[string]any{"trial": i, "observation": r.LastEval(), "n": out.Value[0].N(), "level": out.Level(), "log_scale": out.LogScale(), "eval_ns": elapsed.Nanoseconds(), "decoded": v}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err = f.Close(); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -82,7 +82,22 @@ SlotLayoutAttr attr(Builder &b, const SlotLayoutDesc &x) {
 struct Cut {
   DictionaryAttr record;
   std::string reason;
+  struct Operand { Value value; SmallVector<OpOperand *> uses; };
+  SmallVector<Operand> operands;
 };
+SmallVector<ConvertOp> conversions(ModuleOp m) {
+  SmallVector<ConvertOp> out;
+  m.walk([&](ConvertOp c) { out.push_back(c); });
+  return out;
+}
+// The second admitted suffix is exactly linear -> binary residual add -> sink.
+StepOp terminalJoin(LintransOp lin) {
+  if (!lin.getOut().hasOneUse()) return {};
+  auto join = dyn_cast<StepOp>(*lin.getOut().getUsers().begin());
+  if (!join || join.getKind() != "ckks.add" || join.getNumOperands() != 2 ||
+      !join.getOut().hasOneUse() || !isa<SinkOp>(*join.getOut().getUsers().begin())) return {};
+  return join;
+}
 // HEIR may schedule an unused mask load after the cut. Its *handle* is a
 // crossing block argument. Do not ignore the use or trust the type/name alone:
 // prove that every caller passes a read-only table of literal-derived entries.
@@ -174,18 +189,25 @@ bool isOutputABIStorage(OpOperand &use, Operation *first) {
                                          // not merely a tensor shape
   return true;
 }
-Cut liveCut(ModuleOp m, LintransOp lin, ConvertOp bridge,
-            const ConcreteSSAContext &ctx) {
+Cut liveCut(ModuleOp m, LintransOp lin, const ConcreteSSAContext &ctx, bool dual) {
   Builder b(m.getContext());
   Block *block = lin->getBlock();
   require(block && block->getParent()->hasOneBlock(),
           "unsupported_multiblock_encrypted_cut");
-  Operation *first = bridge ? bridge.getOperation() : lin.getOperation();
-  if (bridge)
-    require(bridge->getBlock() == block &&
-                bridge->getNextNode() == lin.getOperation() &&
-                lin.getInput() == bridge.getOut(),
-            "stale_conversion_ssa");
+  auto bridges = conversions(m);
+  auto join = terminalJoin(lin);
+  Operation *first = bridges.empty() ? lin.getOperation() : bridges.front().getOperation();
+  Operation *next = first;
+  llvm::DenseSet<Value> converted;
+  for (auto c : bridges) {
+    require(c == next && c->getBlock() == block && converted.insert(c.getInput()).second &&
+            !c.getOut().use_empty(), "stale_conversion_ssa");
+    for (auto &use : c.getOut().getUses())
+      require((use.getOwner() == lin && use.getOperandNumber() == 0) ||
+              (dual && join && use.getOwner() == join), "unaccounted_conversion_use");
+    next = c->getNextNode();
+  }
+  require(next == lin && (bridges.empty() || lin.getInput() == bridges.front().getOut()), "stale_conversion_ssa");
   m.walk([&](Operation *o) {
     if (llvm::any_of(o->getOperandTypes(),
                      [](Type t) { return isa<CtType>(t); }) ||
@@ -211,6 +233,9 @@ Cut liveCut(ModuleOp m, LintransOp lin, ConvertOp bridge,
   SmallVector<std::pair<Value, Uses>> live;
   llvm::DenseSet<Value> abiStorage;
   bool residual = false;
+  SmallVector<Cut::Operand> operands;
+  llvm::DenseMap<Value, unsigned> operandIndex;
+  bool unsupportedUse = false;
   unsigned ctUses = 0, mainUses = 0;
   for (auto crossed : crossing.uses) {
     auto &use = *crossed.use;
@@ -242,11 +267,17 @@ Cut liveCut(ModuleOp m, LintransOp lin, ConvertOp bridge,
     u.set("user_index", b.getI64IntegerAttr(ordinal(&op)));
     u.set("operand", b.getI64IntegerAttr(use.getOperandNumber()));
     if (publicPreload) u.set("literal_table_site", field<IntegerAttr>(&op, "site_id"));
+    bool bypass = ct && !main && dual && join && (bridges.empty() ? &op == join.getOperation() : isa<ConvertOp>(&op));
     u.set("role", b.getStringAttr(outputStorage ? "output_abi_storage"
                                   : !ct         ? "public"
                                   : main        ? "main"
+                                  : bypass      ? "bypass"
                                                 : "unconverted"));
     if (ct) {
+      auto [i, fresh] = operandIndex.try_emplace(v, operands.size());
+      if (fresh) operands.push_back({v,{}});
+      operands[i->second].uses.push_back(&use);
+      unsupportedUse |= !main && !bypass;
       auto p = SymbolTable::lookupNearestSymbolFrom<ProfileOp>(
           lin, cast<CtType>(v.getType()).getProfile());
       require(bool(p), "unbound_live_ciphertext");
@@ -309,14 +340,15 @@ Cut liveCut(ModuleOp m, LintransOp lin, ConvertOp bridge,
   r.set("output_abi_storage", b.getArrayAttr(outputStorage));
   r.set("ciphertext_use_count", b.getI64IntegerAttr(ctUses));
   std::string reason;
-  if (residual)
+  if (residual && (!dual || unsupportedUse))
     reason = "residual_bypass_crosses_cut_unconverted";
-  else if (mainUses != 1 || encrypted.size() != 1 || ctUses != 1)
+  else if (mainUses != 1 || encrypted.empty() || encrypted.size() > (dual ? 2u : 1u) ||
+           unsupportedUse || (!dual && ctUses != 1) || (!bridges.empty() && bridges.size() != encrypted.size()))
     reason = "multiple_cut_edges_not_emittable";
-  else if (!lin.getOut().hasOneUse() ||
-           !isa<SinkOp>(*lin.getOut().getUsers().begin()))
+  else if (!(dual && join) && (!lin.getOut().hasOneUse() ||
+           !isa<SinkOp>(*lin.getOut().getUsers().begin())))
     reason = "unsupported_post_lintrans_suffix";
-  return {r.getDictionary(b.getContext()), reason};
+  return {r.getDictionary(b.getContext()), reason, std::move(operands)};
 }
 struct Screen {
   double bits = 0;
@@ -531,28 +563,18 @@ Screen screen(ProfileOp p, int64_t n, int l, int64_t switchBits,
   out.record = checks.getDictionary(b.getContext());
   return out;
 }
-ConvertOp conv(ModuleOp m) {
-  ConvertOp c;
-  m.walk([&](ConvertOp x) {
-    require(!c, "multiple_cut_edges_not_emittable");
-    c = x;
-  });
-  return c;
-}
 double cost(DictionaryAttr params, int64_t sourceN, int64_t small,
             double switchPrice) {
   double total = 0;
-  bool post = false;
   for (auto item : field<ArrayAttr>(params, "edges")) {
     auto d = cast<DictionaryAttr>(item);
     auto op = field<StringAttr>(d, "op").getValue();
     int l = num(d, "Level");
     if (op == "ring_down") {
       total += conversionWork(sourceN, l, switchPrice);
-      post = true;
       continue;
     }
-    int n = post ? small : sourceN;
+    int n = small ? num(d,"kernel_ring") : sourceN;
     double w = op == "baby" || op == "giant" || op == "relin"
                    ? double(l + 1 - num(d, "K")) * (l + 2) / (l + 1)
                : op == "source" || op == "drop"   ? 0
@@ -563,20 +585,34 @@ double cost(DictionaryAttr params, int64_t sourceN, int64_t small,
   return total;
 }
 DictionaryAttr details(ModuleOp m, DictionaryAttr par, double price,
-                       int64_t bits) {
+                       int64_t bits, bool dual) {
   Builder b(m.getContext());
   auto p = source(m);
-  auto c = conv(m);
+  auto bridges = conversions(m);
+  require(!bridges.empty() && bridges.size() <= (dual ? 2u : 1u), "invalid_cut_arity");
+  auto c = bridges.front();
   auto l = suffix(m);
   require(c && c.getLayoutContract() == "trace-invariant" &&
-              l.getInput() == c.getOut() && c.getOut().hasOneUse() &&
+              l.getInput() == c.getOut() &&
               l.getOut().getType().getProfile() ==
                   c.getOut().getType().getProfile(),
           "stale_conversion_ssa");
   auto a = c.getInput().getType(), z = c.getOut().getType();
-  // The current emitter converts one value before a one-level linear op.
-  // Check the suffix demand against the actual (replanned) SSA availability.
-  auto window = commonCutLevels({{l.getOut().getType().getLevel() + 1, a.getLevel()}});
+  auto join = terminalJoin(l);
+  std::vector<CutLevels> bounds;
+  for (auto op : bridges) {
+    auto t = op.getInput().getType();
+    int64_t needed = 0;
+    for (auto &use : op.getOut().getUses()) {
+      require(use.getOwner() == l || (dual && join && use.getOwner() == join), "unaccounted_conversion_use");
+      needed = std::max(needed, use.getOwner() == l ? l.getOut().getType().getLevel()+1 : join.getOut().getType().getLevel());
+    }
+    require(op.getLayoutContract() == "trace-invariant" && t.getProfile() == a.getProfile() &&
+            op.getOut().getType().getProfile() == z.getProfile() && op.getOut().getType().getLevel() == z.getLevel() &&
+            op->getAttr("snabf.cut_align") == (dual && op != c ? b.getUnitAttr() : UnitAttr{}), "incompatible_switching_key_domains");
+    bounds.push_back({needed,t.getLevel()});
+  }
+  auto window = commonCutLevels(bounds);
   require(window && z.getLevel() >= window->required && z.getLevel() <= window->current,
           "cut_level_window_empty_or_exceeded");
   auto target =
@@ -598,32 +634,58 @@ DictionaryAttr details(ModuleOp m, DictionaryAttr par, double price,
       require(q % (2 * z.getN()) == 1 && pass3::prime(q),
               "invalid_target_ntt_prime");
   auto ctx = concreteSSAContext(m, par);
-  auto cut = liveCut(m, l, c, ctx);
+  auto cut = liveCut(m, l, ctx, dual);
   require(cut.reason.empty(), cut.reason);
   auto sc = screen(p, z.getN(), a.getLevel(), bits);
   require(sc.reason.empty(), sc.reason);
   require(target.getKeyBytes() == uint64_t(sc.keyBytes),
           "stale_target_key_size");
-  DictionaryAttr e;
-  for (auto v : field<ArrayAttr>(par, "edges")) {
-    auto d = cast<DictionaryAttr>(v);
-    if (field<StringAttr>(d, "op") == "ring_down")
-      e = d;
+  auto edges = field<ArrayAttr>(par, "edges");
+  auto edgeAt = [&](int64_t i) { return cast<DictionaryAttr>(edges[i]); };
+  auto ordinal = [&](Operation *op) { return std::distance(op->getBlock()->begin(), op->getIterator()); };
+  SmallVector<Attribute> bindings;
+  double work = 0;
+  for (auto [i, op] : llvm::enumerate(bridges)) {
+    auto raw = ctx.values.lookup(op.getInput()), e = ctx.values.lookup(op.getOut());
+    require(raw && e && field<StringAttr>(e,"op") == "ring_down" && num(e,"Level") == z.getLevel() && num(e,"K") == 0,
+            "missing_conversion_error_contract");
+    auto aligned = edgeAt(field<DenseI64ArrayAttr>(e,"inputs")[0]);
+    double s = real(e,"physical_log_scale");
+    require(real(raw,"physical_log_scale") == s && real(aligned,"physical_log_scale") == s &&
+            num(aligned,"Level") == z.getLevel(), "invalid_cut_physical_alignment");
+    auto t = op.getInput().getType(); auto w = t.getLogical().getNumElements();
+    auto provided = layout(p, a.getN(), t.getLevel(), s, w), from = layout(p,a.getN(),z.getLevel(),s,w), to = layout(p,z.getN(),z.getLevel(),s,w);
+    auto tr = transition(Action::Down, from, to, 1, price);
+    require(tr.emittable, tr.reason);
+    require(op.getProvidedAttr() == attr(b, provided) && op.getRequiredAttr() == attr(b, to), "stale_slot_layout_contract");
+    work += tr.cost;
+    SmallVector<Attribute> users;
+    for (Operation &user : *l->getBlock()) for (auto &use : user.getOpOperands()) if (use.get() == op.getOut())
+      users.push_back(b.getDictionaryAttr({b.getNamedAttr("user", b.getStringAttr(name(&user))),
+        b.getNamedAttr("user_index", b.getI64IntegerAttr(ordinal(&user))), b.getNamedAttr("operand", b.getI64IntegerAttr(use.getOperandNumber()))}));
+    auto value = cast<DictionaryAttr>(field<ArrayAttr>(cut.record,"live_values")[i]);
+    require(value.get("edge_id") == raw.get("ID"), "unordered_or_missing_cut_operand");
+    bindings.push_back(b.getDictionaryAttr({b.getNamedAttr("value",value), b.getNamedAttr("input_edge",aligned.get("ID")),
+      b.getNamedAttr("provided",attr(b,from).getFields()), b.getNamedAttr("required",attr(b,to).getFields()),
+      b.getNamedAttr("transition",e), b.getNamedAttr("consumers",b.getArrayAttr(users))}));
   }
-  require(e && num(e, "Level") == a.getLevel() && num(e, "K") == 0,
-          "missing_conversion_error_contract");
-  double s = real(e, "physical_log_scale");
-  auto from = layout(p, a.getN(), a.getLevel(), s,
-                     a.getLogical().getNumElements()),
-       to = layout(p, z.getN(), z.getLevel(), s,
-                   z.getLogical().getNumElements());
-  auto tr = transition(Action::Down, from, to, 1, price);
-  require(tr.emittable, tr.reason);
-  require(c.getProvidedAttr() == attr(b, from) &&
-              c.getRequiredAttr() == attr(b, to),
-          "stale_slot_layout_contract");
+  auto primary = cast<DictionaryAttr>(bindings.front());
   NamedAttrList d;
-  d.set("transition_work", b.getF64FloatAttr(tr.cost));
+  d.set("transition_work", b.getF64FloatAttr(work));
+  if (dual) d.set("operands", b.getArrayAttr(bindings));
+  if (join) {
+    auto e = ctx.values.lookup(join.getOut());
+    require(dual && e && field<StringAttr>(e,"op") == "add", "missing_terminal_join");
+    SmallVector<Attribute> ports;
+    for (auto i : field<DenseI64ArrayAttr>(e,"inputs").asArrayRef()) {
+      auto port = edgeAt(i);
+      require(port.get("output_key_domain") == target.getKeyIdAttr() && num(port,"Level") == num(e,"Level") &&
+              std::abs(real(port,"physical_log_scale")-real(e,"physical_log_scale")) <= 1e-8, "unaligned_terminal_residual_add");
+      ports.push_back(b.getDictionaryAttr({b.getNamedAttr("edge",port.get("ID")), b.getNamedAttr("level",port.get("Level")),
+        b.getNamedAttr("physical_log_scale",port.get("physical_log_scale")),b.getNamedAttr("key_domain",port.get("output_key_domain"))}));
+    }
+    d.set("terminal_join", b.getDictionaryAttr({b.getNamedAttr("edge",e.get("ID")), b.getNamedAttr("ports",b.getArrayAttr(ports))}));
+  }
   d.set("consumed_levels", b.getI64IntegerAttr(0));
   d.set("cut_edges", cut.record.get("ciphertext_use_count"));
   d.set("cut", cut.record);
@@ -632,13 +694,13 @@ DictionaryAttr details(ModuleOp m, DictionaryAttr par, double price,
   d.set("switch_bytes", b.getI64IntegerAttr(sc.switchBytes));
   d.set("switch_level_q", b.getI64IntegerAttr(a.getLevel()));
   d.set("switch_level_p", b.getI64IntegerAttr(target.getP().size() - 1));
-  d.set("provided", attr(b, from).getFields());
-  d.set("required", attr(b, to).getFields());
+  d.set("provided", primary.get("provided"));
+  d.set("required", primary.get("required"));
   d.set("op_kind", b.getStringAttr("ring_down"));
   d.set("emittable", b.getBoolAttr(true));
   d.set("compatibility_status", b.getStringAttr("adaptable_via_op"));
   d.set("parallel_factor", b.getI64IntegerAttr(1));
-  d.set("transition", e);
+  d.set("transition", primary.get("transition"));
   d.set("target_q", target.getQAttr());
   d.set("target_p", target.getPAttr());
   d.set("source_key", p.getKeyIdAttr());
@@ -655,7 +717,7 @@ DictionaryAttr details(ModuleOp m, DictionaryAttr par, double price,
   return d.getDictionary(m.getContext());
 }
 void materialize(ModuleOp m, int64_t n, int64_t level, double price,
-                 int64_t bits) {
+                 int64_t bits, const Cut &cut, bool dual) {
   IRRewriter b(m.getContext());
   auto p = source(m);
   auto l = suffix(m);
@@ -679,24 +741,28 @@ void materialize(ModuleOp m, int64_t n, int64_t level, double price,
   t->setAttr("snabf.target_epoch", b.getUnitAttr());
   auto ref = FlatSymbolRefAttr::get(b.getContext(), nm);
   b.setInsertionPoint(l);
-  auto c = ConvertOp::create(
-      b, l.getLoc(), CtType::get(b.getContext(), a.getLogical(), n, level, ref),
-      l.getInput(), b.getStringAttr("trace-invariant"), attr(b, from),
-      attr(b, to));
-  c->setAttr("native", l.getInput().getDefiningOp()->getAttr("native"));
-  l->setOperand(0, c.getOut());
+  auto join = terminalJoin(l);
+  for (auto [i, operand] : llvm::enumerate(cut.operands)) {
+    auto raw = cast<CtType>(operand.value.getType());
+    auto c = ConvertOp::create(b, l.getLoc(), CtType::get(b.getContext(), raw.getLogical(), n, level, ref),
+        operand.value, b.getStringAttr("trace-invariant"), attr(b,from), attr(b,to));
+    c->setAttr("native", operand.value.getDefiningOp()->getAttr("native"));
+    if (dual && i) c->setAttr("snabf.cut_align",b.getUnitAttr());
+    for (auto *use : operand.uses) use->set(c.getOut());
+  }
   l.getOut().setType(
       CtType::get(b.getContext(), a.getLogical(), n, level - 1, ref));
+  if (join) join.getOut().setType(l.getOut().getType());
 }
 } // namespace
 bool isMixed(ModuleOp m) {
-  return bool(conv(m)) || m->hasAttr("snabf.mixed_parameters") ||
+  return !conversions(m).empty() || m->hasAttr("snabf.mixed_parameters") ||
          m->hasAttr("snabf.ring_decision");
 }
 void requireCheckedRingDown(ModuleOp m) {
   auto trace = m->getAttrOfType<DictionaryAttr>("snabf.ring_search");
   require(bool(trace), "[SNABF_FORCE_DOWN_REJECTED] missing_ring_search");
-  if (isMixed(m) && conv(m) && field<StringAttr>(trace, "outcome").getValue() == "ring_down")
+  if (!conversions(m).empty() && field<StringAttr>(trace, "outcome").getValue() == "ring_down")
     return;
   std::set<std::string> reasons;
   for (Attribute a : field<ArrayAttr>(trace, "rounds"))
@@ -714,20 +780,26 @@ static void clearSearch(ModuleOp x) {
     x->removeAttr(k);
 }
 static void restoreBaseline(ModuleOp x) {
-  auto c = conv(x);
-  require(bool(c), "missing_cut_edge");
+  auto bridges = conversions(x);
+  require(!bridges.empty(), "missing_cut_edge");
+  auto c = bridges.front();
   auto lin = suffix(x);
   auto p = source(x);
   auto epoch = SymbolTable::lookupNearestSymbolFrom<ProfileOp>(
       c, c.getOut().getType().getProfile());
   require(epoch && epoch != p && epoch->hasAttr("snabf.target_epoch") &&
-              c.getOut().hasOneUse() && lin.getInput() == c.getOut(),
+              lin.getInput() == c.getOut(),
           "invalid_epoch_boundary");
-  lin->setOperand(0, c.getInput());
+  auto join = terminalJoin(lin);
   auto t = c.getInput().getType();
+  for (auto op : bridges) {
+    require(op.getOut().getType().getProfile() == c.getOut().getType().getProfile(), "invalid_epoch_boundary");
+    for (auto &u : llvm::make_early_inc_range(op.getOut().getUses())) u.set(op.getInput());
+  }
   lin.getOut().setType(CtType::get(x.getContext(), t.getLogical(), t.getN(),
                                    t.getLevel() - 1, t.getProfile()));
-  c.erase();
+  if (join) join.getOut().setType(lin.getOut().getType());
+  for (auto op : bridges) op.erase();
   epoch.erase();
   clearSearch(x);
   planModule(x, false);
@@ -735,7 +807,7 @@ static void restoreBaseline(ModuleOp x) {
   verifyPass3(x);
 }
 // Does not consult the search trace. Used for the selected mixed IR only.
-static void verifyMixed(ModuleOp m, int64_t bits) {
+static void verifyMixed(ModuleOp m, int64_t bits, bool dual, bool forceDown) {
   auto p = source(m);
   auto base = field<DictionaryAttr>(m, "snabf.pass3");
   require(p->getAttr("pass3_parameters") == base &&
@@ -747,35 +819,40 @@ static void verifyMixed(ModuleOp m, int64_t bits) {
   auto par = field<DictionaryAttr>(m, "snabf.mixed_parameters");
   boundaryParameters(m, base, par);
   auto price = field<FloatAttr>(m, "snabf.switch_price").getValueAsDouble();
-  auto d = details(m, par, price, bits);
+  auto d = details(m, par, price, bits, dual);
   require(d == m->getAttr("snabf.ring_decision") &&
-              real(d, "cost") < real(d, "baseline_cost"),
+              (forceDown || real(d, "cost") < real(d, "baseline_cost")),
           "stale_or_unprofitable_ring_decision");
 }
 struct SearchPolicy {
   int64_t minRing, rounds;
   double price;
   int64_t switchBits;
+  bool dual, forceDown;
 };
 static DictionaryAttr policyAttr(Builder &b, SearchPolicy v) {
   require(v.minRing >= 4 && std::has_single_bit(uint64_t(v.minRing)) &&
               v.rounds > 0 && v.rounds <= 16 && std::isfinite(v.price) &&
               v.price >= 0 && v.switchBits >= 128,
           "invalid_pass4_policy");
-  return b.getDictionaryAttr(
+  NamedAttrList fields(b.getDictionaryAttr(
       {b.getNamedAttr("min_ring", b.getI64IntegerAttr(v.minRing)),
        b.getNamedAttr("max_iters", b.getI64IntegerAttr(v.rounds)),
        b.getNamedAttr("switch_price", b.getF64FloatAttr(v.price)),
        b.getNamedAttr("source_security_bits", b.getI64IntegerAttr(128)),
        b.getNamedAttr("target_security_bits", b.getI64IntegerAttr(128)),
        b.getNamedAttr("switching_key_security_bits",
-                      b.getI64IntegerAttr(v.switchBits))});
+                      b.getI64IntegerAttr(v.switchBits))}));
+  // Preserve the frozen v1 replay representation when neither extension is used.
+  if (v.dual) fields.set("cut_profile", b.getStringAttr("dual-live-v1"));
+  if (v.forceDown) fields.set("force_down", b.getBoolAttr(true));
+  return fields.getDictionary(b.getContext());
 }
 static SearchPolicy readPolicy(ModuleOp m, bool admitting = true) {
   auto p = field<DictionaryAttr>(source(m), policyName);
   SearchPolicy v{num(p, "min_ring"), num(p, "max_iters"),
                  real(p, "switch_price"),
-                 num(p, "switching_key_security_bits")};
+                 num(p, "switching_key_security_bits"), bool(p.get("cut_profile")), bool(p.get("force_down"))};
   Builder b(m.getContext());
   require(
       m->getAttrOfType<UnitAttr>("snabf.pass4_required") &&
@@ -789,7 +866,7 @@ static SearchPolicy readPolicy(ModuleOp m, bool admitting = true) {
 // Always starts with a verified, single-domain input. The verifier invokes
 // this on a clone with every derived Pass 4 result removed.
 static void searchFromBaseline(ModuleOp m, SearchPolicy policy) {
-  auto [minRing, rounds, price, bits] = policy;
+  auto [minRing, rounds, price, bits, dual, forceDown] = policy;
   verifyPlan(m);
   verifyPass3(m);
   auto base = field<DictionaryAttr>(m, "snabf.pass3");
@@ -799,7 +876,7 @@ static void searchFromBaseline(ModuleOp m, SearchPolicy policy) {
   auto last = suffix(m);
   auto baseCtx = concreteSSAContext(m, base);
   auto sourceSecurity = sourceScreenRecord(m, p, base);
-  auto baseCut = liveCut(m, last, {}, baseCtx);
+  auto baseCut = liveCut(m, last, baseCtx, dual);
   auto sourceN =
       int64_t(p.getRing()); // the original body can be replaced below
   double original = cost(base, p.getRing(), 0, price);
@@ -852,7 +929,8 @@ static void searchFromBaseline(ModuleOp m, SearchPolicy policy) {
           }
           OwningOpRef<ModuleOp> scratch(cast<ModuleOp>(m->clone()));
           auto x = *scratch;
-          materialize(x, q.target, levels.at(q.fingerprint), price, bits);
+          auto inputs = liveCut(x, suffix(x), concreteSSAContext(x,base), dual);
+          materialize(x, q.target, levels.at(q.fingerprint), price, bits, inputs, dual);
           phase("pass2_pass1_replan");
           planModule(x, false);
           verifyPlan(x);
@@ -872,9 +950,10 @@ static void searchFromBaseline(ModuleOp m, SearchPolicy policy) {
           log.set("parameter_fingerprint",
                   b.getStringAttr(hash(spelling(par))));
           phase("security_and_benefit");
-          auto c = conv(x);
+          auto bridges = conversions(x);
+          auto c = bridges.front();
           auto trialCtx = concreteSSAContext(x, par);
-          auto trialCut = liveCut(x, suffix(x), c, trialCtx);
+          auto trialCut = liveCut(x, suffix(x), trialCtx, dual);
           log.set("cut", trialCut.record);
           log.set("key_domains", trialCtx.keyDomains);
           if (!trialCut.reason.empty())
@@ -884,22 +963,20 @@ static void searchFromBaseline(ModuleOp m, SearchPolicy policy) {
           log.set("security", security.record);
           if (!security.reason.empty())
             throw RejectedProposal(security.reason);
-          for (auto raw : field<ArrayAttr>(par, "edges")) {
-            auto e = cast<DictionaryAttr>(raw);
-            if (field<StringAttr>(e, "op") != "ring_down")
-              continue;
-            auto t = c.getInput().getType();
+          for (auto op : bridges) {
+            auto e = trialCtx.values.lookup(op.getOut());
+            auto t = op.getInput().getType();
             auto s = real(e, "physical_log_scale");
             auto w = t.getLogical().getNumElements();
-            c.setProvidedAttr(attr(b, layout(p, t.getN(), t.getLevel(), s, w)));
-            c.setRequiredAttr(attr(b, layout(p, q.target, t.getLevel(), s, w)));
+            op.setProvidedAttr(attr(b, layout(p, t.getN(), t.getLevel(), s, w)));
+            op.setRequiredAttr(attr(b, layout(p, q.target, op.getOut().getType().getLevel(), s, w)));
           }
-          auto rec = details(x, par, price, bits);
+          auto rec = details(x, par, price, bits, dual);
           double score = real(rec, "cost");
           x->setAttr("snabf.mixed_parameters", par);
           x->setAttr("snabf.ring_decision", rec);
           x->setAttr("snabf.switch_price", b.getF64FloatAttr(price));
-          if (score < original) {
+          if (forceDown || score < original) {
             valid.emplace(q.fingerprint, std::move(scratch));
           }
           return Evaluation{true, score, "verified"};
@@ -932,7 +1009,7 @@ static void searchFromBaseline(ModuleOp m, SearchPolicy policy) {
             return Evaluation{false, 0, e.what()};
           throw;
         }
-      });
+      }, forceDown);
   SmallVector<Attribute> events;
   for (auto &r : d.trace) {
     NamedAttrList a = phases.at(r.proposal.fingerprint);
@@ -983,6 +1060,7 @@ static void replaySearch(ModuleOp m, SearchPolicy policy) {
   else
     clearSearch(*base);
   searchFromBaseline(*base, policy);
+  if (policy.forceDown) requireCheckedRingDown(*base);
   require(trace == (*base)->getAttr("snabf.ring_search") &&
               m->getAttr("snabf.ring_decision") ==
                   (*base)->getAttr("snabf.ring_decision") &&
@@ -1006,11 +1084,12 @@ void checkRingSearch(ModuleOp m) {
 }
 void checkRings(ModuleOp m) {
   auto policy = readPolicy(m);
-  verifyMixed(m, policy.switchBits);
+  verifyMixed(m, policy.switchBits, policy.dual, policy.forceDown);
   replaySearch(m, policy);
 }
 void planRings(ModuleOp m, int64_t minRing, unsigned rounds, double price,
-               StringRef audit) {
+               StringRef audit, StringRef cutProfile, bool forceDown) {
+  require(cutProfile == "single-live-v1" || cutProfile == "dual-live-v1", "unsupported_cut_profile");
   // Replanning a previously hardened input cannot weaken its persisted security
   // policy.
   int64_t bits = switchFloor(m);
@@ -1021,14 +1100,15 @@ void planRings(ModuleOp m, int64_t minRing, unsigned rounds, double price,
     auto old = readPolicy(m, false);
     bits = std::max(bits, old.switchBits);
     if (isMixed(m))
-      verifyMixed(m, old.switchBits);
+      verifyMixed(m, old.switchBits, old.dual, old.forceDown);
     replaySearch(m, old);
     if (isMixed(m))
       restoreBaseline(m);
     else
       clearSearch(m);
   }
-  searchFromBaseline(m, {minRing, rounds, price, bits});
+  searchFromBaseline(m, {minRing, rounds, price, bits, cutProfile == "dual-live-v1", forceDown});
+  if (forceDown) requireCheckedRingDown(m);
   if (!audit.empty()) {
     std::error_code ec;
     llvm::raw_fd_ostream os(audit, ec);

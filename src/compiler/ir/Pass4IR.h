@@ -2,7 +2,7 @@
 #include "Pipeline.h"
 namespace snabf::ir {
 void planRings(ModuleOp, int64_t minRing, unsigned rounds,
-               double conversionPrice, StringRef audit);
+               double conversionPrice, StringRef audit, StringRef cutProfile, bool forceDown);
 bool isMixed(ModuleOp);
 void checkRings(ModuleOp);
 void checkRingSearch(ModuleOp);

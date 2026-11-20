@@ -65,6 +65,7 @@ EmitGraph::EmitGraph(DictionaryAttr p) : program(p),
     for (auto i:e.inputs) {
       int64_t gap=edges[i].level-e.level;
       require(e.op==Op::Drop ? gap>=0 : e.op==Op::Rescale ? gap==1 : gap==0,"invalid_operand_level: " + s);
+      if (e.op==Op::Add) require(std::abs(edges[i].scale-e.scale)<=1e-8,"unaligned physical add: " + s);
     }
     if (e.op==Op::Mask || e.op==Op::Coefficient || e.op==Op::AddPlain) {
       e.values=field<DenseF64ArrayAttr>(d,"values").asArrayRef();
@@ -82,28 +83,45 @@ EmitGraph::EmitGraph(DictionaryAttr p) : program(p),
       }
     }
     if (sw) {
-      require(transition && !downs++ && e.n==target && source>target && num(p,"cut_level")==e.level &&
+      require(transition && e.n==target && source>target && num(p,"cut_level")==e.level &&
               field<BoolAttr>(transition,"emittable").getValue() && str(transition,"op_kind")=="ring_down" && num(transition,"parallel_factor")==1 &&
               str(transition,"source_key")==str(families.at(source),"key_id") && str(transition,"target_key")==str(families.at(target),"key_id") &&
               num(transition,"switch_level_q")==e.level && num(transition,"switch_level_p")==int64_t(ints(families.at(target),"p").size())-1 &&
               ints(transition,"target_q")==ints(families.at(target),"q") && ints(transition,"target_p")==ints(families.at(target),"p") &&
               edges[e.inputs.front()].scale==e.scale,"non_emittable_conversion_or_key");
-      periodic(field<DictionaryAttr>(transition,"provided"),source,width,slots,e.level,e.scale);
-      periodic(field<DictionaryAttr>(transition,"required"),target,width,slots,e.level,e.scale);
       auto cut=field<DictionaryAttr>(transition,"cut");
       auto values=field<ArrayAttr>(cut,"live_values");
-      require(values.size()==1 && num(cut,"ciphertext_use_count")==1,"unconverted_live_cut_value");
-      cutValue=cast<DictionaryAttr>(values[0]);
+      auto records=transition.getAs<ArrayAttr>("operands");
+      require(values.size()>=1 && values.size()<=(records?2u:1u) && downs<values.size() &&
+              num(cut,"ciphertext_use_count")==int64_t(values.size()) && (!records || records.size()==values.size()),"unconverted_live_cut_value");
+      auto cutValue=cast<DictionaryAttr>(values[downs]);
+      auto bind=records?cast<DictionaryAttr>(records[downs]):transition;
+      auto provided=field<DictionaryAttr>(bind,"provided"), required=field<DictionaryAttr>(bind,"required");
+      auto input=e.inputs.front(), raw=input;
+      if (num(cutValue,"active_level")!=e.level) {
+        require(edges[input].op==Op::Drop && edges[input].inputs.size()==1,"missing_cut_level_alignment");
+        raw=edges[input].inputs.front();
+      }
+      periodic(provided,source,width,slots,e.level,e.scale);
+      periodic(required,target,width,slots,e.level,e.scale);
+      periodic(field<DictionaryAttr>(cutValue,"layout"),source,width,slots,edges[raw].level,e.scale);
+      if(records) require(bind.get("value")==cutValue && str(bind,"input_edge")==edges[input].id &&
+                          str(field<DictionaryAttr>(bind,"transition"),"ID")==s && !field<ArrayAttr>(bind,"consumers").empty(),"stale_cut_binding");
       auto uses=field<ArrayAttr>(cutValue,"uses");
-      require(uses.size()==1 && str(cast<DictionaryAttr>(uses[0]),"role")=="main" &&
-              str(cutValue,"edge_id")==edges[e.inputs[0]].id && str(cutValue,"key_domain")==str(transition,"source_key") &&
-              num(cutValue,"ring_dim")==source && num(cutValue,"active_level")==e.level &&
-              real(cutValue,"physical_log_scale")==e.scale && cutValue.get("layout")==transition.get("provided") &&
-              ints(cutValue,"q")==ints(transition,"target_q") && ints(cutValue,"p")==ints(transition,"target_p"),"stale_direct_cut_value");
+      require(uses.size()==1 && str(cast<DictionaryAttr>(uses[0]),"role")== (downs?"bypass":"main") &&
+              str(cast<DictionaryAttr>(uses[0]),"user")=="snabf.convert" && num(cast<DictionaryAttr>(uses[0]),"operand")==0 &&
+              str(cutValue,"edge_id")==edges[raw].id && str(cutValue,"key_domain")==str(transition,"source_key") &&
+              num(cutValue,"ring_dim")==source && num(cutValue,"active_level")==edges[raw].level &&
+              real(cutValue,"physical_log_scale")==e.scale && edges[raw].scale==e.scale &&
+              ints(cutValue,"q")==ints(families.at(source),"q").take_front(edges[raw].level+1) &&
+              ints(cutValue,"p")==ints(transition,"target_p"),"stale_direct_cut_value");
+      operands.push_back({cutValue,provided,required,edges[input].id,records?field<ArrayAttr>(bind,"consumers"):ArrayAttr{}});
+      ++downs;
     }
     edges.push_back(e);
   }
-  require(downs==unsigned(source!=target) && sink>=0 && size_t(sink)<edges.size() && edges[sink].n==target,"invalid_epoch_sink");
+  require(downs==(transition?field<ArrayAttr>(field<DictionaryAttr>(transition,"cut"),"live_values").size():0) &&
+          sink>=0 && size_t(sink)<edges.size() && edges[sink].n==target,"invalid_epoch_sink");
   int64_t bytes=0;
   for (auto [n,d]:families) {
     require(llvm::equal(keys[n],ints(d,"galois")),"used_rotations_disagree_with_key_inventory");
@@ -139,7 +157,7 @@ EmitGraph::EmitGraph(DictionaryAttr p) : program(p),
     }
     require(accounted.size()==families.size() && bool(switchingDomain)==bool(transition),"missing_execution_domain");
   }
-  require(!transition || (cutValue && switchingDomain),"unbound_mixed_domain_or_cut");
+  require(!transition || (!operands.empty() && switchingDomain),"unbound_mixed_domain_or_cut");
   require(bytes==num(p,"galois_bytes"),"stale_emitted_key_bytes");
 }
 } // namespace snabf::ir::lattigo_target::detail

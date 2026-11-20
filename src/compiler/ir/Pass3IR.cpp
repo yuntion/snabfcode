@@ -22,7 +22,7 @@ double real(DictionaryAttr d, StringRef k) {
 struct Input {
   p::Graph g;
   ProfileOp profile, target;
-  ConvertOp bridge;
+  SmallVector<ConvertOp> bridges;
   llvm::DenseMap<Value, int> results;
   ArrayAttr keys;
 };
@@ -48,15 +48,16 @@ Input extract(ModuleOp m) {
   require(in.profile && !in.profile->hasAttr("snabf.target_epoch"),
           "missing_source_key_domain");
   m.walk([&](ConvertOp c) {
-    require(!in.bridge, "multiple_cut_edges_not_emittable");
-    in.bridge = c;
+    require(in.bridges.size() < 2 && (!in.target || in.target == domain(c.getOut())),
+            "multiple_or_incompatible_cut_domains");
+    in.bridges.push_back(c);
     in.target = domain(c.getOut());
-    int64_t l = c.getInput().getType().getLevel();
+    int64_t l = c.getOut().getType().getLevel();
     require(domain(c.getInput()) == in.profile && in.target != in.profile &&
                 in.target->hasAttr("snabf.target_epoch") &&
                 in.target.getRing() < in.profile.getRing() &&
                 in.profile.getRing() % in.target.getRing() == 0 &&
-                c.getOut().getType().getLevel() == l &&
+                c.getInput().getType().getLevel() >= l &&
                 in.target.getQ() == in.profile.getQ().take_front(l + 1) &&
                 in.target.getP() == in.profile.getP() &&
                 in.target.getKeyId() != in.profile.getKeyId(),
@@ -70,7 +71,7 @@ Input extract(ModuleOp m) {
   in.keys =
       field<ArrayAttr>(field<DictionaryAttr>(m, "snabf.inventory"), "keys");
   auto &edges = in.results;
-  int polyIndex = 0, stepIndex = 0;
+  int polyIndex = 0, stepIndex = 0, downIndex = 0;
   auto make = [&](std::string id, O op, int l, std::vector<int> a,
                   std::vector<double> w, double mag, int mask = -1,
                   int poly = -1, int node = -1) {
@@ -89,7 +90,7 @@ Input extract(ModuleOp m) {
   m.walk([&](Operation *o) {
     if (auto sink = dyn_cast<SinkOp>(o)) {
       require(g.sink == -1, "multiple sinks outside this Pass 3 family");
-      require(domain(sink.getInput()) == (in.bridge ? in.target : in.profile),
+      require(domain(sink.getInput()) == (in.target ? in.target : in.profile),
               "sink_key_domain_mismatch");
       g.sink = at(sink.getInput());
       g.approximation =
@@ -111,7 +112,10 @@ Input extract(ModuleOp m) {
     auto first = g.edges.size();
     if (auto c = dyn_cast<ConvertOp>(o)) {
       int a = at(c.getInput());
-      result = make("ring_down", O::Down, l, {a}, {1}, magnitude(a));
+      std::string id = in.bridges.size() == 1 ? "ring_down" : "ring_down." + std::to_string(downIndex++);
+      if (g.edges[a].level != l)
+        a = make(id + ".align", O::Drop, l, {a}, {1}, magnitude(a));
+      result = make(id, O::Down, l, {a}, {1}, magnitude(a));
     } else if (auto s = dyn_cast<SourceOp>(o)) {
       result = make("input", O::Source, l, {}, {},
                     field<FloatAttr>(o, "input_bound").getValueAsDouble());
@@ -380,7 +384,7 @@ ArrayAttr keyDomains(Builder &b, Input &in) {
     d.set("keys", b.getArrayAttr(keys));
     domains.push_back(d.getDictionary(b.getContext()));
   }
-  if (in.bridge) {
+  if (!in.bridges.empty()) {
     NamedAttrList d;
     d.set("role", b.getStringAttr("switching_key_ext"));
     d.set("basis", b.getStringAttr("QP"));
@@ -392,10 +396,7 @@ ArrayAttr keyDomains(Builder &b, Input &in) {
     // must also be screened.
     d.set("ring_dim", in.profile.getRingAttr());
     d.set("embedded_secret_ring", in.target.getRingAttr());
-    addBasis(d,
-             in.profile.getQ().take_front(
-                 in.bridge.getInput().getType().getLevel() + 1),
-             in.target.getP());
+    addBasis(d, in.target.getQ(), in.target.getP());
     domains.push_back(d.getDictionary(b.getContext()));
   }
   return b.getArrayAttr(domains);
@@ -557,13 +558,30 @@ void verifySourceScreen(ModuleOp m, DictionaryAttr base) {
   checkSecurity(field<StringAttr>(m, "snabf.security_screen").getValue(), base);
 }
 void publishPass3(ModuleOp m, const p::Options &o, bool fixed, StringRef audit,
-                  StringRef security) {
+                  StringRef security, double sourceFraction) {
   verifyPlan(m);
   Builder b(m.getContext());
   auto in = extract(m);
   p::Solution s;
-  if (!fixed)
-    s = p::optimize(in.g, o);
+  require(sourceFraction > 0 && sourceFraction <= 1 && (!fixed || sourceFraction == 1), "invalid_source_arithmetic_fraction");
+  const double requestedFraction = sourceFraction;
+  if (!fixed) {
+    auto search = o;
+    if (sourceFraction < 1)
+      search.tolerance = in.g.approximation + sourceFraction * (o.tolerance - in.g.approximation);
+    try {
+      s = p::optimize(in.g, search);
+    } catch (const std::runtime_error &e) {
+      // A planning reserve must not reject an otherwise feasible source-only
+      // fallback. Never absorb unknown solver errors or admission failures.
+      if (sourceFraction == 1 || StringRef(e.what()) != "Pass 3 infeasible under requested scale, precision and QP bounds") throw;
+      sourceFraction = 1;
+      s = p::optimize(in.g, o);
+    }
+    // This is a search reserve, not evidence about either conversion. Always
+    // replay the actual graph under the caller's original acceptance contract.
+    if (sourceFraction < 1) { auto v = p::replay(in.g, o, s); require(v.reason.empty(), v.reason); }
+  }
   else {
     s.scale = in.profile.getDefaultLogScale();
     s.q.assign(in.profile.getQ().begin(), in.profile.getQ().end());
@@ -585,6 +603,8 @@ void publishPass3(ModuleOp m, const p::Options &o, bool fixed, StringRef audit,
   }
   if (!audit.empty()) {
     auto json = jsonPass2(r);
+    json["source_arithmetic_fraction"] = sourceFraction;
+    json["requested_source_arithmetic_fraction"] = requestedFraction;
     json["requested_slots"] = int64_t(in.profile.getSlots());
     llvm::json::Array bits, scales, cuts;
     for (double x : s.bits)
