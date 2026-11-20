@@ -1,6 +1,7 @@
 #include "Pass4IR.h"
 #include "Pass2IR.h"
 #include "Pass3IR.h"
+#include "Target/Lattigo/EmitVerifier.h"
 #include "pass3/PrimeInstantiator.h"
 #include "pass4/DynamicRingPlanner.h"
 #include "pass4/RingSwitchPlan.h"
@@ -787,9 +788,8 @@ static void clearSearch(ModuleOp x) {
   source(x)->removeAttr(policyName);
   for (auto k :
        {"snabf.ring_search", "snabf.mixed_parameters", "snabf.ring_decision",
-        "snabf.switch_price", "snabf.ckks_epochs", "snabf.pass4_required",
-        "snabf.pass4_effective_switching_key_security_bits",
-        "snabf.emit_sha256"})
+        "snabf.switch_price", "snabf.pass4_required",
+        "snabf.pass4_effective_switching_key_security_bits"})
     x->removeAttr(k);
 }
 static void restoreBaseline(ModuleOp x) {
@@ -1100,13 +1100,18 @@ void checkRings(ModuleOp m) {
   verifyMixed(m, policy.switchBits, policy.dual, policy.forceDown);
   replaySearch(m, policy);
 }
-void planRings(ModuleOp m, int64_t minRing, unsigned rounds, double price,
+void planRings(ModuleOp input, int64_t minRing, unsigned rounds, double price,
                StringRef audit, StringRef cutProfile, bool forceDown) {
   require(cutProfile == "single-live-v1" || cutProfile == "dual-live-v1", "unsupported_cut_profile");
+  // A rejected replan must leave the original sealed input intact. Only the
+  // explicit planner gets this transition; replaySearch never reseals an IR.
+  OwningOpRef<ModuleOp> draft(cast<ModuleOp>(input->clone()));
+  ModuleOp m = *draft;
   // Replanning a previously hardened input cannot weaken its persisted security
   // policy.
   int64_t bits = switchFloor(m);
-  if (isMixed(m) || m->hasAttr("snabf.ring_search")) {
+  const bool previousSearch = isMixed(m) || m->hasAttr("snabf.ring_search");
+  if (previousSearch) {
     // Authenticate the old decision under its recorded policy, but never emit
     // it when the new environment asks for more. Re-solve with the stronger
     // floor.
@@ -1115,6 +1120,13 @@ void planRings(ModuleOp m, int64_t minRing, unsigned rounds, double price,
     if (isMixed(m))
       verifyMixed(m, old.switchBits, old.dual, old.forceDown);
     replaySearch(m, old);
+  } else {
+    checkRingSearch(m); // reject a stripped previous policy, not a fresh search
+    require(!m->hasAttr("snabf.ring_decision") && !m->hasAttr("snabf.mixed_parameters") &&
+            !m->hasAttr("snabf.switch_price"), "missing_ring_search");
+  }
+  lattigo_target::invalidateForExplicitPass4Replan(m);
+  if (previousSearch) {
     if (isMixed(m))
       restoreBaseline(m);
     else
@@ -1132,5 +1144,7 @@ void planRings(ModuleOp m, int64_t minRing, unsigned rounds, double price,
           jsonPass2(field<DictionaryAttr>(m, "snabf.ring_decision"));
     os << llvm::formatv("{0:2}\n", llvm::json::Value(std::move(j)));
   }
+  input->setAttrs(m->getAttrs());
+  input.getBodyRegion().takeBody(m.getBodyRegion());
 }
 } // namespace snabf::ir
