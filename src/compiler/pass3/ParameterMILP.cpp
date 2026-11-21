@@ -3,15 +3,21 @@
 #include "CostProfile.h"
 #include "Highs.h"
 #include "PrimeInstantiator.h"
+#include "RejectionIsolation.h"
+#include <boost/multiprecision/cpp_int.hpp>
+#include <boost/property_tree/json_parser.hpp>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <exception>
 #include <iomanip>
+#include <iostream>
 #include <map>
 #include <optional>
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <string_view>
 namespace snabf::pass3 {
 namespace {
 using Row = std::map<int, double>;
@@ -127,8 +133,75 @@ void verifyPricedObjective(const Graph &g,const Options &o,const Solution &s) {
     throw std::runtime_error("gadget_objective_replay_mismatch");
 }
 
+// An attempted scale/basis can fail before HiGHS, inside HiGHS, or after
+// concrete replay. None of these events proves why another attempt failed.
+struct CandidateTrace {
+  std::ostream *out;
+  const Graph &g;
+  const Options &o;
+  int scale, alpha;
+  const MeasuredBasis *basis;
+
+  void record(const char *stage, const char *status, int round = 0,
+              const Solution *physical = nullptr, int blockFirst = -1,
+              const diagnostic::Tree *isolation = nullptr) const {
+    if (!out) return;
+    using boost::property_tree::ptree;
+    ptree row;
+    row.put("schema", "snabf.pass3.candidate-rejection.v1");
+    row.put("stage", stage);
+    row.put("status", status);
+    row.put("reason", "unknown");
+    row.put("n", g.n);
+    row.put("q_count", g.levels);
+    row.put("alpha", alpha);
+    row.put("scale_bits", scale);
+    row.put("max_k", o.maxK);
+    row.put("tolerance", o.tolerance);
+    row.put("security_cap_bits", o.securityCap);
+    row.put("round", round); // 0: model construction; 1..12: solve/refine
+    if (isolation) row.add_child("isolation", *isolation);
+    if (physical || basis) {
+      auto limbs = [](const std::vector<int64_t> &v) {
+        ptree a;
+        for (auto x : v) a.push_back({"", ptree(std::to_string(x))});
+        return a;
+      };
+      row.put("basis_source", physical ? "concrete_replay" : "profile_input");
+      row.add_child("q", limbs(physical ? physical->q : basis->q));
+      row.add_child("p", limbs(physical ? physical->p : basis->p));
+    }
+    if (physical && blockFirst >= 0) {
+      // Recheck the verifier's original (possibly short final) Q block using
+      // integers. A continuous width, deficit or solver status is not proof.
+      using boost::multiprecision::cpp_int;
+      int end = std::min(blockFirst + alpha, int(physical->q.size()));
+      cpp_int actual = 1, required = cpp_int(1) << o.auxMarginBits;
+      for (auto p : physical->p) actual *= p;
+      for (int j = blockFirst; j < end; ++j) required *= physical->q[j];
+      if (actual < required) {
+        row.put("reason", "aux_block_margin");
+        row.put("witness.block_first", blockFirst);
+        row.put("witness.block_end_exclusive", end);
+        row.put("witness.margin_bits", o.auxMarginBits);
+        row.put("witness.p_product", actual.str());
+        row.put("witness.required_product", required.str());
+      }
+    }
+    std::ostringstream line;
+    boost::property_tree::write_json(line, row, false);
+    *out << line.str();
+  }
+
+  std::nullopt_t reject(const char *stage, const char *status, int round = 0) const {
+    record(stage, status, round);
+    return std::nullopt;
+  }
+};
+
 std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha,
-                              const MeasuredBasis *basis=nullptr) {
+                              std::ostream *out, const MeasuredBasis *basis=nullptr) {
+  const CandidateTrace trace{out, g, o, d, alpha, basis};
   Model m;
   const double inf = kHighsInf;
   double b0 = o.minBase;
@@ -158,8 +231,13 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
     if(lo>hi) return false;
     occupied.insert(z);m.row(lo,{{col,1}},hi);return true;
   };
-  if (b0 >= (block ? o.primeWidthMax : 60.))
+  if (b0 >= (block ? o.primeWidthMax : 60.)) {
+    if (out) {
+      auto input = diagnostic::baseWidth(g, o, b0);
+      trace.record("model_bounds", "base_width", 0, nullptr, -1, &input);
+    }
     return {};
+  }
   std::vector<int> q, sc, noise;
   std::vector<double> lb, ub;
   Row total;
@@ -176,21 +254,21 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
       lb.back() = std::max(lb.back(), d - .49);
       ub.back() = std::min(ub.back(), d + .49);
     }
-    if (lb[l] > ub[l]) return {};
+    if (lb[l] > ub[l]) return trace.reject("model_bounds", "empty_q_interval");
     q.push_back(m.var(lb[l], ub[l], bitWeight));
-    if(basis && !pin(q.back(),basis->q.at(l),lb[l],ub[l])) return {};
+    if(basis && !pin(q.back(),basis->q.at(l),lb[l],ub[l])) return trace.reject("model_bounds", "q_rounding_cell");
     total[q.back()] = 1;
   }
   const double plo = block ? std::max(o.primeWidthMin * alpha, double(d+o.auxMarginBits)) : double(d+2);
   const double phi = block ? o.primeWidthMax * alpha : std::min(59.9, double(d+19));
-  if (plo >= phi) return {};
+  if (plo >= phi) return trace.reject("model_bounds", "nonpositive_p_width_span");
   std::vector<int> aux;
   int p = m.var(plo, phi, block ? 0 : bitWeight);
   if (block) {
     Row sum{{p,1}};
     for (int j=0; j<alpha; ++j) {
       int v=m.var(o.primeWidthMin,o.primeWidthMax,bitWeight);
-      if(basis && !pin(v,basis->p.at(j),o.primeWidthMin,o.primeWidthMax)) return {};
+      if(basis && !pin(v,basis->p.at(j),o.primeWidthMin,o.primeWidthMax)) return trace.reject("model_bounds", "p_rounding_cell");
       aux.push_back(v); total[v]=1; sum[v]=-1;
       if (j) m.row(0, {{aux[j-1],1},{v,-1}}, inf);
     }
@@ -201,6 +279,7 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
       m.row(o.auxMarginBits,margin,inf);
     }
   } else { aux.push_back(p); total[p]=1; }
+  const int qpCapRow = m.h.getNumRow();
   m.row(-inf, total, o.securityCap);
   int pinv = m.upperExp(p, plo, phi, -1, plo);
   std::vector<std::vector<int>> z(g.edges.size());
@@ -329,7 +408,7 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
             eq[q[j]]=1; lowQ+=lb[j]; highQ+=ub[j];
           }
           double low=std::max(double(o.auxMarginBits),plo-highQ), high=phi-lowQ;
-          if (low>high) return {};
+          if (low>high) return trace.reject("model_bounds", "empty_block_gap");
           int gap=m.var(low,high); eq[gap]=1; m.row(0,eq,0);
           int ratio=m.upperExp(gap,low,high,-1,low);
           int term=m.product(u.at(first/alpha),ratio,0.,1.);
@@ -350,11 +429,17 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
   for (int round = 0; round < 12; ++round) {
     ok(m.h.run());
     auto status = m.h.getModelStatus();
-    if (status == HighsModelStatus::kInfeasible)
-      return {};
-    if (status != HighsModelStatus::kOptimal)
+    if (status != HighsModelStatus::kOptimal) {
+      if (out) {
+        auto input = diagnostic::solverRows(m.h, qpCapRow);
+        const char *s = status == HighsModelStatus::kInfeasible ? "infeasible" :
+                        status == HighsModelStatus::kUnknown ? "unknown" : "not_optimal";
+        trace.record("solver", s, round + 1, nullptr, -1, &input);
+      }
+      if (status == HighsModelStatus::kInfeasible) return {};
       throw std::runtime_error(
           "HiGHS did not prove an optimal Pass 3 solution");
+    }
     auto v = m.h.getSolution().col_value;
     Solution s;
     s.scale = d;
@@ -384,6 +469,8 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
       s.cuts = cuts;
       return s;
     }
+    trace.record("concrete_replay", "rejected", round + 1, &s,
+                 bad.level == -3 ? bad.blockFirst : -1);
     std::ostringstream why;
     why << bad.reason << "; bit deficit=" << std::setprecision(12) << bad.deficit;
     cuts.push_back(why.str());
@@ -411,7 +498,7 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
     } else
       return {};
   }
-  return {};
+  return trace.reject("refinement", "round_limit", 12);
 }
 } // namespace
 Solution optimizeAtBoundary(const Graph &g,const Options &o,Solution s){
@@ -446,7 +533,8 @@ Solution optimizeAtBoundary(const Graph &g,const Options &o,Solution s){
   if(auto v=replay(g,o,s);!v.reason.empty())throw std::runtime_error("boundary_concrete_replay: "+v.reason);
   s.objective=m.h.getObjectiveValue();verifyPricedObjective(g,o,s);return s;
 }
-Solution optimize(const Graph &g, const Options &o) {
+namespace {
+Solution search(const Graph &g, const Options &o, std::ostream *out) {
   validate(g, o);
   std::optional<Solution> best;
   if(o.costProfile) {
@@ -459,7 +547,7 @@ Solution optimize(const Graph &g, const Options &o) {
       try { (void)priceGroups(g,b); } catch(const MissingCost &) {missing=std::current_exception();continue;}
       covered=true;
       for(int d=o.minScale;d<=o.maxScale;++d) {
-        auto s=fixed(g,o,d,b.p.size(),&b);
+        auto s=fixed(g,o,d,b.p.size(),out,&b);
         if(s && (!best || s->objective<best->objective-1e-8)) best=std::move(s);
       }
     }
@@ -470,7 +558,7 @@ Solution optimize(const Graph &g, const Options &o) {
   } else
   for (int alpha=1; alpha<=4; ++alpha) if(o.admits(alpha))
   for (int d = o.minScale; d <= o.maxScale; ++d) {
-    auto s = fixed(g, o, d, alpha);
+    auto s = fixed(g, o, d, alpha, out);
     if (s && (!best || s->objective < best->objective - 1e-8))
       best = std::move(s);
   }
@@ -478,5 +566,14 @@ Solution optimize(const Graph &g, const Options &o) {
     throw std::runtime_error(
         "Pass 3 infeasible under requested scale, precision and QP bounds");
   return *best;
+}
+} // namespace
+
+Solution optimize(const Graph &g, const Options &o, std::ostream &rejections) {
+  return search(g, o, &rejections);
+}
+Solution optimize(const Graph &g, const Options &o) {
+  const char *flag = std::getenv("SNABF_PASS3_TRACE_REJECTIONS");
+  return search(g, o, flag && std::string_view(flag) == "1" ? &std::cerr : nullptr);
 }
 } // namespace snabf::pass3

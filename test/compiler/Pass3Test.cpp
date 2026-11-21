@@ -1,16 +1,93 @@
 #include "pass3/ConcreteVerifier.h"
 #include "pass3/ParameterMILP.h"
 #include "pass3/PrimeInstantiator.h"
+#include <boost/property_tree/json_parser.hpp>
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+#include <sstream>
 #include <stdexcept>
 using namespace snabf::pass3;
 void yes(bool b, const char *msg) {
   if (!b)
     throw std::runtime_error(msg);
 }
-int main() {
+namespace {
+using boost::property_tree::ptree;
+std::vector<ptree> records(const std::ostringstream &out) {
+  std::istringstream input(out.str());
+  std::vector<ptree> rows;
+  for (std::string line; std::getline(input, line);) {
+    std::istringstream json(line);
+    boost::property_tree::read_json(json, rows.emplace_back());
+    yes(rows.back().get<std::string>("schema") == "snabf.pass3.candidate-rejection.v1", "wrong rejection schema");
+  }
+  return rows;
+}
+
+void candidateRejections(std::ostream *samples = nullptr) {
+  // At N=1024 the nearest primes to 2^36 and 2^38 fail P >= 4*Q0.
+  // Exercise actual instantiation and refinement rather than a fabricated rejection.
+  Graph g{1024, 1, 0, 0, {{"x", Op::Source, 0, {}, {}, .1}}};
+  Options o;
+  o.minScale = o.maxScale = 32;
+  o.minBase = 36;
+  o.alpha = 1;
+  o.maxK = 0;
+  auto block = [](const ptree &r) {
+    yes(r.get<std::string>("stage") == "concrete_replay" && r.get<std::string>("reason") == "aux_block_margin" &&
+        r.get<int>("round") == 1 && r.get<int>("alpha") == 1 && r.get<int>("scale_bits") == 32 &&
+        r.get<int>("witness.block_first") == 0 && r.get<int>("witness.block_end_exclusive") == 1,
+        "wrong concrete candidate/block");
+    auto q = r.get_child("q").front().second.get_value<uint64_t>();
+    auto p = r.get_child("p").front().second.get_value<uint64_t>();
+    auto need = q << r.get<int>("witness.margin_bits");
+    yes(q == 68719484929 && p == 274877908993 && need == 274877939716 &&
+        p == r.get<uint64_t>("witness.p_product") && need == r.get<uint64_t>("witness.required_product") && p < need,
+        "integer threshold does not replay against the instantiated basis");
+  };
+  std::ostringstream out;
+  auto traced = optimize(g, o, out), plain = optimize(g, o);
+  auto recovered = records(out);
+  yes(recovered.size() == 1 && traced.q == plain.q && traced.p == plain.p && traced.k == plain.k &&
+      traced.cuts == plain.cuts && traced.objective == plain.objective && replay(g, o, traced).reason.empty(),
+      "a rejected candidate was confused with a rejected graph");
+  block(recovered.front());
+
+  auto denied = [&](double cap) {
+    o.securityCap = cap;
+    std::ostringstream log;
+    try { (void)optimize(g, o, log); }
+    catch (const std::runtime_error &e) {
+      yes(std::string(e.what()) == "Pass 3 infeasible under requested scale, precision and QP bounds", "changed fallback exception");
+      return records(log);
+    }
+    throw std::runtime_error("expected candidate rejection");
+  };
+  auto unknown = [](const ptree &r, int round) {
+    yes(r.get<std::string>("stage") == "solver" && r.get<std::string>("status") == "infeasible" &&
+        r.get<std::string>("reason") == "unknown" && r.get<int>("round") == round &&
+        !r.get_child_optional("witness") && !r.get_child_optional("q") && !r.get_child_optional("p"),
+        "solver status acquired a spurious cause or concrete basis");
+  };
+  auto mixed = denied(74.001); // allows the original model, not its refinement
+  yes(mixed.size() == 2, "lost candidate or inherited a previous witness");
+  block(mixed.front()); unknown(mixed.back(), 2);
+  auto bare = denied(1);
+  yes(bare.size() == 1, "bare solver failure must not invent a candidate");
+  unknown(bare.front(), 1);
+  if (samples) {
+    for (const auto *r : {&mixed.back(), &bare.front()})
+      boost::property_tree::write_json(*samples, *r, false);
+  }
+}
+} // namespace
+int main(int argc, char **argv) {
+  if (argc == 2 && std::string(argv[1]) == "--isolation-fixtures") {
+    candidateRejections(&std::cout);
+    return 0;
+  }
+  candidateRejections();
   yes(!prime(341550071728321ULL) && prime(65537) && !prime(1), "primality");
   std::set<int64_t> used;
   auto v = nearestPrime(1024, 34, used);

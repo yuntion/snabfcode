@@ -1,4 +1,5 @@
 import copy
+import json
 import unittest
 
 import phase2_multip_middepth as mid
@@ -14,6 +15,57 @@ def graph():
 
 
 class MiddepthTests(unittest.TestCase):
+    def test_replay_one_rejected_candidate_not_the_entire_arm(self):
+        # alpha=2, short last original Q block. Both product fields exceed 2^53.
+        q, p = [7340033, 23068673, 36028797019488257], [469762049, 167772161]
+        row = dict(schema=mid.REJECTION, stage='concrete_replay', status='rejected',
+                   reason='aux_block_margin', n='1024', q_count='3', alpha='2', max_k='0', round='1',
+                   scale_bits='32', tolerance='0.000244140625', security_cap_bits='350',
+                   basis_source='concrete_replay', q=list(map(str,q)), p=list(map(str,p)),
+                   witness=dict(block_first='2', block_end_exclusive='3', margin_bits='2',
+                                p_product=str(p[0]*p[1]), required_product=str(4*q[2])))
+        def check(*rows):
+            lines = ['Pass 3 infeasible under requested scale, precision and QP bounds\n']
+            lines += [json.dumps(r, sort_keys=True) + '\n' for r in rows]
+            return mid.rejection_records(lines, n=1024, q_count=3, alpha=2, max_k=0)
+        unknown = {k:v for k,v in row.items() if k not in ('basis_source','q','p','witness')}
+        unknown.update(stage='solver', status='infeasible', reason='unknown', round='2')
+        self.assertEqual(check(row, unknown), [row, unknown])
+        self.assertEqual(check(), [])  # legacy log, no retroactive 17Q attribution
+        with self.assertRaisesRegex(ValueError, 'wrong rejection basis source'):
+            check(dict(unknown, basis_source='concrete_replay', q=row['q'], p=row['p']))
+
+        # These squares pass the NTT congruence and the strict, independently
+        # recomputed inequality. Only primality invalidates each claimed basis.
+        for which, i, composite in [('q', 0, 12289**2), ('q', 2, 998244353**2), ('p', 0, 12289**2)]:
+            forged = copy.deepcopy(row)
+            forged[which][i] = str(composite)
+            actual = int(forged['p'][0]) * int(forged['p'][1])
+            required = 4 * int(forged['q'][2])
+            forged['witness'].update(p_product=str(actual), required_product=str(required))
+            with self.subTest(modulus=which, index=i):
+                self.assertEqual(composite % (2*1024), 1)
+                self.assertLess(composite, 1 << 60)
+                self.assertLess(actual, required)
+                with self.assertRaisesRegex(ValueError, 'composite rejection modulus'):
+                    check(forged)
+
+        for edit in (dict(stage='solver',status='infeasible'), dict(reason='unknown'), dict(max_k='2'),
+                     dict(q=list(reversed(row['q']))), dict(basis_source='profile_input'),
+                     dict(witness=dict(row['witness'], required_product=str(4*q[2]+1))),
+                     dict(witness=dict(row['witness'], margin_bits='3',required_product=str(8*q[2]))),
+                     dict(witness=dict(row['witness'], block_first='1')),
+                     dict(witness=dict(row['witness'], block_first='0', block_end_exclusive='2',
+                                       required_product=str(4*q[0]*q[1])))):
+            with self.subTest(edit=edit), self.assertRaises(ValueError):
+                check(dict(row, **edit))
+
+    def test_deterministic_u64_primality_boundaries(self):
+        for n in (2, 65537, (1 << 64) - 59):
+            self.assertTrue(mid.prime_u64(n), n)
+        for n in (0, 1, 341550071728321, (1 << 64) - 1, 1 << 64, (1 << 64) + 13):
+            self.assertFalse(mid.prime_u64(n), n)
+
     def test_critical_path_uses_real_levels(self):
         out = mid.depth(graph())
         self.assertEqual((out['critical_rescales'],out['consumed_levels'],out['max_path_drop_limbs']), (2,2,1))

@@ -68,6 +68,8 @@ class StageFailure(ValueError):
         reason = next((x for x in known if x in text), None)
         self.receipt = dict(status='compiler_rejected' if reason else 'execution_failed',
                             stage=label, exit_code=code, log=log.name, reason=reason or str(self))
+        if reason is None and 'HiGHS did not prove an optimal Pass 3 solution' in text:
+            self.receipt.update(status='solver_indeterminate', reason='HiGHS did not prove an optimal Pass 3 solution')
         if '[SNABF_SECURITY_ORACLE_UNAVAILABLE]' in text or 'FileNotFoundError:' in text or '[Errno 2] No such file or directory' in text:
             self.receipt['status'] = 'dependency_unavailable'
         self.receipt['diagnostic_tail'] = text.splitlines()[-6:]
