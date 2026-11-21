@@ -38,10 +38,14 @@ ProfileOp domain(Value v) {
           "unbound_ciphertext_key_domain");
   return p;
 }
-Input extract(ModuleOp m) {
+Input extract(ModuleOp m, p::IRMagnitudeOrigins *origins = nullptr) {
   Input in;
   auto &g = in.g;
   Builder b(m.getContext());
+  if (origins) {
+    auto mode = m->getAttrOfType<StringAttr>("snabf.interval_mode");
+    origins->intervalMode = mode ? mode.str() : "naive";
+  }
   m.walk([&](SourceOp s) {
     require(!in.profile, "multiple_source_domains_not_emittable");
     in.profile = domain(s.getOut());
@@ -223,6 +227,7 @@ Input extract(ModuleOp m) {
               double c = std::abs(w[j]);
               t = make(id + "pt" + std::to_string(j), O::Coefficient, start,
                        {t}, {c}, magnitude(t) * c, -1, pi, node);
+              if (origins) origins->polynomialLiterals.emplace(t, w[j]);
             }
             terms.push_back(t);
             mag += magnitude(t);
@@ -235,10 +240,13 @@ Input extract(ModuleOp m) {
           require(opName == "input" && node == 0, "unknown polynomial node");
         if (mul || linear)
           v = make(id + "rescale", O::Rescale, end, {v}, {1}, magnitude(v));
-        double constant = std::abs(real(d, "constant"));
-        if (constant)
+        double signedConstant = real(d, "constant");
+        double constant = std::abs(signedConstant);
+        if (constant) {
           v = make(id + "constant", O::AddPlain, end, {v}, {1},
                    magnitude(v) + constant);
+          if (origins) origins->polynomialLiterals.emplace(v, signedConstant);
+        }
         values.push_back(v);
       }
       require(relins.empty(), "unbound Pass 2 relin sites");
@@ -625,22 +633,27 @@ void publishPass3(ModuleOp m, const p::Options &o, bool fixed, StringRef audit,
                   StringRef security, double sourceFraction) {
   verifyPlan(m);
   Builder b(m.getContext());
-  auto in = extract(m);
+  auto *trace = fixed ? nullptr : p::rejectionTraceStream();
+  p::IRMagnitudeOrigins origins;
+  auto in = extract(m, trace ? &origins : nullptr);
   p::Solution s;
   require(sourceFraction > 0 && sourceFraction <= 1 && (!fixed || sourceFraction == 1), "invalid_source_arithmetic_fraction");
   const double requestedFraction = sourceFraction;
   if (!fixed) {
+    auto solve = [&](const p::Options &opts) {
+      return trace ? p::optimize(in.g, opts, *trace, origins) : p::optimize(in.g, opts);
+    };
     auto search = o;
     if (sourceFraction < 1)
       search.tolerance = in.g.approximation + sourceFraction * (o.tolerance - in.g.approximation);
     try {
-      s = p::optimize(in.g, search);
+      s = solve(search);
     } catch (const std::runtime_error &e) {
       // A planning reserve must not reject an otherwise feasible source-only
       // fallback. Never absorb unknown solver errors or admission failures.
       if (sourceFraction == 1 || StringRef(e.what()) != "Pass 3 infeasible under requested scale, precision and QP bounds") throw;
       sourceFraction = 1;
-      s = p::optimize(in.g, o);
+      s = solve(o);
     }
     // This is a search reserve, not evidence about either conversion. Always
     // replay the actual graph under the caller's original acceptance contract.
