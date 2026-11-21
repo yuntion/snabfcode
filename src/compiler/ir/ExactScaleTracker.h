@@ -2,8 +2,6 @@
 
 #include "pass2/AffineErrorForm.h"
 #include "pass3/PrimeInstantiator.h"
-#include "llvm/ADT/StringExtras.h"
-#include "llvm/Support/SHA256.h"
 #include <algorithm>
 #include <bit>
 #include <cmath>
@@ -79,6 +77,9 @@ struct RescaleStepReceipt {
 };
 
 enum class JoinOp { Add, Sub };
+struct UnsupportedAddAlignment : std::invalid_argument {
+  UnsupportedAddAlignment() : std::invalid_argument("unsupported add alignment integer") {}
+};
 struct AddSubScaleAnalysis {
   int64_t lhs_int_mul = 1, rhs_int_mul = 1;
   ExactRational out_meta_scale, lhs_signed_effect, rhs_signed_effect;
@@ -99,41 +100,12 @@ struct ZeroDepthFoldResult {
 };
 
 class ExactScaleTracker {
+  static void checkState(const ScaleState &);
 public:
   // Build from the call site and public bits, not a claimed branch or M/E.
-  // This small adapter also serves the released B2.1 encoding ABI without
-  // adding a link dependency or a field to its sealed modules/audits.
   static EncodingCallReceipt encode(const EncodingCallContext &call,
                                     const ExactRational &requested,
-                                    std::span<const double> payload) {
-    call.domain.check(call.level);
-    if (call.call_id.empty() || call.site_id.empty() || call.operand_index < 0 ||
-        !call.is_batched || call.arg_type != "[]float64" || call.arg_precision_bits != 53 ||
-        call.encoder_prec_bits < 53 || call.encoder_prec_bits > 128 || call.slots <= 0 ||
-        !std::has_single_bit(unsigned(call.slots)) || call.slots > call.domain.ring_n / 2 ||
-        call.dynamic_input != payload.empty() || (!payload.empty() && call.slots % payload.size()))
-      throw std::invalid_argument("unbound encoding call/unsupported branch or payload");
-    auto digest = [&](size_t count) {
-      llvm::SHA256 h;
-      for (size_t j = 0; j < count; ++j) {
-        const double v = payload[j % payload.size()];
-        if (!std::isfinite(v)) throw std::invalid_argument("nonfinite public payload");
-        auto word = std::bit_cast<uint64_t>(v);
-        uint8_t bytes[8];
-        for (int i = 7; i >= 0; --i, word >>= 8) bytes[i] = uint8_t(word);
-        h.update(llvm::ArrayRef<uint8_t>(bytes, 8));
-      }
-      return llvm::toHex(h.final(), true);
-    };
-    auto m = pass2::roundCKKSScale(requested);
-    const bool f64 = call.encoder_prec_bits == 53;
-    auto hash = digest(payload.size());
-    std::optional<std::string> arg;
-    if (!call.dynamic_input) arg = payload.size() == size_t(call.slots) ? hash : digest(call.slots);
-    return {call, f64 ? "embed_double_f64" : "bigfloat_value",
-            f64 ? "batched-f64" : "batched-bigfloat", payload.size(), hash, arg,
-            requested, m, pass2::effectiveEncoderScale(m, call.encoder_prec_bits)};
-  }
+                                    std::span<const double> payload);
 
   static void verifyEncoding(const EncodingCallReceipt &claim, const EncodingCallContext &call,
                              const ExactRational &requested, std::span<const double> public_bits) {
@@ -142,6 +114,9 @@ public:
   }
 
   static ScaleState multiply(const ScaleState &, const ScaleState &);
+  // One numerical replay step, not a lowering authorization. Both callers
+  // select this prime from their independently validated active Q suffix.
+  static ScaleState replayPrimeDivision(const ScaleState &, std::span<const uint64_t> ordered_q, int level);
   // Only replay accepts PREC128. Production lowering must use the separate
   // entry point, which also rejects a one-Q request under a two-Q mode.
   static RescaleStepReceipt replayRescale(const ScaleState &, const ScaleDomain &, int in_level,

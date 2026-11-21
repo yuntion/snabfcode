@@ -73,6 +73,8 @@ llvm::json::Object probe() {
   const std::array<uint64_t,2> tail{449,353};
   const std::array<uint64_t,1> q{97};
   auto rs = T::replayRescale({65536,65536},h,2,tail);
+  denied([&]{ T::replayPrimeDivision(a,std::array<uint64_t,2>{97,449*353},1); }, "invalid prime");
+  denied([&]{ T::replayPrimeDivision(a,h.q,0); }, "level");
   const R single = pass2::roundCKKSScale(R(65536)/449/353);
   T::verifyReplayedRescale(rs,{65536,65536},h,2,tail);
   auto oneShot=rs; oneShot.meta_after=oneShot.divisions.back().after.metadata=single;

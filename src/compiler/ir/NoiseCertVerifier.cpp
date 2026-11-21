@@ -1,4 +1,5 @@
 #include "NoiseCertVerifier.h"
+#include "ExactScaleTracker.h"
 #include "pass3/PrimeInstantiator.h"
 
 #include <algorithm>
@@ -111,9 +112,11 @@ std::vector<Scale> replayPhysical(const Topology &g, CertAuditReport &r, std::ve
       if (step.ideal) *step.ideal *= *plainBound;
       ba = step.ideal;
       if (s && meta) {
-        const Exact physical = *s * *n.effective_encoder_scale;
-        s = roundCKKSScale(*s * *meta);
-        da = physical - *s;
+        // v1 charged upstream drift on its defining edge. Its input reference
+        // here is metadata, not a claim of a homogeneous effective gain.
+        auto p = ExactScaleTracker::multiply({*s, *s}, {*meta, *n.effective_encoder_scale});
+        s = p.metadata;
+        da = p.effective - *s;
         if (n.real_scalar) step.gain = *n.effective_encoder_scale * exactBinary(*n.real_scalar);
       } else s.reset();
       break;
@@ -123,18 +126,26 @@ std::vector<Scale> replayPhysical(const Topology &g, CertAuditReport &r, std::ve
       auto &other = steps[n.inputs[1]].ideal;
       if (step.ideal && other) *step.ideal *= *other; else step.ideal.reset();
       ba = step.ideal;
-      if (s && b) { Exact raw = *s * *b; s = roundCKKSScale(raw); da = raw - *s; }
+      if (s && b) {
+        auto p = ExactScaleTracker::multiply({*s, *s}, {*b, *b});
+        s = p.metadata;
+        da = p.effective - *s;
+      }
       else s.reset();
       break;
     }
     case Op::Rescale: {
-      const auto before = s;
+      std::optional<ScaleState> ref;
+      if (s) ref = ScaleState{*s, *s};
       for (int l = g.nodes[n.inputs[0]].level; l > n.level; --l) {
-        Exact q(std::to_string(d.q[l]));
-        step.gain /= q;
-        if (s) s = roundCKKSScale(*s / q);
+        if (ref) ref = ExactScaleTracker::replayPrimeDivision(*ref, d.q, l);
+        else step.gain /= Exact(std::to_string(d.q[l])); // known even without input metadata
       }
-      if (s) da = *before * step.gain - *s;
+      if (ref) {
+        step.gain = ref->effective / *s;
+        s = ref->metadata;
+        da = ref->effective - *s;
+      }
       break;
     }
     case Op::Add: case Op::Sub: case Op::AddPlain: {
@@ -142,21 +153,21 @@ std::vector<Scale> replayPhysical(const Topology &g, CertAuditReport &r, std::ve
       bb = n.op == Op::AddPlain ? plainBound : steps[n.inputs[1]].ideal;
       if (step.ideal && bb) *step.ideal += *bb; else step.ideal.reset();
       if (s && b) {
-        const Exact a = *s;
-        branch = "equal";
-        if (*s != *b) {
-          const bool left = a < *b;
-          const Exact ratio = roundCKKSScale(std::max(a, *b) / std::min(a, *b));
-          const Exact m(ratio.get_num() / ratio.get_den()); // big.Float.Int, NOT Scale.BigInt
-          // Keep the evaluator's scalar-to-RNS integer conversion exact even
-          // at its lowest encoding precision. Larger multipliers are unproved.
-          need(m >= 1 && m <= (mpz_class(1) << 50), "unsupported add alignment integer");
-          (left ? step.ma : step.mb) = m;
-          branch = left ? "multiply_left" : "multiply_right";
-          s = std::max(a, *b);
+        branch = *s == *b ? "equal" : *s < *b ? "multiply_left" : "multiply_right";
+        const auto op = n.op == Op::Sub ? JoinOp::Sub : JoinOp::Add;
+        // v1 projects just the two residual coefficients. Its exact-only bias
+        // and missing-bound convention below are part of the frozen audit ABI.
+        try {
+          auto join = ExactScaleTracker::analyzeAddSubMismatch(op, {*s, *s},
+              {*b, n.op == Op::AddPlain ? *n.effective_encoder_scale : *b}, {}, {});
+          step.ma = mpz_class(std::to_string(join.lhs_int_mul));
+          step.mb = mpz_class(std::to_string(join.rhs_int_mul));
+          s = join.out_meta_scale;
+          da = join.lhs_signed_effect;
+          db = op == JoinOp::Sub ? -join.rhs_signed_effect : join.rhs_signed_effect; // pre-subtraction v1 coefficient
+        } catch (const UnsupportedAddAlignment &e) {
+          throw std::invalid_argument(n.id + ": " + e.what());
         }
-        da = step.ma * a - *s;
-        db = step.mb * (n.op == Op::AddPlain ? *n.effective_encoder_scale : *b) - *s;
       }
       else s.reset();
       break;

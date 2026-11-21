@@ -4,7 +4,9 @@
 #include "ir/NoiseCertIR.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/Parser/Parser.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/SHA256.h"
 
 using namespace snabf;
 using namespace snabf::ir;
