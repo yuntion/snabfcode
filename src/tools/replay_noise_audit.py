@@ -1,4 +1,4 @@
-"""Replay an engineering audit, or independently verify the B2.1 physical scale ledger."""
+"""Replay an engineering audit, the B2.1 ledger, or a source-bound exact scale trace."""
 import argparse
 import json
 import hashlib
@@ -12,11 +12,8 @@ import tempfile
 from decimal import Decimal, localcontext
 from fractions import Fraction as Q
 from functools import lru_cache
-
-
-def need(ok, reason):
-    if not ok:
-        raise ValueError(reason)
+import exact_scale_replay as exact
+from exact_scale_replay import need, pow2, rn
 
 
 def unique(pairs):
@@ -120,20 +117,6 @@ def checked_inputs(path):
     return attr('snabf.pass3'), attr('snabf.encoding_receipts'), attr('snabf.emit_sha256'), b
 
 
-def pow2(k):
-    return Q(1 << k) if k >= 0 else Q(1, 1 << -k)
-
-
-def rn(x, precision=128):
-    """Integer-only round to a positive normal binary significand; ties to even."""
-    x = Q(x); need(x > 0, 'nonpositive scale')
-    k = x.numerator.bit_length() - x.denominator.bit_length()
-    need(abs(k) < 16384, 'scale outside replay range')
-    k -= x < pow2(k)
-    unit = pow2(k - precision + 1)
-    return round(x / unit) * unit
-
-
 @lru_cache(maxsize=2048)
 def exp2_128(log):
     need(math.isfinite(log) and -512 <= log <= 512, 'unsupported encoding exponent')
@@ -156,7 +139,7 @@ def exp2_128(log):
     raise ValueError('ambiguous independent exp2 rounding')
 
 
-def binding_plan(p):
+def binding_plan(p, calls=None):
     h = hashlib.sha256()
 
     def word(x):
@@ -186,7 +169,8 @@ def binding_plan(p):
             word(v)
         h.update(struct.pack('>d', e['physical_log_scale'])); vec(e['inputs'])
         vals = e.get('values', [])
-        digest = hashlib.sha256(b''.join(struct.pack('>d', v) for v in vals)).hexdigest()
+        words = b''.join(struct.pack('>d', v) for v in vals)
+        digest = hashlib.sha256(words).hexdigest()
         word(len(vals)); text(digest)
         d = domains[e['n']]; prec = max(53, d['scale'])
         need(all(0 <= j < i for j in e['inputs']) and 1 <= d['scale'] <= 128, 'unbound operand or encoder precision')
@@ -198,7 +182,14 @@ def binding_plan(p):
                 need(len(e['inputs']) == 1 and vals and p['slots'] % len(vals) == 0, 'invalid public payload')
                 parent = float(ins[e['inputs'][0]]['physical_log_scale'])
                 log = parent if op == 'add_plain' else float(e['physical_log_scale']) - parent
-            meta = exp2_128(log); eff = rn(meta, 53) if prec == 53 else meta
+            requested = exp2_128(log)  # v1 passes this rounded rational to rlwe.NewScale
+            meta, eff = exact.encoding_scales(requested, prec)
+            if calls is not None:
+                context = dict(call_id='encode:'+e['ID'], site_id=e['ID'], operand_index=0 if op=='source' else 1,
+                               key_id=d['key_id'], ring_n=d['n'], q=d['q'], p=d['p'], default_log_scale=d['scale'],
+                               level=e['Level'], slots=p['slots'], is_batched=True, arg_type='[]float64',
+                               arg_precision_bits=53, encoder_prec_bits=prec, dynamic_input=op=='source')
+                calls.append(dict(exact.encode(context, requested, words), log_argument_exact=str(Q(log))))
             rows.append(dict(index=i, node_id=e['ID'], call=op, key_id=d['key_id'], level=e['Level'], ring_n=e['n'],
                              precision=prec, branch='embedDouble/Scale.Float64' if prec == 53 else 'embedArbitrary/Scale.Value',
                              log_argument_exact=str(Q(log)), metadata_scale=str(meta), effective_encoder_scale=str(eff),
@@ -216,7 +207,7 @@ ROLES = {'source': ('encode', 'encrypt'), 'add': ('add',), 'add_plain': ('plain_
          'relin': ('evk_switch',)}
 
 
-def independent(checked, params, compare=None, baseline=None):
+def independent(checked, params, compare=None, baseline=None, *, source_witness=None, basis=None, compare_scales=None):
     ir, checked_plan, seal, source_bound = checked_inputs(checked)
     p = load(params)
     need(re.fullmatch(r'[0-9a-f]{64}', seal) and p.get('emit_sha256') == seal, 'different checked/program seal')
@@ -231,7 +222,16 @@ def independent(checked, params, compare=None, baseline=None):
         need(all(same(e[k], a[k]) for k in ('ID', 'op', 'Level', 'K', 'inputs')) and
              struct.pack('>d', e['physical_log_scale']) == struct.pack('>d', a['physical_log_scale']) and
              e['n'] == e['kernel_ring'] == ir['ring'], 'checked instruction mismatch: ' + e['ID'])
-    plan = binding_plan(p)
+    need(bool(source_witness) == bool(basis) and (not compare_scales or source_witness),
+         'source-bound replay needs both --source-witness and --basis')
+    trace = None
+    if source_witness:
+        from scale_source_binding import bind
+        raw = source_witness.read_bytes()
+        p = bind(checked, raw, load(basis), p, Attributes, source_bound)
+        ins = p['instructions']
+        trace = exact.Trace(domain, hashlib.sha256(raw).hexdigest(), seal)
+    plan = binding_plan(p, trace.calls if trace else None)
     need(same(plan, checked_plan) and same(plan, p.get('encoding_receipts')), 'missing or stale encoding scale binding')
     by_index = {r['index']: r for r in plan['receipts']}
     edges, sites, states, ledger = [], [], [], []
@@ -252,7 +252,7 @@ def independent(checked, params, compare=None, baseline=None):
         arity = 0 if op == 'source' else 2 if op in ('add', 'mul') else 1
         need(len(args) == arity, 'primitive arity mismatch')
         count = 1 if ir['scale'] <= 64 else 2
-        for _, _, l in args:
+        for _, _, l, _ in args:
             need(l >= level if op == 'drop' else l - level == (count if op == 'rescale' else 0), 'level mismatch')
         evk = key + ':relin' if op == 'relin' else key + ':rotation:' + str(e['rotation']) if keyed else ''
         a, ba = args[0][:2] if args else (None, source_bound)
@@ -265,18 +265,17 @@ def independent(checked, params, compare=None, baseline=None):
             s = rn(a * b); ideal = ba * bb; ba = ideal
             da = a * (b if op == 'mul' else eff) - s
         elif op == 'rescale':
-            s, denom = a, 1
-            for l in range(args[0][2], level, -1):
-                q = ir['q'][l]; s = rn(s / q); denom *= q
-            da = a / denom - s
+            l = args[0][2]
+            row = exact.rescale((a,a), ir['q'], l, ir['q'][level+1:l+1][::-1], ir['scale'])
+            s = Q(row['meta_after']); da = Q(row['eff_after']) - s
         elif op in ('add', 'add_plain'):
             b, bb = args[1][:2] if op == 'add' else (meta, max(abs(Q(v)) for v in values))
-            ideal = ba + bb; s = max(a, b); ma = mb = 1; branch = 'equal'
-            if a != b:
-                m = int(rn(s / min(a, b))); need(1 <= m <= 1 << 50, 'unsupported add integer')
-                if a < b: ma, branch = m, 'multiply_left'
-                else: mb, branch = m, 'multiply_right'
-            da, db = ma*a - s, mb*(b if op == 'add' else eff) - s
+            # Existing ledger references ciphertext metadata and already carries
+            # upstream discrepancies. Do not charge the effective trace again.
+            j = exact.join('add',(a,a),(b,b if op=='add' else eff),ba,bb,upper_endpoints=False)
+            ideal = ba + bb; s = Q(j['out_meta_scale']); ma,mb = j['lhs_int_mul'],j['rhs_int_mul']
+            branch = 'equal' if a==b else 'multiply_left' if a<b else 'multiply_right'
+            da,db = Q(j['lhs_signed_effect']),Q(j['rhs_signed_effect'])
         else:
             s = a
         txt = lambda x: None if x is None else str(x)
@@ -286,7 +285,9 @@ def independent(checked, params, compare=None, baseline=None):
                           multiplier_a=txt(ma), multiplier_b=txt(mb), scale_residual_a=str(da), scale_residual_b=str(db)))
         for role in ROLES[op] + (('gadget_trunc',) if k else ()):
             site(id_, role, evk)
-        return s, ideal, level
+        if trace:
+            trace.record(op, id_, level, args, meta, eff, values, s, ideal)
+        return s, ideal, level, id_
 
     for i, e in enumerate(ins):
         args = [states[j] for j in e['inputs']]
@@ -307,6 +308,12 @@ def independent(checked, params, compare=None, baseline=None):
                   encoding_calls=len(by_index), effective_differs=sum(r['metadata_scale'] != r['effective_encoder_scale'] for r in by_index.values()),
                   edges=len(edges), sites=len(sites), sink_scale=sink_scale, missing=len(missing), obligations=ledger,
                   probabilistic_cert_issued=False)
+    if trace:
+        result['exact_scale'] = trace.public()
+        if compare_scales:
+            proposed = load(compare_scales)  # only after source-bound replay
+            need(same(proposed, result['exact_scale']), 'source-derived exact scale trace differs')
+            result['exact_scale_matched'] = True
     if compare is not None:
         audit = load(compare)  # Read ONLY after deriving every row, including folds and local scale bias.
         need(audit.get('emit_sha256') == seal and audit.get('encoding_program_sha256') == plan['program_sha256'], 'different audit/program identity')
@@ -356,19 +363,24 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('package', nargs='?', type=Path)
     parser.add_argument('--snabf-opt', type=Path)
-    parser.add_argument('--independent', action='store_true', help='B2.1 scale verification; cannot issue a noise certificate')
+    parser.add_argument('--independent', action='store_true', help='pure Python scale verification; never issues a noise certificate')
     parser.add_argument('--checked', type=Path)
     parser.add_argument('--params', type=Path, help='direct program.json with public coefficients, parameters and receipts')
     parser.add_argument('--compare', type=Path, help='optional native audit, read only at final comparison')
     parser.add_argument('--baseline', type=Path, help='optional matching frozen B1 audit; classify its missing obligations')
+    parser.add_argument('--source-witness', type=Path, help='original R3/C1 source MLIR (not lowered IR); opts into source-bound replay')
+    parser.add_argument('--basis', type=Path, help='independent concrete profile.json with ordered Q/P, logN and logDefaultScale')
+    parser.add_argument('--compare-scales', type=Path, help='compare a proposed exact_scale object, including all calls and steps')
     parser.add_argument('--precision-bits', type=int, default=12)
     args = parser.parse_args()
     try:
         if args.independent:
             need(args.checked and args.params and not args.package and not args.snabf_opt, 'use --independent --checked IR --params PROGRAM')
-            summary = independent(args.checked, args.params, args.compare, args.baseline)
+            summary = independent(args.checked, args.params, args.compare, args.baseline,
+                                  source_witness=args.source_witness, basis=args.basis, compare_scales=args.compare_scales)
         else:
-            need(args.package and args.snabf_opt and not any((args.checked, args.params, args.compare, args.baseline)), 'use PACKAGE --snabf-opt PATH for native engineering replay')
+            need(args.package and args.snabf_opt and not any((args.checked, args.params, args.compare, args.baseline,
+                 args.source_witness, args.basis, args.compare_scales)), 'use PACKAGE --snabf-opt PATH for native engineering replay')
             report = replay(args.package, args.snabf_opt, args.precision_bits)
             summary = dict(matched=True, mode=report['mode'], sinks=len(report['sinks']), probabilistic_cert_issued=report['probabilistic_cert_issued'])
     except (ValueError, TypeError, KeyError, IndexError, ArithmeticError, OSError, subprocess.CalledProcessError) as exc:

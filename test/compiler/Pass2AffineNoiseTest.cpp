@@ -277,6 +277,11 @@ void productionScaleBranches() {
   g.nodes[2].inputs = {1, 0}; r = verifyNoiseCertificate(g, certify(g), &p);
   expect(r.edge_inventory.at(2).join_branch == "multiply_right" && r.edge_inventory.at(2).scale_bias == "3",
          "asymmetric AddNew alignment");
+  g.nodes[2].op = Op::Sub; r = verifyNoiseCertificate(g, certify(g), &p);
+  expect(r.edge_inventory.at(2).residual_b == "-1" && r.edge_inventory.at(2).scale_bias == "3" &&
+         r.sink_forms.at("out").linearTerms().at("L").signed_coeff == -2,
+         "v1 stores pre-subtraction residuals and signs the propagated gain once");
+  g.nodes[2].op = Op::Add;
   g.nodes[1].effective_encoder_scale.reset(); r = verifyNoiseCertificate(g, certify(g), &p);
   expect(!r.accepts() && r.missing_contract_terms.contains("node/right/missing_encoding_scale_binding") &&
          r.sinks[0].physical_scale_exact.empty(), "missing effective source binding defaulted to metadata");

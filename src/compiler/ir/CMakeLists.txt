@@ -24,6 +24,14 @@ target_link_libraries(snabf_ir PUBLIC snabf_pass4 "${sdk}/lib/libMLIR.so" "${sdk
 target_link_libraries(snabf_ir PRIVATE "${GMPXX_LIB}" "${MPFR_LIB}" "${GMP_LIB}")
 if(BUILD_TESTING)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_executable(ExactScaleTrackerTest ../../../test/compiler/ExactScaleTrackerTest.cpp)
+  target_include_directories(ExactScaleTrackerTest SYSTEM PRIVATE "${sdk}/include")
+  target_link_libraries(ExactScaleTrackerTest PRIVATE snabf_exact_scale "${sdk}/lib/libLLVM.so")
+  add_executable(ExactScaleTraceTest ../../../test/compiler/ExactScaleTraceTest.cpp)
+  target_link_libraries(ExactScaleTraceTest PRIVATE snabf_pipeline)
+  add_test(NAME ExactScaleTrackerTest COMMAND ExactScaleTrackerTest)
+  add_test(NAME ExactScaleReplayTest COMMAND "${Python3_EXECUTABLE}" -B
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../test/compiler/test_exact_scale.py" "$<TARGET_FILE:ExactScaleTrackerTest>")
   set(n0tests "${CMAKE_CURRENT_SOURCE_DIR}/../../../test/compiler/rfc004")
   foreach(probe contracts fold encoding layout package)
     add_test(NAME RFC004_${probe} COMMAND "${Python3_EXECUTABLE}" -B
@@ -37,7 +45,7 @@ add_custom_command(OUTPUT "${gen}/Passes.h.inc" COMMAND "${sdk}/bin/mlir-tblgen"
 add_library(snabf_pipeline STATIC Planning.cpp Lowering.cpp Pass2Lowering.cpp ActivationRegions.cpp PolyRecords.cpp TransferRecords.cpp Passes.cpp ../pass1/NativeRouting.cpp ../pass1/NativeBootstrap.cpp "${gen}/Passes.h.inc")
 target_sources(snabf_pipeline PRIVATE Pass3IR.cpp Pass4IR.cpp NoiseCertIR.cpp ../Target/Lattigo/RingEmitter.cpp
   ../Target/Lattigo/EmitVerifier.cpp ../Target/Lattigo/EmitGraph.cpp ../Target/Lattigo/DirectGo.cpp)
-target_link_libraries(snabf_pipeline PUBLIC snabf_import snabf_planner snabf_pass2 snabf_pass3 snabf_pass4 snabf_noise snabf_affine_interval snabf_cost_profile heir_lattigo)
+target_link_libraries(snabf_pipeline PUBLIC snabf_import snabf_planner snabf_pass2 snabf_pass3 snabf_pass4 snabf_noise snabf_exact_scale snabf_affine_interval snabf_cost_profile heir_lattigo)
 add_executable(snabf-opt Driver.cpp)
 target_link_libraries(snabf-opt PRIVATE snabf_pipeline)
 
