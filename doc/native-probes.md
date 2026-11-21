@@ -20,6 +20,15 @@ the declared `domain: [-1, 1]`. The inspection publishes only `import.json`.
 It hashes the original source and input spec as bytes. In particular a CRLF
 checkout is not interchangeable with an LF archive.
 
+For the source's actual periodic matvecs, use `--native-routes-only 4096`
+instead of `--native-import-only` and specify `--log-n 14`. Build
+`snabf-native-linear` alongside the importer. The new directory contains
+only `routes.json`: the source/spec witness, public diagonal words, and
+Pass 1 route candidates for the stated ring and **actual encoded** slot
+count. `--min-slots` is not an encoded layout. With the settings above the
+physical rotation group has order 8192, not 4096. This inspection does not
+select a route or concrete parameters, allocate keys, or publish a Go model.
+
 `test/compiler/phase2_n1_equiv.py inspect|compile` accepts `--r3-frozen`,
 `--single-gelu`, `--snabf-opt` and a fresh `--out`. The source inputs are
 pinned to R3 and C1, not inferred from a fixture or model name. On Linux the

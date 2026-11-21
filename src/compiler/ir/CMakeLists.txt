@@ -78,4 +78,6 @@ if(BUILD_TESTING)
   add_test(NAME NativeLinearRouteAPI COMMAND NativeLinearRouteTest)
   add_test(NAME NativeLinearRouteFourGraphs COMMAND "${Python3_EXECUTABLE}" -B
     "${native_test_dir}/NativeLinearRouteSources.py" "$<TARGET_FILE:snabf-native-linear>" "$<TARGET_FILE:NativeLinearRouteTest>")
+  add_test(NAME NativeLinearRouteCLI COMMAND "${Python3_EXECUTABLE}" -B
+    "${native_test_dir}/test_native_route_cli.py" "$<TARGET_FILE:snabf-opt>")
 endif()

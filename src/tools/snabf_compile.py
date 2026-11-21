@@ -70,11 +70,11 @@ def checked_pricing(a):
 
 def compile_model(a):
     if getattr(a, 'frontend', 'legacy-heir') != 'legacy-heir':
-        if a.native_import_only:
+        if a.native_import_only or a.native_routes_only is not None:
             from native_inspection import inspect_native
             return inspect_native(a)
         raise ValueError('[SNABF_NATIVE_FRONTEND_UNAVAILABLE] native execution has not passed N1; no HEIR fallback')
-    if a.native_import_only or a.input_spec is not None:
+    if a.native_import_only or a.native_routes_only is not None or a.input_spec is not None:
         raise ValueError('[SNABF_INVALID_OPTIONS] native inspection requires explicit --frontend native-linalg')
     if a.security_bits != 128:
         raise ValueError('[SNABF_UNSUPPORTED_SECURITY_TARGET] ordinary domains currently replay 128 bits only')
@@ -230,7 +230,10 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--frontend', choices=('legacy-heir', 'native-linalg'), default='legacy-heir',
                    help='legacy-heir is default; native inspection never falls back to HEIR')
-    p.add_argument('--native-import-only', action='store_true', help='structural receipt only; cannot emit Go or certify')
+    inspection=p.add_mutually_exclusive_group()
+    inspection.add_argument('--native-import-only', action='store_true', help='structural receipt only; cannot emit Go or certify')
+    inspection.add_argument('--native-routes-only', metavar='ENCODED_SLOTS', type=int,
+                            help='enumerate periodic matvec routes for --log-n; no selection, keys or Go')
     p.add_argument('--input-spec', type=Path, help='ordered native input ports, original function symbol, and declared domain')
     p.add_argument('--mlir',type=Path,required=True); p.add_argument('--out-dir',type=Path,required=True)
     p.add_argument('--input-bound',type=float,required=True); p.add_argument('--precision-bits',type=int,default=12)
