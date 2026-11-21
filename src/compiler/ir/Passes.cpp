@@ -1,4 +1,5 @@
 #include "Pipeline.h"
+#include "NativeContracts.h"
 #include "Pass2IR.h"
 #include "Pass3IR.h"
 #include "pass3/CostProfile.h"
@@ -32,6 +33,7 @@ namespace snabf::ir {
 template <class F>
 static LogicalResult diagnosed(ModuleOp module, F &&action) {
   try {
+    if (failed(rejectNativeExecution(module))) return failure();
     action();
     return success();
   } catch (const std::exception &e) {

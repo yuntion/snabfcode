@@ -16,6 +16,24 @@ from snabf_compile import main, scale_search_mode
 
 
 class EntryTests(unittest.TestCase):
+    def test_frontend_dispatch_precedes_tools_and_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp)/'absent'/'model'
+            common = ['compile','--mlir','missing.mlir','--input-bound','1','--out-dir',str(dest),'--security','192']
+            for args, reason in (([], 'SNABF_UNSUPPORTED_SECURITY_TARGET'),
+                                 (['--frontend','legacy-heir'], 'SNABF_UNSUPPORTED_SECURITY_TARGET'),
+                                 (['--frontend','native-linalg'], 'SNABF_NATIVE_FRONTEND_UNAVAILABLE')):
+                err = io.StringIO()
+                with patch.object(sys,'argv',common+args), contextlib.redirect_stderr(err), \
+                     patch('subprocess.Popen',side_effect=AssertionError('unexpected subprocess')), \
+                     patch('shutil.which',side_effect=AssertionError('unexpected discovery')), \
+                     patch('tempfile.TemporaryDirectory',side_effect=AssertionError('unexpected staging')), \
+                     self.assertRaises(SystemExit) as ex:
+                    main()
+                self.assertEqual(ex.exception.code,1)
+                self.assertIn(reason,err.getvalue())
+                self.assertFalse(dest.parent.exists())
+
     def test_explicit_narrow_does_not_hide_a_conflicting_legacy_request(self):
         self.assertEqual(scale_search_mode(None,False),'narrow')
         self.assertEqual(scale_search_mode('narrow',False),'narrow')

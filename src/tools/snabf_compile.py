@@ -69,6 +69,8 @@ def checked_pricing(a):
 
 
 def compile_model(a):
+    if getattr(a, 'frontend', 'legacy-heir') != 'legacy-heir':
+        raise ValueError('[SNABF_NATIVE_FRONTEND_UNAVAILABLE] native-linalg is contract-only in N0; no HEIR fallback')
     if a.security_bits != 128:
         raise ValueError('[SNABF_UNSUPPORTED_SECURITY_TARGET] ordinary domains currently replay 128 bits only')
     certification = a.certify_failure_bits is not None or a.certify_failure_prob is not None
@@ -221,6 +223,8 @@ def compile_model(a):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--frontend', choices=('legacy-heir', 'native-linalg'), default='legacy-heir',
+                   help='legacy-heir is executable; native-linalg is reserved by RFC-004')
     p.add_argument('--mlir',type=Path,required=True); p.add_argument('--out-dir',type=Path,required=True)
     p.add_argument('--input-bound',type=float,required=True); p.add_argument('--precision-bits',type=int,default=12)
     p.add_argument('--security-bits','--security',type=int,default=128)
