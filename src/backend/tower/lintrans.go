@@ -106,7 +106,24 @@ type Evaluator struct{ eval *ckks.Evaluator }
 
 func NewEvaluator(e *ckks.Evaluator) Evaluator { return Evaluator{e} }
 
+// Counts completed operations, not distinct rotation keys. PlainProducts
+// includes MulThenAdd; FusedAdds counts the additions inside those products.
+type TransformCounts struct {
+	BabyRotations, GiantRotations, PlainProducts, FusedAdds, GroupAdds int
+}
+
 func (e Evaluator) EvaluateNew(ct *rlwe.Ciphertext, t LinearTransformation) (*rlwe.Ciphertext, error) {
+	var counts TransformCounts
+	return e.evaluate(ct, t, &counts)
+}
+
+func (e Evaluator) EvaluateCounted(ct *rlwe.Ciphertext, t LinearTransformation) (*rlwe.Ciphertext, TransformCounts, error) {
+	var counts TransformCounts
+	out, err := e.evaluate(ct, t, &counts)
+	return out, counts, err
+}
+
+func (e Evaluator) evaluate(ct *rlwe.Ciphertext, t LinearTransformation, counts *TransformCounts) (*rlwe.Ciphertext, error) {
 	if ct.Degree() != 1 || ct.Level() != t.params.LevelQ || !ct.IsBatched || ct.LogDimensions != t.params.LogDimensions || ct.Value[0].N() != 1<<t.route.LogN {
 		return nil, fmt.Errorf("Pass 1 ciphertext does not match prepared transform")
 	}
@@ -121,6 +138,7 @@ func (e Evaluator) EvaluateNew(ct *rlwe.Ciphertext, t LinearTransformation) (*rl
 		if err != nil {
 			return nil, err
 		}
+		counts.BabyRotations += len(rot)
 	}
 	rot[0] = ct
 	var result *rlwe.Ciphertext
@@ -130,13 +148,18 @@ func (e Evaluator) EvaluateNew(ct *rlwe.Ciphertext, t LinearTransformation) (*rl
 			if term.mask == nil {
 				return nil, fmt.Errorf("unencoded Pass 1 mask")
 			}
-			if sum == nil {
+			first := sum == nil
+			if first {
 				sum, err = e.eval.MulNew(rot[term.baby], term.mask)
 			} else {
 				err = e.eval.MulThenAdd(rot[term.baby], term.mask, sum)
 			}
 			if err != nil {
 				return nil, err
+			}
+			counts.PlainProducts++
+			if !first {
+				counts.FusedAdds++
 			}
 		}
 		if coset.giant != 0 {
@@ -152,11 +175,14 @@ func (e Evaluator) EvaluateNew(ct *rlwe.Ciphertext, t LinearTransformation) (*rl
 			if err != nil {
 				return nil, err
 			}
+			counts.GiantRotations++
 		}
 		if result == nil {
 			result = sum
 		} else if err = e.eval.Add(result, sum, result); err != nil {
 			return nil, err
+		} else {
+			counts.GroupAdds++
 		}
 	}
 	return result, nil // HEIR owns the following rescale, including its output buffer.
