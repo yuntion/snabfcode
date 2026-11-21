@@ -16,7 +16,13 @@ class CtOp<string name, dag args> : Op_<name> {
   let hasVerifier = 1;
 }
 def SourceOp : CtOp<"source", (ins AnyType:$cipher)>;
-def LintransOp : CtOp<"lintrans", (ins CT:$input, AnyType:$table, DenseI64ArrayAttr:$diagonals)>;
+def LintransOp : CtOp<"lintrans", (ins CT:$input, AnyType:$table, Optional<AnyType>:$outs_init,
+    DenseI64ArrayAttr:$diagonals, OptionalAttr<LayoutSpec>:$in_layout, OptionalAttr<LayoutSpec>:$out_layout)> {
+  let builders = [OpBuilder<(ins "::mlir::Type":$result, "::mlir::Value":$input,
+      "::mlir::Value":$table, "::mlir::DenseI64ArrayAttr":$diagonals), [{
+    build($_builder, $_state, result, input, table, nullptr, diagonals, nullptr, nullptr);
+  }]>];
+}
 def PolyEvalOp : CtOp<"poly_eval", (ins CT:$input, ArrayAttr:$coefficients,
     OptionalAttr<StrAttr>:$activation, OptionalAttr<I64Attr>:$depth_budget,
     OptionalAttr<F64Attr>:$approx_budget, OptionalAttr<ArrayAttr>:$poly_frontier,
@@ -38,3 +44,17 @@ def SinkOp : Op_<"sink"> {
   let results = (outs AnyType:$cipher);
   let hasVerifier = 1;
 }
+
+// Native-only declarations; none is executable through the legacy backend.
+def AlignScaleOp : CtOp<"align_scale", (ins CT:$input, StrAttr:$site, ScalePlan:$scale_plan, EncodingCallReceipt:$encoding)>;
+def SubOp : CtOp<"sub", (ins CT:$lhs, CT:$rhs, ScalePlan:$scale_plan)>;
+def NegateOp : CtOp<"negate", (ins CT:$input)>;
+def AddPlainOp : CtOp<"add_plain", (ins CT:$input, AnyRankedTensor:$plain, StrAttr:$site, EncodingCallReceipt:$encoding)>;
+def MulPlainOp : CtOp<"mul_plain", (ins CT:$input, AnyRankedTensor:$plain, StrAttr:$site, EncodingCallReceipt:$encoding)>;
+// Multiplication requires level-aligned inputs, not equal physical scales.
+def CtMulOp : CtOp<"ct_mul", (ins CT:$lhs, CT:$rhs, ExactScale:$lhs_scale, ExactScale:$rhs_scale,
+    ExactScale:$requested_product)>;
+def RotateOp : CtOp<"rotate", (ins CT:$input, I64Attr:$offset, LayoutSpec:$layout)>;
+def ReduceSumOp : CtOp<"reduce_sum", (ins CT:$input, LayoutSpec:$in_layout, LayoutSpec:$out_layout,
+    DenseI64ArrayAttr:$axes, BoolAttr:$keep_dims, ArrayAttr:$groups, DenseI64ArrayAttr:$valid_slots,
+    DenseI64ArrayAttr:$output_slots, DenseI64ArrayAttr:$edge_divisors)>;

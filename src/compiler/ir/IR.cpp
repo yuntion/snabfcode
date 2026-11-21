@@ -1,4 +1,5 @@
 #include "IR.h"
+#include "NativeContracts.h"
 #include "pass4/LayoutContract.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include <cmath>
@@ -15,9 +16,11 @@ using namespace mlir;
 namespace snabf::ir {
 void SNABF::initialize() {
   addTypes<CtType>();
-  addAttributes<BudgetAttr,SlotLayoutAttr>();
+  addAttributes<BudgetAttr, SlotLayoutAttr, FrontendProvenanceAttr, ExactScaleAttr,
+                EncodingCallReceiptAttr, ScalePlanAttr, LayoutSpecAttr>();
   addOperations<ProfileOp, SourceOp, LintransOp, PolyEvalOp, StepOp, ConvertOp,
-                SinkOp>();
+                SinkOp, AlignScaleOp, SubOp, NegateOp, AddPlainOp, MulPlainOp,
+                CtMulOp, RotateOp, ReduceSumOp>();
 }
 static bool pow2(int64_t n) { return n > 0 && !(n & (n - 1)); }
 LogicalResult CtType::verify(function_ref<InFlightDiagnostic()> err,
@@ -115,7 +118,9 @@ LogicalResult StepOp::verify() {
   return ordinary(*this);
 }
 LogicalResult LintransOp::verify() {
-  if (failed(ordinary(*this))) return failure();
+  if (getOutsInit() || getInLayoutAttr() || getOutLayoutAttr()) {
+    if (failed(verifyNativeLintrans(*this))) return failure();
+  } else if (failed(ordinary(*this))) return failure();
   auto p = SymbolTable::lookupNearestSymbolFrom<ProfileOp>(
       *this, getInput().getType().getProfile());
   std::set<int64_t> seen;

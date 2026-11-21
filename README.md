@@ -4,6 +4,24 @@ Security-Noise Coupled Algebraic Budget Flow on Google HEIR and Lattigo.
 
 ### Static compiler entry (phase 2)
 
+`--frontend legacy-heir` is the default. RFC-004 N0 registers the native IR
+contracts for inspection only. `--frontend native-linalg` refuses before tool
+discovery or output creation; there is no fallback. Native execution, independent
+scale replay and whole-package ciphertext equivalence are N1 gates, not N0 results.
+No new provenance or scale fields are backfilled into historical plans.
+
+The [N0 inspection fixture](test/compiler/rfc004/contracts.mlir) shows the wire
+format. `slot_map[i]` is the physical slot for logical row-major element `i`
+within one period; a reduction group enumerates the actual contributing slots.
+The optional third `lintrans` operand is the original destination initializer,
+not an implicit zero. New rational scale fields use reduced decimal integers;
+per-call `metadata` and `effective` refer to the actual M and E, not a proof
+of the requested target. A fold's signed relative `residual` is
+`realized/requested - 1`. No tag, hash or tolerance by itself is an execution
+or certificate permit. On the configured SDK run
+`ctest --test-dir build/native -R RFC004 --output-on-failure` for the contract
+and four counterexample groups (Go and the pinned module cache are required).
+
 On the configured Linux toolchain, build `snabf-opt` as for the native suite and point `SNABF_OPT` at that binary. The product entry accepts **one static packed f32 vector in/out**, constant matvecs, source-marked SiLU and residual addition. It does not consume a workload name, frozen corpus, hand-authored parameter file or an old plan. `--log-n`, `--q-count` and `--min-slots` specify the provisional HEIR typing capacity. Automatic deep bootstrapping is not in this subset. The source interval is a caller contract.
 
 ```bash
