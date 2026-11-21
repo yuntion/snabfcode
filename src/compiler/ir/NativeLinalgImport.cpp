@@ -24,6 +24,7 @@ enum class Role { Unknown, Data, Literal, Empty, ZeroInit };
 struct Graph {
   const Source &s;
   Entry &entry;
+  CheckedMatvec visit;
   ValueIDs ids;
   llvm::DenseMap<Value, Role> roles;
   json::Array nodes, locks, outputs;
@@ -149,6 +150,7 @@ struct Graph {
       node["kind"] = "zero_fill";
     } else if (auto m = dyn_cast<linalg::MatvecOp>(op)) {
       if (failed(matvec(m))) return failure();
+      if (visit && failed(visit(s, m, ids, id))) return failure();
       node["kind"] = "matvec";
       node["outs"] = ids.lookup(m.getOutputs().front());
     } else if (auto g = dyn_cast<linalg::GenericOp>(op)) {
@@ -181,8 +183,9 @@ struct Graph {
 };
 } // namespace
 
-LogicalResult inspectNativeLinalg(StringRef bytes, StringRef sourceName, StringRef specBytes,
-                                 json::Object &receipt, llvm::raw_ostream &diagnostics) {
+LogicalResult inspectWithMatvecs(StringRef bytes, StringRef sourceName, StringRef specBytes,
+                                 json::Object &receipt, llvm::raw_ostream &diagnostics,
+                                 CheckedMatvec visit) {
   DialectRegistry registry;
   registry.insert<func::FuncDialect, arith::ArithDialect, math::MathDialect, linalg::LinalgDialect,
                   tensor::TensorDialect, cf::ControlFlowDialect, scf::SCFDialect>();
@@ -229,7 +232,7 @@ LogicalResult inspectNativeLinalg(StringRef bytes, StringRef sourceName, StringR
   if (preflight.wasInterrupted() || failed(verify(module))) return failure();
   Entry entry;
   if (failed(inspectEntry(s, module, specBytes, entry))) return failure();
-  Graph g{s, entry, {}, {}, {}, {}, {}};
+  Graph g{s, entry, visit, {}, {}, {}, {}, {}};
   Value x = entry.func.getArgument(0);
   g.ids[x] = "arg0";
   g.roles[x] = Role::Data;
@@ -241,5 +244,10 @@ LogicalResult inspectNativeLinalg(StringRef bytes, StringRef sourceName, StringR
                          {"func_symbol", entry.func.getSymName().str()}, {"inputs", std::move(inputs)}, {"outputs", std::move(g.outputs)},
                          {"nodes", std::move(g.nodes)}, {"activation_locks", std::move(g.locks)}};
   return success();
+}
+
+LogicalResult inspectNativeLinalg(StringRef bytes, StringRef sourceName, StringRef specBytes,
+                                 json::Object &receipt, llvm::raw_ostream &diagnostics) {
+  return inspectWithMatvecs(bytes, sourceName, specBytes, receipt, diagnostics, nullptr);
 }
 } // namespace snabf::native
