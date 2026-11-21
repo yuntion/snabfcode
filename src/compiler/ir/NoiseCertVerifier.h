@@ -1,5 +1,6 @@
 #pragma once
 
+#include "BoundedNoiseTransfer.h"
 #include "pass2/AffineErrorForm.h"
 #include <cstdint>
 #include <functional>
@@ -35,6 +36,7 @@ struct Node {
   std::vector<double> plain_values; // complete payload for VectorMulPlain/AddPlain
   int64_t rotation = 0; // signed component permutation, never a scalar gain
   std::optional<Exact> effective_encoder_scale, source_bound;
+  std::optional<BoundPlainCall> bound_plain_call; // opt-in checked DirectGo v1 only
 };
 struct OutputPort { std::string id; size_t value; };
 struct Topology {
@@ -99,6 +101,7 @@ struct Options {
   int precision_bits = 12;
   double target_failure_prob = theoremBudget;
   std::map<std::string, double> sink_delta;
+  bool b2i = false;
 };
 struct SinkCertResult {
   std::string sink_id, physical_scale_exact;
@@ -133,6 +136,8 @@ struct CertAuditReport {
   std::map<std::string, AffineErrorForm> sink_forms;
   std::map<pass2::EventKey, Exact> validity_events;
   std::set<std::string> missing_contract_terms;
+  bool b2i = false;
+  std::vector<LocalTransfer> local_transfers;
   std::vector<std::string> errors;
   // Only the NOISE gate. Does not authorize emission without other gates.
   bool accepts() const {

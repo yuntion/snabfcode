@@ -140,8 +140,8 @@ struct Checker : impl::CheckPlanBase<Checker> {
           auto m = getOperation();
           lattigo_target::checkAndSeal(m);
           if (requireDown) requireCheckedRingDown(m);
-          if (!noiseAudit.empty() || requireNoiseCert)
-            auditNoisePlan(m,noiseAudit,requireNoiseCert,precisionBits);
+          if (!noiseAudit.empty() || requireNoiseCert || b2iLocal)
+            auditNoisePlan(m,noiseAudit,requireNoiseCert,precisionBits,noise::theoremBudget,b2iLocal);
         })))
       signalPassFailure();
   }

@@ -36,6 +36,7 @@ def Plan : ModuleStage<"snabf-plan","Select candidates over SSA, re-solve violat
 def CheckPlan : ModuleStage<"snabf-check-plan","Recompute budget transfers, selected routes and key inventory"> {
   let options = [Option<"requireDown","require-ring-down","bool","false","Reject a checked fallback when a physical down-conversion was requested">,
     Option<"noiseAudit","noise-audit","std::string","\"\"","Write an independent conditional-noise audit of the checked program">,
+    Option<"b2iLocal","b2i-local","bool","false","Audit deterministic centered transfers of the bound single-ring DirectGo v1 program">,
     Option<"requireNoiseCert","require-noise-cert","bool","false","Fail unless the Theorem 1 noise budget passes for every sink">,
     Option<"precisionBits","precision-bits","unsigned","12","Decoded precision in bits for the noise audit">];
   let dependentDialects = ["::snabf::ir::SNABF", "::mlir::func::FuncDialect", "::mlir::heir::lattigo::LattigoDialect"];
