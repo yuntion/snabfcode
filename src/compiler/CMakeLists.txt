@@ -51,6 +51,10 @@ if(BUILD_TESTING)
       add_test(NAME N1_${probe} COMMAND "${Python3_EXECUTABLE}" -B
         "${CMAKE_CURRENT_SOURCE_DIR}/../../test/compiler/test_${probe}.py")
     endforeach()
+    if(TARGET snabf-native-import)
+      add_test(NAME N1_inspection_cli COMMAND "${Python3_EXECUTABLE}" -B
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../test/compiler/test_native_inspection_cli.py" "$<TARGET_FILE:snabf-opt>")
+    endif()
     add_executable(Pass3CalibrationTest ../../test/compiler/Pass3CalibrationTest.cpp)
     target_link_libraries(Pass3CalibrationTest PRIVATE snabf_cost_profile)
     add_test(NAME Pass3CalibrationTest COMMAND Pass3CalibrationTest)

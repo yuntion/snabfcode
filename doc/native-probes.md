@@ -45,3 +45,10 @@ seal is **not** the file hash of `program.json`. `package-build.json` records
 both digests. Keep run observations outside the published module. This gate
 tests package construction only; it cannot authorize an arbitrary MLIR graph
 or issue a probability certificate.
+
+To attribute a 17-Q search refusal independently, run
+`test/compiler/phase2_a11_17q_attribution.py --prior ORIGINAL_A2A --opt OPT
+--out NEW_DIR`; use `--replay NEW_DIR` instead of `--opt/--out` offline. The
+pre-solver guard uses the decoded magnitude envelope from the selected DAG.
+A refusal of this envelope is not a proof that the graph cannot execute with
+any concrete 17-prime parameterization.
