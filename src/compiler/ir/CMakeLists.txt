@@ -40,3 +40,21 @@ target_sources(snabf_pipeline PRIVATE Pass3IR.cpp Pass4IR.cpp NoiseCertIR.cpp ..
 target_link_libraries(snabf_pipeline PUBLIC snabf_import snabf_planner snabf_pass2 snabf_pass3 snabf_pass4 snabf_noise snabf_affine_interval snabf_cost_profile heir_lattigo)
 add_executable(snabf-opt Driver.cpp)
 target_link_libraries(snabf-opt PRIVATE snabf_pipeline)
+
+# C-1 is a source inspection library, not a pass in the legacy pipeline.
+add_library(snabf_native_linalg_import STATIC NativeLinalgImport.cpp
+  FrontendPreprocessPass.cpp ActivationSemanticLockPass.cpp)
+target_compile_features(snabf_native_linalg_import PUBLIC cxx_std_20)
+target_include_directories(snabf_native_linalg_import PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(snabf_native_linalg_import SYSTEM PUBLIC "${sdk}/include")
+target_link_libraries(snabf_native_linalg_import PUBLIC "${sdk}/lib/libMLIR.so" "${sdk}/lib/libLLVM.so")
+add_executable(snabf-native-import NativeLinalgImportMain.cpp)
+target_link_libraries(snabf-native-import PRIVATE snabf_native_linalg_import)
+if(BUILD_TESTING)
+  set(native_test_dir "${CMAKE_CURRENT_SOURCE_DIR}/../../../test/compiler")
+  add_executable(NativeLinalgImportTest "${native_test_dir}/NativeLinalgImportTest.cpp")
+  target_link_libraries(NativeLinalgImportTest PRIVATE snabf_native_linalg_import)
+  add_test(NAME NativeLinalgImportAPI COMMAND NativeLinalgImportTest)
+  add_test(NAME NativeLinalgImportSources COMMAND "${Python3_EXECUTABLE}" -B
+    "${native_test_dir}/NativeLinalgImportSources.py" "$<TARGET_FILE:snabf-native-import>")
+endif()

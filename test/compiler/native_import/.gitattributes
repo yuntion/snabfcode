@@ -1,0 +1,2 @@
+c1-single.mlir -text
+*.inputs.json text eol=lf
