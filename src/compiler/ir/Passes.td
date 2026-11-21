@@ -61,7 +61,7 @@ def DynamicRings : ModuleStage<"snabf-pass4", "Replan and independently screen p
   let options = [Option<"minRing","min-ring","int64_t","4096","Minimum proposed physical ring">,
     Option<"maxIters","max-iters","unsigned","16","Maximum unique proposals">,
     Option<"price","switch-price","double","1.0","Relative cost of a cross-key external product">,
-    Option<"cutProfile","cut-profile","std::string","\"single-live-v1\"","single-live-v1 or dual-live-v1 (one periodic boundary)">,
+    Option<"cutProfile","cut-profile","std::string","\"single-live-v1\"","single-live-v1, dual-live-v1 or dual-live-feedback-v1 (one periodic boundary)">,
     Option<"forceDown","force-down","bool","false","Choose the least-cost feasible down proposal even without net benefit">,
     Option<"audit","audit","std::string","\"\"","Optional decision trace JSON">];
 }

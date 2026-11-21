@@ -2,6 +2,8 @@
 #include "GadgetNoiseContract.h"
 #include <iosfwd>
 #include <map>
+#include <optional>
+#include <utility>
 namespace snabf::pass3 {
 Solution optimize(const Graph &, const Options &);
 // Trace-only IR inputs discarded by absolute-value propagation. An arbitrary
@@ -23,5 +25,35 @@ Solution optimize(const Graph &, const Options &, std::ostream &rejections,
                   const IRMagnitudeOrigins &origins);
 // A live ciphertext fixes Q, P and its scale. Re-solve the remaining integer
 // gadget decisions using those actual primes; no change of basis is implicit.
-Solution optimizeAtBoundary(const Graph &,const Options &,Solution physical);
+struct BoundaryRow {
+  double fixed; // normalized by the unchanged epsilon, exactly as submitted
+  std::map<int, double> parents, choices; // DAG index -> gain; allowed K -> increment
+};
+struct BoundaryRows {
+  std::vector<BoundaryRow> rows;
+  bool provenInfeasible = false;
+};
+struct BoundaryProjection {
+  std::string status;
+  int blockedEdge = -1, internalCapEdge = -1;
+  std::vector<double> floors, gains; // decoded error; sink-error gain per crossing
+  double suffix = 0, jointBudget = 0, demand = 0, deficit = 0;
+};
+BoundaryProjection projectBoundaryCut(const Graph &, const Options &, const BoundaryRows &,
+                                      const std::vector<std::pair<int, int>> &producerDown);
+Solution optimizeAtBoundary(const Graph &,const Options &,Solution physical,
+                            BoundaryRows *capture = nullptr);
+
+// A single, joint decoded-error constraint on specific source SSA results.
+// It augments the normal source MILP; it never replaces its sink constraint.
+struct SourceCutBound {
+  std::map<int, double> weights;
+  double budget;
+};
+struct SourceCutStats {
+  unsigned candidates = 0, modelsWithCuts = 0, solverRuns = 0, solverInfeasible = 0,
+           concreteCutMisses = 0;
+};
+std::optional<Solution> optimizeForCuts(const Graph &, const Options &,
+                                      const std::vector<SourceCutBound> &, SourceCutStats &);
 }
