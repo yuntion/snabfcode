@@ -205,19 +205,37 @@ def replay(out):
     return result
 
 
+def extends_archived_trace(log, archive):
+    """Allow only A-1.1's additive diagnostic when checking an older binary's log."""
+    def records(path):
+        with path.open('rb') as f:
+            return [json.loads(line) for line in f if line.startswith(b'{') and
+                    b'"snabf.pass3.candidate-rejection.' in line]
+    actual, expected = records(log), records(archive)
+    if not actual or len(actual) != len(expected): return False
+    for r, old in zip(actual, expected):
+        extra = r.get('isolation', {}).pop('base_expression', None)
+        if not isinstance(extra, dict) or extra.get('schema') != 'snabf.pass3.base-expression.v1' or r != old:
+            return False
+    return True
+
+
 def verify_native(out, opt):
     for alpha in (1, 2):
         for k, arm in ((0,'no_trunc'),(2,'joint')):
             cap = out/'capture'/f'a{alpha}-k{k}'
-            original = observed(out/'probe/ablation'/f'a{alpha}-narrow'/(arm+'.log'), alpha, k)
+            archive = out/'probe/ablation'/f'a{alpha}-narrow'/(arm+'.log')
+            original = observed(archive, alpha, k)
             for trace in ('1','0'):
                 with tempfile.TemporaryDirectory() as tmp:
                     w = Path(tmp); (w/'selected.mlir').symlink_to(cap/'selected.mlir')
                     with (w/'native.log').open('w') as log:
                         p = subprocess.run([opt, *native_args(alpha,k)], cwd=w,
                             env=dict(os.environ, SNABF_PASS3_TRACE_REJECTIONS=trace), stdout=log, stderr=subprocess.STDOUT)
-                    need(p.returncode == 1 and not (w/'proposal.mlir').exists() and not (w/'parameters.json').exists()
-                         and observed(w/'native.log',alpha,k) == (original if trace == '1' else ([], hashlib.sha256(b'').hexdigest())),
+                    log = w/'native.log'; actual = observed(log,alpha,k)
+                    same_trace = ((actual == original or (actual[0] == original[0] and extends_archived_trace(log,archive)))
+                                  if trace == '1' else actual == ([], hashlib.sha256(b'').hexdigest()))
+                    need(p.returncode == 1 and not (w/'proposal.mlir').exists() and not (w/'parameters.json').exists() and same_trace,
                          'native replay mismatch')
     print('native replay: 4 traced + 4 production denials; same archived modules; no proposals')
 

@@ -199,18 +199,81 @@ struct CandidateTrace {
   }
 };
 
+// Bits of nominal message headroom, before there are solver variables, an
+// instantiated basis, or a decoded arithmetic error. Keep the actual operands
+// of the guard; the diagnostic must not reconstruct a different expression.
+constexpr double baseWidthOffset = -.25;
+struct BaseWidthTerm {
+  int edge, cls;
+  double nominal, logMagnitude, beforeFloor, floored;
+  double lower() const { return floored + baseWidthOffset; }
+};
+BaseWidthTerm baseWidthTerm(const Graph &g, int i, int d, double guard) {
+  int cls = scaleClass(g, i);
+  double nominal = cls * d;
+  double logMagnitude = std::log2(std::max(1., g.edges[i].magnitude));
+  double beforeFloor = nominal + guard + logMagnitude;
+  return {i, cls, nominal, logMagnitude, beforeFloor, std::floor(beforeFloor)};
+}
+
+diagnostic::Tree baseExpression(const Graph &g, int d, double guard,
+                                const std::vector<BaseWidthTerm> &terms,
+                                const IRMagnitudeOrigins *origins) {
+  diagnostic::Tree t, rows, values;
+  t.put("schema", "snabf.pass3.base-expression.v1");
+  if (origins) t.put("ir_interval_mode", origins->intervalMode);
+  for (const auto &x : terms) {
+    diagnostic::Tree row;
+    row.put("edge", x.edge);
+    row.put("scale_class", x.cls);
+    row.put("nominal_scale_bits", x.nominal);
+    row.put("guard_bits", guard);
+    row.put("log2_clamped_decoded_abs_bits", x.logMagnitude);
+    row.put("before_floor_bits", x.beforeFloor);
+    row.put("floor_delta_bits", x.floored - x.beforeFloor);
+    row.put("offset_bits", baseWidthOffset);
+    row.put("lower_bits", x.lower());
+    const auto &e = g.edges[x.edge];
+    if (e.op == Op::Rescale) {
+      row.put("nominal_numerator_bits", scaleClass(g, e.inputs.at(0)) * d);
+      row.put("nominal_drop_bits", -d); // -1 class, NOT an observed log2(q)
+      row.put("dropped_q_index", e.level + 1);
+    }
+    rows.push_back({"", std::move(row)});
+  }
+  if (!rows.empty()) t.add_child("level_zero_terms", std::move(rows));
+  // Indexed by the original isolation.edges DAG; rescale preserves DECODED
+  // ideal magnitude. The divisor is accounted for in its scale class above.
+  for (size_t i = 0; i < g.edges.size(); ++i) {
+    const auto &e = g.edges[i];
+    diagnostic::Tree v;
+    v.put("decoded_abs", e.magnitude);
+    if (origins) {
+      if (e.op == Op::Mask || e.op == Op::Coefficient)
+        v.put("abs_weight", e.gains.at(0));
+      if (auto it = origins->polynomialLiterals.find(i); it != origins->polynomialLiterals.end())
+        v.put("signed_literal", it->second);
+    }
+    values.push_back({"", std::move(v)});
+  }
+  t.add_child("magnitude_transfers", std::move(values));
+  return t;
+}
+
 std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha,
-                              std::ostream *out, const MeasuredBasis *basis=nullptr) {
+                              std::ostream *out, const IRMagnitudeOrigins *origins,
+                              const MeasuredBasis *basis=nullptr) {
   const CandidateTrace trace{out, g, o, d, alpha, basis};
   Model m;
   const double inf = kHighsInf;
   double b0 = o.minBase;
-  for (int i = 0; i < int(g.edges.size()); ++i)
-    if (g.edges[i].level == 0)
-      b0 = std::max(b0,
-                    std::floor(scaleClass(g, i) * d + o.guardBits +
-                               std::log2(std::max(1., g.edges[i].magnitude))) -
-                        .25);
+  std::vector<BaseWidthTerm> terms;
+  for (int i = 0; i < int(g.edges.size()); ++i) {
+    if (g.edges[i].level != 0) continue;
+    auto term = baseWidthTerm(g, i, d, o.guardBits);
+    b0 = std::max(b0, term.lower());
+    if (out) terms.push_back(term);
+  }
   const bool block = o.blockSearch();
   const double bitWeight = basis ? 0. : .10;
   std::set<int64_t> occupied;
@@ -234,6 +297,7 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
   if (b0 >= (block ? o.primeWidthMax : 60.)) {
     if (out) {
       auto input = diagnostic::baseWidth(g, o, b0);
+      input.add_child("base_expression", baseExpression(g, d, o.guardBits, terms, origins));
       trace.record("model_bounds", "base_width", 0, nullptr, -1, &input);
     }
     return {};
@@ -534,7 +598,7 @@ Solution optimizeAtBoundary(const Graph &g,const Options &o,Solution s){
   s.objective=m.h.getObjectiveValue();verifyPricedObjective(g,o,s);return s;
 }
 namespace {
-Solution search(const Graph &g, const Options &o, std::ostream *out) {
+Solution search(const Graph &g, const Options &o, std::ostream *out, const IRMagnitudeOrigins *origins) {
   validate(g, o);
   std::optional<Solution> best;
   if(o.costProfile) {
@@ -547,7 +611,7 @@ Solution search(const Graph &g, const Options &o, std::ostream *out) {
       try { (void)priceGroups(g,b); } catch(const MissingCost &) {missing=std::current_exception();continue;}
       covered=true;
       for(int d=o.minScale;d<=o.maxScale;++d) {
-        auto s=fixed(g,o,d,b.p.size(),out,&b);
+        auto s=fixed(g,o,d,b.p.size(),out,origins,&b);
         if(s && (!best || s->objective<best->objective-1e-8)) best=std::move(s);
       }
     }
@@ -558,7 +622,7 @@ Solution search(const Graph &g, const Options &o, std::ostream *out) {
   } else
   for (int alpha=1; alpha<=4; ++alpha) if(o.admits(alpha))
   for (int d = o.minScale; d <= o.maxScale; ++d) {
-    auto s = fixed(g, o, d, alpha, out);
+    auto s = fixed(g, o, d, alpha, out, origins);
     if (s && (!best || s->objective < best->objective - 1e-8))
       best = std::move(s);
   }
@@ -570,10 +634,17 @@ Solution search(const Graph &g, const Options &o, std::ostream *out) {
 } // namespace
 
 Solution optimize(const Graph &g, const Options &o, std::ostream &rejections) {
-  return search(g, o, &rejections);
+  return search(g, o, &rejections, nullptr);
+}
+Solution optimize(const Graph &g, const Options &o, std::ostream &rejections,
+                  const IRMagnitudeOrigins &origins) {
+  return search(g, o, &rejections, &origins);
+}
+std::ostream *rejectionTraceStream() {
+  const char *flag = std::getenv("SNABF_PASS3_TRACE_REJECTIONS");
+  return flag && std::string_view(flag) == "1" ? &std::cerr : nullptr;
 }
 Solution optimize(const Graph &g, const Options &o) {
-  const char *flag = std::getenv("SNABF_PASS3_TRACE_REJECTIONS");
-  return search(g, o, flag && std::string_view(flag) == "1" ? &std::cerr : nullptr);
+  return search(g, o, rejectionTraceStream(), nullptr);
 }
 } // namespace snabf::pass3
