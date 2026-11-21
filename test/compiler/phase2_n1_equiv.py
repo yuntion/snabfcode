@@ -68,14 +68,25 @@ def main():
         g.add_argument('--single-gelu', type=Path, required=True)
         g.add_argument('--snabf-opt', type=Path, required=True)
         g.add_argument('--out', type=Path, required=True)
-    g = s.add_parser('slots')
-    g.add_argument('graph', choices=SOURCE)
-    g.add_argument('source', type=Path)
-    g.add_argument('jsonl', type=Path)
-    g.add_argument('--seal', required=True)
-    for k in ('ring','level','slots'):
-        g.add_argument('--'+k, required=True, type=int)
+    for op in ('slots','observe'):
+        g = s.add_parser(op)
+        g.add_argument('graph', choices=SOURCE)
+        g.add_argument('source', type=Path)
+        if op == 'slots':
+            g.add_argument('jsonl', type=Path)
+        else:
+            g.add_argument('module', type=Path)
+            g.add_argument('--out', required=True, type=Path)
+            g.add_argument('--scale', required=True, help='exact sink metadata from independent replay')
+        g.add_argument('--seal', required=True)
+        for k in ('ring','level','slots'):
+            g.add_argument('--'+k, required=True, type=int)
     a = p.parse_args()
+    if a.mode == 'observe':
+        from native_observations import observe
+        print(json.dumps(observe(a.graph,a.source,a.module,a.out,seal=a.seal,ring=a.ring,
+                                 level=a.level,slots=a.slots,scale=a.scale),allow_nan=False))
+        return 0
     if a.mode == 'slots':
         print(json.dumps(replay_slots(a.graph, a.source, a.jsonl, seal=a.seal, ring=a.ring,
                                       level=a.level, slots=a.slots), allow_nan=False))

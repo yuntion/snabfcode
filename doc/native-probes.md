@@ -28,6 +28,15 @@ probe requires `strace -ff`; an unresolved exec or missing trace fails.
 every periodic output slot and the strict `< 2^-12` threshold. These probes
 do not assert that two outputs share a key, ciphertext, or decoding domain.
 
+`observe GRAPH SOURCE MODULE --out DEST --seal SHA --ring N --level L
+--slots COUNT --scale EXACT` runs `New/Encrypt/Eval/Decode` on a disposable
+copy of the built package. It requires the independently checked sink ABI.
+The runner records the actual ring, level, binary64 and full rational scale,
+serialized switch-key bytes, evaluation time, and every decoded slot.
+Successful runs publish `trials.jsonl` and `run_observations.json` together in
+`DEST` outside the module. Missing slots, an error equal to the threshold,
+or a mismatched exact scale reject the run even if binary64 rounds identically.
+
 `native_package.publish_native_package` is an internal post-emission gate;
 its caller must supply the checked IR seal. It uses the pinned Go and Lattigo
 versions and an isolated module with `GOWORK=off`, tests every package, and

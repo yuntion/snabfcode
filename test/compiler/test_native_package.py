@@ -5,6 +5,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -43,6 +44,34 @@ class PackageTest(unittest.TestCase):
     def test_missing_file(self):
         (self.src/'native_runtime.go').unlink()
         self.denied('incomplete')
+
+    def test_observer(self):
+        import native_observations as obs
+        import verify_n1_equivalence as proof
+        source = self.root/'fixture.txt'
+        source.write_bytes(b'fixture: two consumers of x*x')
+        pins = {'test_shared_square':digest(source.read_bytes())}
+        self.plan.write_text(json.dumps(dict(emit_sha256=self.seal,frontend_provenance=dict(
+            mode='native-linalg',source_sha256=pins['test_shared_square']))))
+        publish_native_package(self.src,self.out,self.seal)
+        rows = [dict(x=[i/128], truth=[2*(i/128)**2]) for i in range(64)]
+        def run(label, scale):
+            return obs.observe('test_shared_square',source,self.out,self.root/label,
+                               seal=self.seal,ring=1024,level=2,slots=512,scale=str(scale))
+        # Only the test's tiny graph oracle is substituted. Key generation, encryption,
+        # evaluation, decoding, ABI and exact-scale checks run in the real executable.
+        with patch.dict(proof.SOURCE,pins), patch.object(proof,'corpus',return_value=rows), patch.object(obs,'corpus',return_value=rows):
+            r = run('observed',2**70)
+            self.assertEqual(r['slots_checked'],64*512)
+            self.assertTrue((self.root/'observed/run_observations.json').is_file())
+            self.assertEqual((self.out/'planned/program.json').read_bytes(),self.plan.read_bytes())
+            with self.assertRaisesRegex(ValueError,'physical metadata'):
+                run('wrong-scale',2**70+1)
+            self.assertFalse((self.root/'wrong-scale').exists())
+            source.write_bytes(b'different original source')
+            with patch.dict(proof.SOURCE,{'test_shared_square':digest(source.read_bytes())}), self.assertRaisesRegex(ValueError,'provenance'):
+                run('wrong-source',2**70)
+            self.assertFalse((self.root/'wrong-source').exists())
 
     def test_mismatched_seal(self):
         self.plan.write_text('{"emit_sha256":"'+('b'*64)+'"}')
