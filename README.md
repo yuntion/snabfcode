@@ -194,3 +194,7 @@ to the second command. A successful diagnostic checks the original search
 arms, their captured inputs and their refusals. It is **not** a successful
 encrypted mid-depth run or an infeasibility proof for all parameterizations.
 Keep the generated evidence outside the source repository.
+
+For RFC-004 native source inspection, isolated Go package checks, and the
+difference between these probes and encrypted N1 acceptance, see
+[the native probe guide](doc/native-probes.md).
