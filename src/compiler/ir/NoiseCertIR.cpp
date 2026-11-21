@@ -27,7 +27,7 @@ std::vector<uint64_t> moduli(ArrayRef<int64_t> primes) {
 }
 } // namespace
 
-ng::Topology checkedNoiseTopology(ModuleOp m) {
+static ng::Topology collectTopology(ModuleOp m, std::vector<V1EncodingCall> *calls) {
   const bool mixed = isMixed(m);
   if (mixed) checkRings(m);
   else { verifyPlan(m); verifyPass3(m); checkRingSearch(m); }
@@ -67,8 +67,28 @@ ng::Topology checkedNoiseTopology(ModuleOp m) {
     n.k = checkedInt(e.k);
     for (auto i : e.inputs) n.inputs.push_back(mapped.at(i));
     if (receipt && e.encoding) {
-      n.encoded_scale.emplace(eg::str(e.encoding, "metadata_scale").str());
-      n.effective_encoder_scale.emplace(eg::str(e.encoding, "effective_encoder_scale").str());
+      // Reconstruct the planned call, not a property of the ciphertext edge.
+      // The legacy ABI requests RN128(exp2(binary64 log)); do not invent an
+      // exact rational for the pre-exp2 real, or serialize a new v1 field.
+      const auto &d = g.domains[n.domain];
+      int def = checkedInt(eg::num(emitted.families.at(e.n), "scale"));
+      bool input = e.op == eg::Op::Source;
+      double log = def;
+      if (!input) {
+        auto parent = emitted.edges.at(e.inputs.front()).scale;
+        log = e.op == eg::Op::AddPlain ? parent : e.scale - parent;
+      }
+      EncodingCallContext ctx{"encode:" + e.id, e.id, input ? 0 : 1, n.level, checkedInt(emitted.slots),
+          {d.key_id, d.ring_n, def, d.q, d.p}, true, "[]float64", 53, std::max(53, def), input};
+      auto call = ExactScaleTracker::encode(ctx, pass2::plannedEncodingScale(log),
+                                            {e.values.data(), e.values.size()});
+      require(eg::str(e.encoding, "payload_sha256") == call.payload_sha256 &&
+              eg::str(e.encoding, "metadata_scale") == call.realized_meta_scale.get_str() &&
+              eg::str(e.encoding, "effective_encoder_scale") == call.realized_eff_scale.get_str(),
+              "stale_encoding_scale_binding");
+      n.encoded_scale = call.realized_meta_scale;
+      n.effective_encoder_scale = call.realized_eff_scale;
+      if (calls) calls->push_back({std::move(call), pass2::exactBinary(log)});
     }
     const auto &key = g.domains[n.domain].key_id;
     using O = eg::Op;
@@ -134,6 +154,15 @@ ng::Topology checkedNoiseTopology(ModuleOp m) {
   });
   require(!g.outputs.empty(), "empty returned SSA sink inventory");
   return g;
+}
+
+ng::Topology checkedNoiseTopology(ModuleOp m) { return collectTopology(m, nullptr); }
+
+ng::Topology checkedNoiseTopology(ModuleOp m, std::vector<V1EncodingCall> &calls) {
+  std::vector<V1EncodingCall> fresh;
+  auto graph = collectTopology(m, &fresh);
+  calls = std::move(fresh);
+  return graph;
 }
 
 namespace {

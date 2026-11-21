@@ -24,6 +24,16 @@ target_link_libraries(snabf_ir PUBLIC snabf_pass4 "${sdk}/lib/libMLIR.so" "${sdk
 target_link_libraries(snabf_ir PRIVATE "${GMPXX_LIB}" "${MPFR_LIB}" "${GMP_LIB}")
 if(BUILD_TESTING)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_library(snabf_exact_scale STATIC ExactScaleTracker.cpp)
+  target_include_directories(snabf_exact_scale PUBLIC "${sdk}/include")
+  target_link_libraries(snabf_exact_scale PUBLIC snabf_noise "${sdk}/lib/libLLVM.so")
+  add_executable(ExactScaleTrackerTest ../../../test/compiler/ExactScaleTrackerTest.cpp)
+  target_link_libraries(ExactScaleTrackerTest PRIVATE snabf_exact_scale)
+  add_executable(ExactScaleTraceTest ../../../test/compiler/ExactScaleTraceTest.cpp)
+  target_link_libraries(ExactScaleTraceTest PRIVATE snabf_exact_scale snabf_pipeline)
+  add_test(NAME ExactScaleTrackerTest COMMAND ExactScaleTrackerTest)
+  add_test(NAME ExactScaleReplayTest COMMAND "${Python3_EXECUTABLE}" -B
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../test/compiler/test_exact_scale.py" "$<TARGET_FILE:ExactScaleTrackerTest>")
   set(n0tests "${CMAKE_CURRENT_SOURCE_DIR}/../../../test/compiler/rfc004")
   foreach(probe contracts fold encoding layout package)
     add_test(NAME RFC004_${probe} COMMAND "${Python3_EXECUTABLE}" -B
