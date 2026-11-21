@@ -30,3 +30,9 @@ Review WP scheduling **the week all three DEV-2 arms have checked encrypted resu
 17. **Delete merged PR heads.** Keep GitHub's automatic head-branch deletion enabled. Before manually retiring any branch, fetch current refs, exclude active tracks and open PRs, verify that its exact tip is an ancestor of `origin/main`, and delete against the audited tip. If code was projected, squashed or cherry-picked, verify the content and preserve the original history first; a merged PR number alone is insufficient.
 18. **Four active branches; five temporarily.** Keep `main` and one working branch per track, plus at most one short-lived contract or integration branch. Retire it after merge. Starting with the next batch, reuse `track/a`, `track/b` and `track/c`: fast-forward a clean, fully landed track, or recreate its auto-deleted ref from the checked `main`. Never discard unpublished commits or dirty worktrees to make a quota.
 19. **Milestones are annotated tags.** Tag the exact verified commit for releases, regression baselines and paper snapshots. Publish only the intended tags, verify their peeled commit IDs, and do not move or reuse them. A branch denotes live development, not an archive.
+
+Implementation note for decision 13 (Batch 2): the 17-Q replay distinguishes a
+pre-solver base-width exclusion, an independently contradictory solver row,
+and a solver status with no such witness. A relaxed diagnostic row cannot
+authorize a production plan. A successful refusal replay is reported
+separately from a measured mid-depth matrix; see the README for the probe.

@@ -3,6 +3,7 @@
 #include "CostProfile.h"
 #include "Highs.h"
 #include "PrimeInstantiator.h"
+#include "RejectionIsolation.h"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <algorithm>
@@ -142,7 +143,8 @@ struct CandidateTrace {
   const MeasuredBasis *basis;
 
   void record(const char *stage, const char *status, int round = 0,
-              const Solution *physical = nullptr, int blockFirst = -1) const {
+              const Solution *physical = nullptr, int blockFirst = -1,
+              const diagnostic::Tree *isolation = nullptr) const {
     if (!out) return;
     using boost::property_tree::ptree;
     ptree row;
@@ -158,6 +160,7 @@ struct CandidateTrace {
     row.put("tolerance", o.tolerance);
     row.put("security_cap_bits", o.securityCap);
     row.put("round", round); // 0: model construction; 1..12: solve/refine
+    if (isolation) row.add_child("isolation", *isolation);
     if (physical || basis) {
       auto limbs = [](const std::vector<int64_t> &v) {
         ptree a;
@@ -228,8 +231,13 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
     if(lo>hi) return false;
     occupied.insert(z);m.row(lo,{{col,1}},hi);return true;
   };
-  if (b0 >= (block ? o.primeWidthMax : 60.))
-    return trace.reject("model_bounds", "base_width");
+  if (b0 >= (block ? o.primeWidthMax : 60.)) {
+    if (out) {
+      auto input = diagnostic::baseWidth(g, o, b0);
+      trace.record("model_bounds", "base_width", 0, nullptr, -1, &input);
+    }
+    return {};
+  }
   std::vector<int> q, sc, noise;
   std::vector<double> lb, ub;
   Row total;
@@ -271,6 +279,7 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
       m.row(o.auxMarginBits,margin,inf);
     }
   } else { aux.push_back(p); total[p]=1; }
+  const int qpCapRow = m.h.getNumRow();
   m.row(-inf, total, o.securityCap);
   int pinv = m.upperExp(p, plo, phi, -1, plo);
   std::vector<std::vector<int>> z(g.edges.size());
@@ -420,11 +429,17 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
   for (int round = 0; round < 12; ++round) {
     ok(m.h.run());
     auto status = m.h.getModelStatus();
-    if (status == HighsModelStatus::kInfeasible)
-      return trace.reject("solver", "infeasible", round + 1);
-    if (status != HighsModelStatus::kOptimal)
+    if (status != HighsModelStatus::kOptimal) {
+      if (out) {
+        auto input = diagnostic::solverRows(m.h, qpCapRow);
+        const char *s = status == HighsModelStatus::kInfeasible ? "infeasible" :
+                        status == HighsModelStatus::kUnknown ? "unknown" : "not_optimal";
+        trace.record("solver", s, round + 1, nullptr, -1, &input);
+      }
+      if (status == HighsModelStatus::kInfeasible) return {};
       throw std::runtime_error(
           "HiGHS did not prove an optimal Pass 3 solution");
+    }
     auto v = m.h.getSolution().col_value;
     Solution s;
     s.scale = d;

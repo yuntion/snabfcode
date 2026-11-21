@@ -15,6 +15,7 @@ from pathlib import Path
 
 import phase2_multip_ablation as ab
 import phase2_multip_deep as source
+from pass3_isolation import isolate
 
 SCHEMA = 'snabf.a2.middepth.v1'
 REJECTION = 'snabf.pass3.candidate-rejection.v1'
@@ -132,7 +133,7 @@ def rejection_records(lines, *, n, q_count, alpha, max_k, margin_bits=2):
                      'wrong rejection schema, cell or arm')
         stage, status, attempt = r['stage'], r['status'], uint(r['round'])
         source.check((stage == 'model_bounds' and attempt == 0) or
-                     (stage == 'solver' and status == 'infeasible' and 1 <= attempt <= 12) or
+                     (stage == 'solver' and status in ('infeasible', 'unknown', 'not_optimal') and 1 <= attempt <= 12) or
                      (stage == 'concrete_replay' and status == 'rejected' and 1 <= attempt <= 12) or
                      (stage == 'refinement' and status == 'round_limit' and attempt == 12), 'wrong rejection stage')
         has_basis = any(k in r for k in ('q', 'p', 'basis_source'))
@@ -157,6 +158,14 @@ def rejection_records(lines, *, n, q_count, alpha, max_k, margin_bits=2):
             actual, required = math.prod(p), math.prod(q[first:end]) << bits
             source.check(actual == uint(w['p_product']) and required == uint(w['required_product']) and
                          actual < required, 'auxiliary block rejection does not replay')
+        source.check('constraint_isolation' not in r, 'derived field in native record')
+        diagnostic = isolate(r)
+        if diagnostic is not None:
+            # Keep the full input in the hash-checked log, not in every summary.
+            del r['isolation']
+            r['constraint_isolation'] = diagnostic
+        elif stage == 'solver' and status != 'infeasible':
+            raise ValueError('missing indeterminate solver status/snapshot')
         rows.append(r)
     return rows
 
@@ -191,7 +200,8 @@ def assess(root):
             # unexecuted arm, from a generic message, or from diagnostic_tail.
             for arm in ('joint', 'no_trunc'):
                 v = ledger.get(arm, {})
-                if v.get('status') != 'compiler_rejected' or v.get('reason') != accepted_reasons[0]:
+                if not ((v.get('status') == 'compiler_rejected' and v.get('reason') == accepted_reasons[0])
+                        or v.get('status') == 'solver_indeterminate'):
                     continue
                 log = d / (arm+'.log')
                 if v.get('log') == log.name and log.is_file():
@@ -200,6 +210,11 @@ def assess(root):
                                                  alpha=int(name.split(':')[0]), max_k=rec['joint_max_k'] if arm=='joint' else 0)
                     if rows:
                         cells[name].setdefault('candidate_rejections', {})[arm] = rows
+            if any('constraint_isolation' in r for arm in cells[name].get('candidate_rejections', {}).values() for r in arm):
+                # Preserve byte-replay of historical receipts; a new diagnostic is
+                # a rejection of a searched policy, not infeasibility of a graph.
+                del cells[name]['parameter_infeasible']
+                cells[name].update(parameter_search_rejection_observed=negative, graph_infeasibility_proven=False)
             if name == '1:narrow':
                 single_admission_ok = negative
             continue

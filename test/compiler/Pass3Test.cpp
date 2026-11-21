@@ -25,7 +25,7 @@ std::vector<ptree> records(const std::ostringstream &out) {
   return rows;
 }
 
-void candidateRejections() {
+void candidateRejections(std::ostream *samples = nullptr) {
   // At N=1024 the nearest primes to 2^36 and 2^38 fail P >= 4*Q0.
   // Exercise actual instantiation and refinement rather than a fabricated rejection.
   Graph g{1024, 1, 0, 0, {{"x", Op::Source, 0, {}, {}, .1}}};
@@ -76,9 +76,17 @@ void candidateRejections() {
   auto bare = denied(1);
   yes(bare.size() == 1, "bare solver failure must not invent a candidate");
   unknown(bare.front(), 1);
+  if (samples) {
+    for (const auto *r : {&mixed.back(), &bare.front()})
+      boost::property_tree::write_json(*samples, *r, false);
+  }
 }
 } // namespace
-int main() {
+int main(int argc, char **argv) {
+  if (argc == 2 && std::string(argv[1]) == "--isolation-fixtures") {
+    candidateRejections(&std::cout);
+    return 0;
+  }
   candidateRejections();
   yes(!prime(341550071728321ULL) && prime(65537) && !prime(1), "primality");
   std::set<int64_t> used;

@@ -159,3 +159,20 @@ contracts; it is not a proof of the observed accuracy or a failure probability.
 `--certify-failure-bits 40` requires a complete analytic certificate: without
 one the compiler returns nonzero, retains a denial audit next to the requested
 output, and publishes no model. Classical estimator screening remains separate.
+
+### Replaying the 17-Q search refusal
+
+`SNABF_PASS3_TRACE_REJECTIONS=1` records candidate rejections; it does not
+relax a bound or enable emission. On Linux with the pinned toolchain:
+
+```bash
+run=$(mktemp -d)
+SNABF_EXTERN=/home/fhecompiler/extern python3 test/compiler/phase2_17q_probe.py --out "$run/probe"
+python3 test/compiler/phase2_17q_probe.py --replay "$run/probe"
+```
+
+For an independent native replay, append `--verify-native /path/to/snabf-opt`
+to the second command. A successful diagnostic checks the original search
+arms, their captured inputs and their refusals. It is **not** a successful
+encrypted mid-depth run or an infeasibility proof for all parameterizations.
+Keep the generated evidence outside the source repository.

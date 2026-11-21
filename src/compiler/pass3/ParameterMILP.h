@@ -7,6 +7,8 @@ Solution optimize(const Graph &, const Options &);
 // two-argument entry point writes these lines to stderr only when
 // SNABF_PASS3_TRACE_REJECTIONS=1. A record concerns one candidate, not the
 // entire search. Numeric fields are decimal strings (including exact Q/P).
+// Optional isolation inputs describe a construction guard or the original
+// sparse rows of that solve round. They do not change admission or name an IIS.
 Solution optimize(const Graph &, const Options &, std::ostream &rejections);
 // A live ciphertext fixes Q, P and its scale. Re-solve the remaining integer
 // gadget decisions using those actual primes; no change of basis is implicit.
