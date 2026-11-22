@@ -12,11 +12,11 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'src/tools'))
-from b2i_noise_replay import centered_linear, constant
 from replay_noise_audit import binding_plan, independent, load, need, same
 from test_exact_scale_source import replace_encoding
 
 CASES = {'residual': (59, 6, 4, -10186237938), 'single-gelu': (62, 7, 3, -32058679686)}
+DC_SITES = {f'node/{node}/plain_encoding_at_output' for node in ('poly0.n2.pt0','poly0.n2.constant','poly0.n4.pt0')}
 
 
 def run(native, args, cwd, deny=False):
@@ -45,16 +45,27 @@ def case(name, inputs, reports, tmp, native, go):
     def replay(proposal=None, *, checked=ir, params=program, basis=d/'basis.json', witness=d/'source.mlir'):
         return independent(checked, params, proposal, baseline, b2i=True, source_witness=witness, basis=basis)
     result = replay(report); before, adds, drops, c = CASES[name]
-    need(result['missing_before'] == before and result['missing'] == before-1 and
-         result['cleared'] == ['node/poly0.n2.pt0/plain_encoding_at_output'], 'wrong local reduction')
+    need(result['missing_before'] == before and result['missing'] == before-len(DC_SITES) and
+         set(result['cleared']) == DC_SITES, 'wrong local reduction')
     remaining = result['missing_contract_terms']
     need(sum(x.endswith('/add') for x in remaining) == adds and sum(x.endswith('/level_reduce') for x in remaining) == drops
-         and 'node/poly0.n2.pt0/mul_plain' in remaining, 'waived centered ciphertext lift')
+         and {'node/poly0.n2.pt0/mul_plain', 'node/poly0.n2.constant/add_plain', 'node/poly0.n4.pt0/mul_plain'} <= set(remaining),
+         'waived centered ciphertext lift')
     fresh = load(report); denied = load(denial)
     need(fresh['mode'] == 'engineering' and same(denied, dict(fresh, mode='probability')) and
          replay(denial)['matched'], 'denial not replayable')
-    def proved(x): return next(t for t in x['b2i_local']['transfers'] if t['formula_ref'])
+    def transfer(x, site): return next(t for t in x['b2i_local']['transfers'] if t['site_id'] == site)
+    def proved(x): return transfer(x, 'node/poly0.n2.pt0/plain_encoding_at_output')
     need(proved(fresh)['encoded_constant'] == str(c) and proved(fresh)['lhs_gain'] == str(c), 'signed gain')
+    wide = 'node/poly0.n4.pt0/plain_encoding_at_output'
+    for site in DC_SITES - {proved(fresh)['site_id']}:
+        row = transfer(fresh, site)
+        need(row['formula_ref'] == 'b2i/dc-word-bounded-ntt-v6.2.0' and
+             int(row['encoded_constant']) < int(row['noncanonical_ntt_word_upper']) < 2**64, 'unproved CRT word bound')
+    for row in fresh['b2i_local']['transfers']:
+        if '.mask' in row['site_id'] and row['site_id'].endswith('/plain_encoding_at_output'):
+            need(row['blocker'] == 'vector_ifft_not_proved' and row['sigma_pt_inf'] is None and row['lhs_gain'] is None,
+                 'invented vector FFT result')
     negatives = []
     def reject(label, fn, message):
         try: fn()
@@ -66,6 +77,10 @@ def case(name, inputs, reports, tmp, native, go):
         bad = copy.deepcopy(fresh); proved(bad)[field] = value
         path = tmp/'forged.json'; path.write_text(json.dumps(bad))
         reject(field, lambda: replay(path), 'source-derived B2-i production audit differs')
+    for site, field, value in [(wide, 'noncanonical_ntt_word_upper', '0'),
+                               ('node/poly0.n4.pt0/mul_plain', 'dc_center_correction', '0')]:
+        bad = copy.deepcopy(fresh); transfer(bad, site)[field] = value
+        path.write_text(json.dumps(bad)); reject(field, lambda: replay(path), 'B2-i production audit differs')
     bad = copy.deepcopy(fresh); site = 'node/poly0.n2.pt0/mul_plain'
     bad['missing_contract_terms'].remove(site)
     next(t for t in bad['sites'] if t['site_id']==site)['formula_ref'] = 'claimed-no-wrap'
@@ -79,11 +94,12 @@ def case(name, inputs, reports, tmp, native, go):
     reject('no-original', lambda: replay(witness=None), 'needs both')
     # Resynchronize both legacy receipts with the changed value. The checked
     # activation DAG and independently bound public stage bits still disagree.
-    p = load(program); val = next(e for e in p['instructions'] if e['ID']=='poly0.n2.pt0')['values']
-    val[0] = math.nextafter(val[0], math.inf); p['encoding_receipts'] = binding_plan(p)
-    path.write_text(json.dumps(p)); changed = tmp/'tampered.mlir'
-    changed.write_text(replace_encoding(ir.read_text(), p['encoding_receipts']))
-    reject('synchronized-public-bit-and-receipts', lambda: replay(checked=changed, params=path), 'source-derived instruction')
+    for node, offset in [('poly0.n2.pt0', 0), ('lin0.mask0', 17)]:
+        p = load(program); val = next(e for e in p['instructions'] if e['ID']==node)['values']
+        val[offset] = math.nextafter(val[offset], math.inf); p['encoding_receipts'] = binding_plan(p)
+        path.write_text(json.dumps(p)); changed = tmp/'tampered.mlir'
+        changed.write_text(replace_encoding(ir.read_text(), p['encoding_receipts']))
+        reject('synchronized-public-bit-and-receipts/'+node, lambda: replay(checked=changed, params=path), 'source-derived instruction')
 
     if go:
         run(native, ['--snabf-lower-ckks=direct-go=true', ir, '-o', 'lower.mlir'], tmp)
@@ -104,13 +120,6 @@ if __name__ == '__main__':
     for flag in ('fixtures','reports','native','go'):
         ap.add_argument('--'+flag, type=Path, required=flag in ('fixtures','reports'))
     args = ap.parse_args(); need(not args.go or args.native, 'runtime probe needs --native')
-    # Arithmetic-only counterexamples, not production bounds or encodings.
-    need(centered_linear(97, ['u','v'], [1,1], {'u':48,'v':1}) == (49,False) and
-         centered_linear(97, ['u','u'], [1,-1], {'u':48}) == (0,True), 'centered lift guard')
-    from fractions import Fraction as Q
-    for w, want in [(0.5,1), (-0.5,-1), (2.5,3), (math.nextafter(1.5, 0),1)]:
-        need(constant([w], dict(branch='embed_double_f64',encoder_prec_bits=53,slots=16,realized_eff_scale='1'),
-                      [193]) == (want,Q(want)-Q(w)), 'wrong fixed point rounding')
     reports = args.reports.resolve()
     if args.native: reports.mkdir(parents=True, exist_ok=False)  # never overwrite evidence
     with tempfile.TemporaryDirectory(prefix='snabf-b2i-check-') as t:

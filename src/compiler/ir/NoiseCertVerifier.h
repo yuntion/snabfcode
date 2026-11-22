@@ -43,6 +43,7 @@ struct Topology {
   std::vector<Domain> domains;
   std::vector<Node> nodes;
   std::vector<OutputPort> outputs; // ALL returned ports, not selected witnesses
+  int direct_go_slots = 0; // sealed emitter layout, not inferred from a plaintext receipt
 };
 
 enum class Role { Encode, Encrypt, Add, Sub, Neg, Drop, RescaleRound,

@@ -30,6 +30,8 @@ if(BUILD_TESTING)
   add_executable(B2iTransfersTest ../../../test/compiler/B2iTransfersTest.cpp)
   target_link_libraries(B2iTransfersTest PRIVATE snabf_noise)
   add_test(NAME B2iTransfersTest COMMAND B2iTransfersTest)
+  add_test(NAME B2iPlainFamilyReplay COMMAND "${Python3_EXECUTABLE}" -B
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../test/compiler/test_plain_family.py")
   add_executable(ExactScaleTraceTest ../../../test/compiler/ExactScaleTraceTest.cpp)
   target_link_libraries(ExactScaleTraceTest PRIVATE snabf_pipeline)
   add_test(NAME ExactScaleTrackerTest COMMAND ExactScaleTrackerTest)
