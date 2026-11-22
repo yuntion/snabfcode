@@ -32,7 +32,7 @@ def pinned_go():
     go = (ext/'go'/'bin'/('go.exe' if os.name == 'nt' else 'go')).resolve(strict=True)
     # No ambient toolchain, workspace, compiler overlays, Go env file, or HEIR overrides.
     keep = ('PATH', 'HOME', 'USERPROFILE', 'SystemRoot', 'LOCALAPPDATA', 'TMP', 'TEMP',
-            'TMPDIR', 'GOCACHE', 'LD_LIBRARY_PATH')
+            'TMPDIR', 'GOTMPDIR', 'GOCACHE', 'LD_LIBRARY_PATH')
     env = {k: os.environ[k] for k in keep if k in os.environ}
     env.update(GOPATH=str(ext/'gopath'), GOWORK='off', GOPROXY='off', GOTOOLCHAIN='local',
                GOENV='off', GOFLAGS='', GOSUMDB='off', CGO_ENABLED='0')
@@ -59,7 +59,7 @@ def _go(go, env, cwd, *args):
 
 def _dependencies(go, env, root):
     keys = 'ImportPath,Dir,Name,Module,Standard,GoFiles,TestGoFiles,XTestGoFiles,EmbedFiles,TestEmbedFiles,XTestEmbedFiles'
-    text = _go(go, env, root, 'list', '-mod=readonly', '-deps', '-test', '-json='+keys, './planned')
+    text = _go(go, env, root, 'list', '-mod=readonly', '-deps', '-test', '-json='+keys, './...')
     decoder = json.JSONDecoder()
     paths, lattigo = set(), False
     offset = 0
