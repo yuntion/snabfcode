@@ -21,7 +21,7 @@ target_link_libraries(snabf_pass2 PUBLIC "${MPFI_LIB}" "${MPFR_LIB}" "${GMP_LIB}
 # Both the SDK-free noise verifier and the full N1 library use these same objects.
 add_library(snabf_scale_math OBJECT pass2/AffineErrorForm.cpp ir/ExactScaleTracker.cpp)
 target_link_libraries(snabf_scale_math PUBLIC snabf_pass2 snabf_pass3 "${GMPXX_LIB}")
-add_library(snabf_noise STATIC ir/NoiseCertVerifier.cpp)
+add_library(snabf_noise STATIC ir/NoiseCertVerifier.cpp ir/BoundedNoiseTransfer.cpp)
 add_library(snabf_affine_interval STATIC ir/AffineIntervalAnalyzer.cpp)
 target_link_libraries(snabf_affine_interval PUBLIC snabf_pass2)
 

@@ -207,7 +207,8 @@ ROLES = {'source': ('encode', 'encrypt'), 'add': ('add',), 'add_plain': ('plain_
          'relin': ('evk_switch',)}
 
 
-def independent(checked, params, compare=None, baseline=None, *, source_witness=None, basis=None, compare_scales=None):
+def independent(checked, params, compare=None, baseline=None, *, source_witness=None, basis=None, compare_scales=None,
+                b2i=False, precision_bits=12):
     ir, checked_plan, seal, source_bound = checked_inputs(checked)
     p = load(params)
     need(re.fullmatch(r'[0-9a-f]{64}', seal) and p.get('emit_sha256') == seal, 'different checked/program seal')
@@ -222,7 +223,7 @@ def independent(checked, params, compare=None, baseline=None, *, source_witness=
         need(all(same(e[k], a[k]) for k in ('ID', 'op', 'Level', 'K', 'inputs')) and
              struct.pack('>d', e['physical_log_scale']) == struct.pack('>d', a['physical_log_scale']) and
              e['n'] == e['kernel_ring'] == ir['ring'], 'checked instruction mismatch: ' + e['ID'])
-    need(bool(source_witness) == bool(basis) and (not compare_scales or source_witness),
+    need(bool(source_witness) == bool(basis) and (not (compare_scales or b2i) or source_witness),
          'source-bound replay needs both --source-witness and --basis')
     trace = None
     if source_witness:
@@ -314,6 +315,34 @@ def independent(checked, params, compare=None, baseline=None, *, source_witness=
             proposed = load(compare_scales)  # only after source-bound replay
             need(same(proposed, result['exact_scale']), 'source-derived exact scale trace differs')
             result['exact_scale_matched'] = True
+    if b2i:
+        from b2i_noise_replay import refusal, transfers
+        local = transfers(trace, p, edges)
+        releases = {r['site_id']: r['formula_ref'] for r in local['transfers'] if r['formula_ref']}
+        need(releases.keys() <= missing, 'orphan local proof')
+        release = refusal(sink_scale, ir['ring'], precision_bits)
+        domains = [dict(key_id=key, ring_n=ir['ring'], q=list(map(str, ir['q'])), p=list(map(str, ir['p'])))]
+        physical = dict(release, emit_sha256=seal, encoding_program_sha256=plan['program_sha256'],
+                        domains=domains, edges=edges, sites=sites, missing_contract_terms=sorted(missing))
+        def match(path, expected, label):
+            observed = load(path)  # only after replay; no observed value feeds any bound
+            mode = observed.get('mode')
+            need(mode in ('engineering', 'probability') and same(observed, dict(expected, mode=mode)), label)
+        if baseline is not None:
+            match(baseline, physical, 'different pre-B2-i production baseline')
+        for s, entry in zip(sites, ledger):
+            if s['site_id'] in releases:
+                s['formula_ref'] = releases[s['site_id']]
+                entry['status'] = 'proved_local'
+        missing.difference_update(releases)
+        if compare is not None:
+            match(compare, dict(physical, b2i_local=local, missing_contract_terms=sorted(missing)),
+                  'source-derived B2-i production audit differs')
+            result['matched'] = True
+        result.update(scope='B2-i-source-bound', b2i_local=local, cleared=sorted(releases),
+                      missing_before=result['missing'], missing=len(missing), missing_contract_terms=sorted(missing),
+                      refusal=release)
+        return result
     if compare is not None:
         audit = load(compare)  # Read ONLY after deriving every row, including folds and local scale bias.
         need(audit.get('emit_sha256') == seal and audit.get('encoding_program_sha256') == plan['program_sha256'], 'different audit/program identity')
@@ -364,10 +393,11 @@ if __name__ == '__main__':
     parser.add_argument('package', nargs='?', type=Path)
     parser.add_argument('--snabf-opt', type=Path)
     parser.add_argument('--independent', action='store_true', help='pure Python scale verification; never issues a noise certificate')
+    parser.add_argument('--b2i', action='store_true', help='reconstruct local noise transfers; requires original source and ordered basis')
     parser.add_argument('--checked', type=Path)
     parser.add_argument('--params', type=Path, help='direct program.json with public coefficients, parameters and receipts')
     parser.add_argument('--compare', type=Path, help='optional native audit, read only at final comparison')
-    parser.add_argument('--baseline', type=Path, help='optional matching frozen B1 audit; classify its missing obligations')
+    parser.add_argument('--baseline', type=Path, help='optional matching frozen B1 audit (pre-B2-i physical audit for --b2i)')
     parser.add_argument('--source-witness', type=Path, help='original R3/C1 source MLIR (not lowered IR); opts into source-bound replay')
     parser.add_argument('--basis', type=Path, help='independent concrete profile.json with ordered Q/P, logN and logDefaultScale')
     parser.add_argument('--compare-scales', type=Path, help='compare a proposed exact_scale object, including all calls and steps')
@@ -377,10 +407,11 @@ if __name__ == '__main__':
         if args.independent:
             need(args.checked and args.params and not args.package and not args.snabf_opt, 'use --independent --checked IR --params PROGRAM')
             summary = independent(args.checked, args.params, args.compare, args.baseline,
-                                  source_witness=args.source_witness, basis=args.basis, compare_scales=args.compare_scales)
+                                  source_witness=args.source_witness, basis=args.basis, compare_scales=args.compare_scales,
+                                  b2i=args.b2i, precision_bits=args.precision_bits)
         else:
             need(args.package and args.snabf_opt and not any((args.checked, args.params, args.compare, args.baseline,
-                 args.source_witness, args.basis, args.compare_scales)), 'use PACKAGE --snabf-opt PATH for native engineering replay')
+                 args.source_witness, args.basis, args.compare_scales, args.b2i)), 'use PACKAGE --snabf-opt PATH for native engineering replay')
             report = replay(args.package, args.snabf_opt, args.precision_bits)
             summary = dict(matched=True, mode=report['mode'], sinks=len(report['sinks']), probabilistic_cert_issued=report['probabilistic_cert_issued'])
     except (ValueError, TypeError, KeyError, IndexError, ArithmeticError, OSError, subprocess.CalledProcessError) as exc:
