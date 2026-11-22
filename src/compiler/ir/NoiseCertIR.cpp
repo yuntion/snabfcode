@@ -107,6 +107,7 @@ static ng::Topology collectTopology(ModuleOp m, std::vector<V1EncodingCall> *cal
     case O::Drop: n.op = ng::Op::Drop; break;
     case O::Mul: n.op = ng::Op::CtMul; break;
     case O::Mask: case O::Coefficient: case O::AddPlain: {
+      n.diagonal_mask = e.op == O::Mask;
       if (e.op != O::AddPlain && e.values.size() == 1) {
         n.op = ng::Op::ScalarMulPlain;
         n.real_scalar = e.values.front();
@@ -295,7 +296,7 @@ j::Object noiseAuditJSON(const ng::CertAuditReport &r) {
     for (const auto &t : r.local_transfers) {
       j::Array inputs;
       for (const auto &id : t.inputs) inputs.push_back(id);
-      rows.emplace_back(j::Object{{"site_id", t.site}, {"inputs", std::move(inputs)},
+      j::Object obj{{"site_id", t.site}, {"inputs", std::move(inputs)},
           {"active_q_product", t.active_q.get_str()}, {"candidate_coeff_abs", rational(t.candidate_coeff_abs)},
           {"dc_before_center", rational(t.dc_before_center)}, {"dc_after_center", rational(t.dc_after_center)},
           {"dc_center_correction", rational(t.dc_center_correction)}, {"noncanonical_ntt_word_upper", rational(t.ntt_word_upper)},
@@ -303,7 +304,14 @@ j::Object noiseAuditJSON(const ng::CertAuditReport &r) {
           {"lhs_gain", rational(t.lhs_gain)}, {"rhs_gain", rational(t.rhs_gain)},
           {"argument_sha256", exactText(t.argument_sha256)}, {"encoded_constant", rational(t.encoded_constant)},
           {"sigma_pt_inf", t.encoded_constant ? j::Value(ng::Exact(abs(*t.encoded_constant)).get_str()) : j::Value(nullptr)},
-          {"delta_pt_signed", rational(t.delta_pt)}, {"local_bias_units", rational(t.bias)}});
+          {"delta_pt_signed", rational(t.delta_pt)}, {"local_bias_units", rational(t.bias)}};
+      if (const auto &v = t.diagonal) {
+        obj["periodic_diagonal"] = j::Object{{"requires_backend", "epochs.RequireDiagonalEncodingV1"},
+            {"period", v->period}, {"coefficient_stride", v->stride}, {"weight_abs", v->weight_abs.get_str()},
+            {"ifft_coeff_error", v->ifft_error.get_str()}, {"centered_coeff_abs", v->coeff_abs.get_str()},
+            {"slot_delta_inf", v->delta_inf.get_str()}};
+      }
+      rows.emplace_back(std::move(obj));
     }
     out["b2i_local"] = j::Object{{"schema", "snabf.b2i.local.v2"}, {"transfers", std::move(rows)}};
   }

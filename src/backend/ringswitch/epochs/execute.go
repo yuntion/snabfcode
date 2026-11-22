@@ -57,6 +57,8 @@ type Runtime struct {
 	exact    map[string]rlwe.Scale
 	evaluate Evaluation
 	last     EvalObservation // per Eval; like the CKKS evaluator, this runtime is not concurrent
+
+	diagonalRoots map[int]bool // only populated by successful guarded Bind
 }
 type PhysicalPort struct {
 	N, Level int
@@ -108,7 +110,8 @@ const RequireExactEncoding EncodingPolicy = 1
 // Two-argument Bind remains the archived engineering ABI. Newly emitted
 // programs require receipts even when a caller removes the entire port list.
 func Bind(s Program, evaluate Evaluation, policy ...EncodingPolicy) (*Runtime, error) {
-	exact := len(policy) == 1 && policy[0] == RequireExactEncoding
+	diagonals := len(policy) == 1 && policy[0] == RequireDiagonalEncodingV1
+	exact := diagonals || (len(policy) == 1 && policy[0] == RequireExactEncoding)
 	if !exact && (len(policy) != 0 || len(s.Ports) != 0) {
 		return nil, fmt.Errorf("invalid encoding policy")
 	}
@@ -193,6 +196,9 @@ func Bind(s Program, evaluate Evaluation, policy ...EncodingPolicy) (*Runtime, e
 			return nil, err
 		}
 	}
+	if diagonals {
+		r.diagonalRoots = make(map[int]bool)
+	}
 	for _, i := range s.Plain {
 		f, ok := r.families[i.N]
 		if !ok || i.Level < 0 || i.Level > f.p.MaxLevel() || i.Index < 0 || r.plain[i.Index] != nil {
@@ -204,6 +210,15 @@ func Bind(s Program, evaluate Evaluation, policy ...EncodingPolicy) (*Runtime, e
 			pt.Scale = scales[i.Index]
 			if err := checkEncoderPort(s.Ports[i.Index], pt, f.enc); err != nil {
 				return nil, err
+			}
+			if diagonals && !r.diagonalRoots[i.N] && f.enc.Prec() == 53 &&
+				i.N <= 65536 && s.Slots >= 16 && s.Slots <= 32768 {
+				// NewEncoder uses this same deterministic v6.2.0 table constructor.
+				m := int(f.p.RingQ().NthRoot())
+				if m != 2*i.N || !checkDiagonalRoots(ckks.GetRootsComplex128(m), m, min(64, s.Slots)) {
+					return nil, fmt.Errorf("unproved periodic diagonal roots: %s", s.Ports[i.Index].ID)
+				}
+				r.diagonalRoots[i.N] = true
 			}
 		} else {
 			scale := math.Exp2(i.LogScale) // legacy generated engineering programs only

@@ -27,6 +27,10 @@ public:
   }
 };
 
+struct DiagonalEncoding {
+  int period, stride;
+  pass2::Exact weight_abs, ifft_error, coeff_abs, delta_inf;
+};
 struct LocalTransfer {
   std::string site, formula, blocker, argument_sha256;
   std::vector<std::string> inputs;
@@ -34,6 +38,7 @@ struct LocalTransfer {
   std::optional<pass2::Exact> candidate_coeff_abs, lhs_gain, rhs_gain,
       encoded_constant, delta_pt, bias;
   std::optional<pass2::Exact> dc_before_center, dc_after_center, dc_center_correction, ntt_word_upper;
+  std::optional<DiagonalEncoding> diagonal;
 };
 struct Topology;
 struct LocalStep {

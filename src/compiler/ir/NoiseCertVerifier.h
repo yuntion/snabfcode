@@ -37,6 +37,7 @@ struct Node {
   int64_t rotation = 0; // signed component permutation, never a scalar gain
   std::optional<Exact> effective_encoder_scale, source_bound;
   std::optional<BoundPlainCall> bound_plain_call; // opt-in checked DirectGo v1 only
+  bool diagonal_mask = false; // actual EmitGraph Mask, never inferred from the SSA name
 };
 struct OutputPort { std::string id; size_t value; };
 struct Topology {

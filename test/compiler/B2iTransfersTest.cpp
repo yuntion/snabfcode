@@ -124,6 +124,30 @@ void uniformWords() {
          row(r, "mask/plain_encoding_at_output").encoded_constant == -386, "negative multiple fast CRT");
 }
 
+void nonuniform() {
+  auto g = start();
+  auto m = tile("mask", Op::VectorMulPlain, 0, 1, {97,-97,97,-97});
+  g.nodes.push_back(m); g.outputs = {{"s",1}};
+  auto run = [&] { return verifyNoiseCertificate(g, options(g)); };
+  expect(row(run(), "mask/plain_encoding_at_output").blocker == "vector_ifft_not_proved", "borrowed mask provenance");
+  g.nodes[1].diagonal_mask = true;
+  auto r = run(); const auto &enc = row(r, "mask/plain_encoding_at_output");
+  expect(enc.diagonal && enc.diagonal->period == 2 && enc.diagonal->stride == 8 && enc.diagonal->coeff_abs == 97 &&
+         enc.bias && *enc.bias > 0 && !enc.delta_pt && !enc.lhs_gain && !enc.encoded_constant &&
+         row(r, "mask/mul_plain").blocker == "need_tighter_centered_decryption_coefficients" && !r.accepts(), "false signed/whole-op proof");
+  auto &edge = g.nodes[1]; edge.bound_plain_call.reset();
+  expect(row(run(), "mask/plain_encoding_at_output").blocker == "missing_bound_encoding_call", "unbound mask accepted");
+  edge = m; edge.diagonal_mask = true; edge.effective_encoder_scale = 2;
+  expect(!run().errors.empty(), "ignored E");
+  edge = m; edge.diagonal_mask = true; edge.plain_values[1] = -96;
+  expect(!run().errors.empty(), "stale public coefficient");
+  edge = tile("mask", Op::VectorMulPlain, 0, 0, {194,196}); edge.diagonal_mask = true; // exact DC 195 -> 2
+  g.nodes[0].level = 0;
+  r = run();
+  expect(row(r,"mask/plain_encoding_at_output").blocker == "plaintext_centered_lift_unproved" &&
+         !row(r,"mask/plain_encoding_at_output").diagonal, "borrowed an inactive prime for plaintext centering");
+}
+
 void exactProduct(int sign) {
   auto g = start();
   g.nodes.push_back(op("zero", Op::Sub, {0,0}));
@@ -170,6 +194,6 @@ void unsafeWordRange() {
 } // namespace
 int main() {
   linear(); fixedPoint(false); fixedPoint(true);
-  uniformWords(); exactProduct(1); exactProduct(-1); unsafeWordRange();
+  uniformWords(); nonuniform(); exactProduct(1); exactProduct(-1); unsafeWordRange();
   std::cout << "B2-i public DC encodings, centered transfers, signed bias and refusals passed\n";
 }

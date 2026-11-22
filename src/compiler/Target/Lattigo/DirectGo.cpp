@@ -86,7 +86,8 @@ void bind(llvm::raw_ostream &o,const EmitGraph &g,StringRef digest) {
     o<<"\t\t\t{Index:"<<j<<", N:"<<e.n<<", Level:"<<e.level<<", Values:";
     list(o,"float64",e.values);o<<"},\n";
   }
-  o<<"\t\t},\n\t}, evaluate, epoch.RequireExactEncoding)\n}\n\n";
+  const bool masks = llvm::any_of(g.edges, [](const Edge &e) { return e.op == Op::Mask && e.values.size() > 1; });
+  o<<"\t\t},\n\t}, evaluate, epoch."<<(masks ? "RequireDiagonalEncodingV1" : "RequireExactEncoding")<<")\n}\n\n";
 }
 std::string site(const Edge &e) {
   return "gadget.Site{ID:"+quoted(e.id)+", Level:"+std::to_string(e.level)+", K:"+std::to_string(e.k)+"}";
