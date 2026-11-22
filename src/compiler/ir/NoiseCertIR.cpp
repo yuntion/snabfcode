@@ -47,6 +47,7 @@ static ng::Topology collectTopology(ModuleOp m, std::vector<V1EncodingCall> *cal
   if (b2i) require(!mixed && emitted.families.size() == 1 && receipt && m->hasAttr("snabf.emit_sha256"),
                    "B2-i requires a sealed, single-ring v1 encoding program");
   ng::Topology g;
+  if (b2i) g.direct_go_slots = checkedInt(emitted.slots);
   std::map<int64_t, size_t> domain;
   for (const auto &[n, d] : emitted.families) {
     domain.emplace(n, g.domains.size());
@@ -82,8 +83,10 @@ static ng::Topology collectTopology(ModuleOp m, std::vector<V1EncodingCall> *cal
       }
       EncodingCallContext ctx{"encode:" + e.id, e.id, input ? 0 : 1, n.level, checkedInt(emitted.slots),
           {d.key_id, d.ring_n, def, d.q, d.p}, true, "[]float64", 53, std::max(53, def), input};
-      auto bound = ng::BoundPlainCall::encode(ctx, pass2::plannedEncodingScale(log), {e.values.data(), e.values.size()});
-      const auto &call = bound.receipt();
+      const auto requested = pass2::plannedEncodingScale(log);
+      const std::span<const double> payload{e.values.data(), e.values.size()};
+      if (b2i && !input) n.bound_plain_call = ng::BoundPlainCall::encode(ctx, requested, payload);
+      const auto call = n.bound_plain_call ? n.bound_plain_call->receipt() : ExactScaleTracker::encode(ctx, requested, payload);
       require(eg::str(e.encoding, "payload_sha256") == call.payload_sha256 &&
               eg::str(e.encoding, "metadata_scale") == call.realized_meta_scale.get_str() &&
               eg::str(e.encoding, "effective_encoder_scale") == call.realized_eff_scale.get_str(),
@@ -91,7 +94,6 @@ static ng::Topology collectTopology(ModuleOp m, std::vector<V1EncodingCall> *cal
       n.encoded_scale = call.realized_meta_scale;
       n.effective_encoder_scale = call.realized_eff_scale;
       if (calls) calls->push_back({call, pass2::exactBinary(log)});
-      if (b2i && !input) n.bound_plain_call = std::move(bound);
     }
     const auto &key = g.domains[n.domain].key_id;
     using O = eg::Op;
@@ -295,13 +297,15 @@ j::Object noiseAuditJSON(const ng::CertAuditReport &r) {
       for (const auto &id : t.inputs) inputs.push_back(id);
       rows.emplace_back(j::Object{{"site_id", t.site}, {"inputs", std::move(inputs)},
           {"active_q_product", t.active_q.get_str()}, {"candidate_coeff_abs", rational(t.candidate_coeff_abs)},
+          {"dc_before_center", rational(t.dc_before_center)}, {"dc_after_center", rational(t.dc_after_center)},
+          {"dc_center_correction", rational(t.dc_center_correction)}, {"noncanonical_ntt_word_upper", rational(t.ntt_word_upper)},
           {"formula_ref", exactText(t.formula)}, {"blocker", exactText(t.blocker)},
           {"lhs_gain", rational(t.lhs_gain)}, {"rhs_gain", rational(t.rhs_gain)},
           {"argument_sha256", exactText(t.argument_sha256)}, {"encoded_constant", rational(t.encoded_constant)},
           {"sigma_pt_inf", t.encoded_constant ? j::Value(ng::Exact(abs(*t.encoded_constant)).get_str()) : j::Value(nullptr)},
           {"delta_pt_signed", rational(t.delta_pt)}, {"local_bias_units", rational(t.bias)}});
     }
-    out["b2i_local"] = j::Object{{"schema", "snabf.b2i.local.v1"}, {"transfers", std::move(rows)}};
+    out["b2i_local"] = j::Object{{"schema", "snabf.b2i.local.v2"}, {"transfers", std::move(rows)}};
   }
   return out;
 }

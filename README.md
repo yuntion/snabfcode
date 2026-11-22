@@ -178,6 +178,44 @@ contracts; it is not a proof of the observed accuracy or a failure probability.
 one the compiler returns nonzero, retains a denial audit next to the requested
 output, and publishes no model. Classical estimator screening remains separate.
 
+### Public plaintext audit contract
+
+`--snabf-check-plan="noise-audit=FILE b2i-local=true"` requires a sealed,
+single-ring DirectGo v1 program. Its `snabf.b2i.local.v2` section is opt-in;
+the default audit and v1 encoder receipts are unchanged. Replay with
+`src/tools/replay_noise_audit.py` in `--b2i` mode with the original source
+witness and ordered basis. A proposed audit is never an input to the bounds.
+
+* The rounded DC coefficient `C` is derived only for bitwise-uniform public
+  tiles of the supported binary64 branch (at least 16 slots), not from a
+  mask's first element or ideal slot norm. All non-DC butterflies receive
+  equal halves or zeros. The exact doubling and normalization recover the
+  common value `w`; both permitted fixed-point roundings must agree.
+* In Lattigo v6.2.0 `SingleFloat64ToFixedPointCRT` can write an unreduced
+  positive word or the word `p` on a negative limb. For such a word `u`,
+  the verifier checks `u + 2*p*log2(2*slots) < 2^64` before final reduction.
+  This is an integer NTT guard, not a floating-point FFT error estimate.
+  In `ring/ntt.go`, each forward butterfly optionally subtracts `4p` before
+  adding at most `2p`. For a word `v` and a Montgomery twiddle `F < p`, the
+  two high halves in `MRedLazy(v,F)` are each less than `p`, so the result
+  lies in `[0,2p)` and is congruent to the modular product. The final
+  `BRedAdd` uses `floor(2^64/p)`; for a single word its quotient underestimate
+  is at most one. Sparse standard NTT replicates the reduced evaluations of
+  the same DC polynomial. This applies to the actual non-Montgomery plaintext
+  constructed by DirectGo, not to arbitrary caller-supplied NTT data.
+* Multiplication carries the signed gain `C` on the parent error. The local
+  encoding bias is `A * B * abs(C - E*w)` for parent metadata `A`, parent
+  ideal magnitude bound `B` and actual encoder scale `E`; metadata drift is
+  already charged separately. When the *whole* input decryption polynomial
+  is known DC, integer CRT centering is exact: the correction is
+  `center_Q(raw) - raw` and its absolute value is charged in output units.
+  Otherwise a strict coefficient bound `2*bound < Q` is required. Proofs
+  do not remove earlier missing obligations, even for multiplication by zero.
+
+Nonuniform vectors, unsupported word ranges, unknown ciphertext wrap and
+the joint validity law remain explicit obligations. No stochastic bound,
+positive certificate or margin follows from these local identities.
+
 ### Replaying the 17-Q search refusal
 
 `SNABF_PASS3_TRACE_REJECTIONS=1` records candidate rejections; it does not

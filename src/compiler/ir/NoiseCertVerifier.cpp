@@ -339,8 +339,7 @@ void audit(const Topology &g, const Options &o, const AnalyticContracts *provide
     if (o.b2i) {
       local.push_back(boundedStep(g, i, local, n.inputs.empty() ? Scale{} : scales[n.inputs[0]],
           n.inputs.empty() ? Scale{} : steps[n.inputs[0]].ideal, bool(scales[i]), steps[i].ma, steps[i].mb));
-      if (n.op == Op::ScalarMulPlain && !local.back().rows.front().formula.empty())
-        steps[i].gain = local.back().rows.front().lhs_gain.value();
+      if (local.back().plain_mul_gain) steps[i].gain = *local.back().plain_mul_gain;
     }
     AffineErrorForm f;
     for (size_t a : n.inputs) f.inheritObligations(edges[a]);
@@ -350,8 +349,13 @@ void audit(const Topology &g, const Options &o, const AnalyticContracts *provide
     if (steps[i].bias) f.addBias(*steps[i].bias);
     else f.markMissing("node/" + n.id + "/scale_transfer");
     switch (n.op) {
-    case Op::Source: case Op::CtMul: case Op::Rotate: case Op::Down: case Op::VectorMulPlain:
+    case Op::Source: case Op::CtMul: case Op::Rotate: case Op::Down:
       break; // complete transformed-input bound required; no guessed linear gain
+    case Op::VectorMulPlain:
+      // A bitwise-uniform bound tile is a scalar in the ring, even when the
+      // emitter labels it a vector. No signed gain for a general mask.
+      if (o.b2i && local.back().plain_mul_gain) f.addScaled(edges[n.inputs[0]], *local.back().plain_mul_gain);
+      break;
     case Op::Add: case Op::Sub:
       if (n.op == Op::Sub && n.inputs[0] == n.inputs[1]) {
         // Identical SSA components cancel even an otherwise untracked bias
