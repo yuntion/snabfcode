@@ -31,10 +31,10 @@ ctest --test-dir "$B" --output-on-failure
 cmp "$B/base.mlir" "$B/candidate.mlir"
 ```
 
-For the 17Q replay, `A2_CAPTURE` is the existing **server-resident** `capture` directory with each arm's own `selected.mlir`. No historical archive is needed in the transfer. The optional `magnitude-audit` is written before parameter solving; `base_width_term_bits` uses the actual MILP guard implementation for each default scale, not an inferred Q width.
+For the 17Q replay, `A2_CAPTURE` is the existing **server-resident** `capture` directory with each arm's own `selected.mlir` and `call.json`. The frozen tap ran `alpha=1,2` and `max-k=0,2`. The driver matches the input SHA-256 and original arguments to that arm's receipt before running either mode. No historical archive is needed in the transfer. The optional `magnitude-audit` is written before parameter solving; `base_width_term_bits` uses the actual MILP guard implementation for each default scale, not an inferred Q width.
 
 ```bash
-for a in 1 2; do for k in 0 1; do
+for a in 1 2; do for k in 0 2; do
   python3 -B test/compiler/pass3_slot_bounds_17q.py --opt "$B/ir/snabf-opt" \
     --selected "$A2_CAPTURE/a$a-k$k/selected.mlir" --alpha "$a" --max-k "$k" \
     --out "$B/row-bound-a$a-k$k" || exit 1

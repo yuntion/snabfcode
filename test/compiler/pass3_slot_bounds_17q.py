@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 
 from a11_magnitude_replay import read_selected
+from phase2_17q_probe import native_args
 
 
 def need(condition, reason):
@@ -18,7 +19,7 @@ def main():
     ap.add_argument('--opt', type=Path, required=True)
     ap.add_argument('--selected', type=Path, required=True)
     ap.add_argument('--alpha', type=int, choices=(1, 2), required=True)
-    ap.add_argument('--max-k', type=int, choices=(0, 1), required=True)
+    ap.add_argument('--max-k', type=int, choices=(0, 2), required=True)
     ap.add_argument('--out', type=Path, required=True, help='fresh private output directory')
     args = ap.parse_args()
     selected = args.selected.resolve(strict=True)
@@ -28,24 +29,31 @@ def main():
     first = dag.stages[0]
     need(first['sum_diagonal_max_abs'] == 32.7568359375 and first['max_slot_sum_abs'] == 1.,
          'not the documented 17Q table')
+    frozen = native_args(args.alpha, args.max_k)
+    digest = hashlib.sha256(selected.read_bytes()).hexdigest()
+    if dag.mode != 'affine':
+        # A different arm can have the same first-layer norm and topology.
+        # Bind the actual input bytes and parameter options to the original tap.
+        receipt = json.loads(selected.with_name('call.json').read_text())
+        need(dag.mode == 'naive' and receipt['inputs']['selected.mlir'] == digest and receipt['argv'] == frozen,
+             'selected.mlir or requested arm differs from the frozen tap receipt')
     args.out.mkdir(parents=True, exist_ok=False)
-    cap = {1: 745, 2: 800}[args.alpha]
-    report = {'selected_sha256': hashlib.sha256(selected.read_bytes()).hexdigest(),
+    report = {'selected_sha256': digest,
               'interval_mode': dag.mode, 'alpha': args.alpha, 'max_k': args.max_k, 'arms': {}}
     for mode in ('legacy', 'co-slot-v1'):
         out = args.out/mode
         out.mkdir()
-        opts = (f'epsilon=0.000244140625 min-base=20 security-cap={cap} gadget-alpha={args.alpha} '
-                f'max-k={args.max_k} magnitude-mode={mode} magnitude-audit=bounds.json audit=proposal.json')
+        argv = frozen.copy()
+        argv[argv.index('selected.mlir')] = str(selected)
+        i = next(i for i, arg in enumerate(argv) if arg.startswith('--snabf-pass3='))
+        argv[i] += f' magnitude-mode={mode} magnitude-audit=bounds.json'
         with (out/'solver.log').open('wb') as log:
-            p = subprocess.run([opt, '--allow-unregistered-dialect', '--verify-each',
-                                '--mlir-print-op-on-diagnostic=false', '--snabf-pass3='+opts,
-                                selected, '-o', 'proposal.mlir'], cwd=out, stdout=log, stderr=subprocess.STDOUT)
+            p = subprocess.run([opt, *argv], cwd=out, stdout=log, stderr=subprocess.STDOUT)
         solved = p.returncode == 0
         if not solved:
             need(p.returncode == 1 and 'Pass 3 infeasible under requested scale, precision and QP bounds'
                  in (out/'solver.log').read_text(), 'unexpected failure (see solver.log)')
-        need((out/'proposal.json').exists() == solved, 'proposal and solver status differ')
+        need((out/'parameters.json').exists() == solved, 'proposal and solver status differ')
         audit = json.loads((out/'bounds.json').read_text())
         need(audit['schema'] == 'snabf.pass3.ideal-magnitude.v1' and audit['min_scale'] == 36 and
              audit['max_scale'] == 46 and audit['magnitude_mode'] == mode and audit['interval_mode'] == dag.mode,
