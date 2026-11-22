@@ -88,6 +88,21 @@ int main(int argc, char **argv) {
     return 0;
   }
   candidateRejections();
+  { // Solver-level control; the checkpoint regression exercises the actual SSA cut.
+    Graph source{1024, 1, 1, 0, {{"x", Op::Source, 0, {}, {}, .1},
+                                 {"drop", Op::Drop, 0, {0}, {1}, .1}}};
+    Options opts; opts.minScale = 32; opts.maxScale = 38;
+    auto original = optimize(source, opts);
+    SourceCutBound cut{{{0, .75}, {1, 1}}, (.75*original.errors[0] + original.errors[1])/2};
+    SourceCutStats stats;
+    auto next = optimizeForCuts(source, opts, {cut}, stats);
+    yes(next && next->scale > original.scale && stats.modelsWithCuts && stats.solverRuns &&
+        .75*next->errors[0] + next->errors[1] <= cut.budget && replay(source, opts, *next).reason.empty(),
+        "joint source row did not change the solved and replayed profile");
+    cut.budget = 0;
+    yes(!optimizeForCuts(source, opts, {cut}, stats) && stats.solverInfeasible == stats.solverRuns,
+        "zero budget admitted a source or fabricated a candidate");
+  }
   yes(!prime(341550071728321ULL) && prime(65537) && !prime(1), "primality");
   std::set<int64_t> used;
   auto v = nearestPrime(1024, 34, used);

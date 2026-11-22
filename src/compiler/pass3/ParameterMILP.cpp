@@ -262,7 +262,9 @@ diagnostic::Tree baseExpression(const Graph &g, int d, double guard,
 
 std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha,
                               std::ostream *out, const IRMagnitudeOrigins *origins,
-                              const MeasuredBasis *basis=nullptr) {
+                              const MeasuredBasis *basis,
+                              const std::vector<SourceCutBound> &bounds, SourceCutStats *stats) {
+  if (stats) ++stats->candidates;
   const CandidateTrace trace{out, g, o, d, alpha, basis};
   Model m;
   const double inf = kHighsInf;
@@ -489,8 +491,15 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
     m.row(base, er, inf);
   }
   if(basis) applyPrices(m,priceGroups(g,*basis),z);
+  for (const auto &bound : bounds) {
+    Row row;
+    for (auto [edge, weight] : bound.weights) row[noise.at(edge)] = weight;
+    m.row(-inf, row, bound.budget / eta);
+  }
+  if (stats) ++stats->modelsWithCuts;
   std::vector<std::string> cuts;
   for (int round = 0; round < 12; ++round) {
+    if (stats) ++stats->solverRuns;
     ok(m.h.run());
     auto status = m.h.getModelStatus();
     if (status != HighsModelStatus::kOptimal) {
@@ -500,7 +509,10 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
                         status == HighsModelStatus::kUnknown ? "unknown" : "not_optimal";
         trace.record("solver", s, round + 1, nullptr, -1, &input);
       }
-      if (status == HighsModelStatus::kInfeasible) return {};
+      if (status == HighsModelStatus::kInfeasible) {
+        if (stats) ++stats->solverInfeasible;
+        return {};
+      }
       throw std::runtime_error(
           "HiGHS did not prove an optimal Pass 3 solution");
     }
@@ -529,6 +541,14 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
     }
     auto bad = replay(g, o, s);
     if (bad.reason.empty()) {
+      for (const auto &bound : bounds) {
+        double demand = 0;
+        for (auto [edge, weight] : bound.weights) demand += weight * s.errors.at(edge);
+        if (!(demand <= bound.budget)) {
+          if (stats) ++stats->concreteCutMisses;
+          return {}; // includes concrete prime rounding
+        }
+      }
       verifyPricedObjective(g,o,s);
       s.cuts = cuts;
       return s;
@@ -565,7 +585,8 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
   return trace.reject("refinement", "round_limit", 12);
 }
 } // namespace
-Solution optimizeAtBoundary(const Graph &g,const Options &o,Solution s){
+Solution optimizeAtBoundary(const Graph &g,const Options &o,Solution s, BoundaryRows *capture){
+  if (capture) *capture = {};
   validate(g,o);Model m;std::vector<int> err;std::vector<std::vector<int>> flags;
   std::vector<PriceGroup> prices;
   if(o.costProfile) prices=priceGroups(g,measuredBasis(*o.costProfile,g.n,s));
@@ -588,17 +609,98 @@ Solution optimizeAtBoundary(const Graph &g,const Options &o,Solution s){
       }m.row(1,one,1);
       if (o.blockSearch()) priceBlocks(m,e.level,int(s.p.size()),flags.back(),o.costProfile ? 0. : double(n)/g.n);
     }
+    if (capture) {
+      // Read the submitted row, not ideal gains or values of slack solver columns.
+      BoundaryRow r{fixed/eta, {}, {}};
+      for (int a : e.inputs) r.parents[a] = -row.at(err.at(a));
+      for (int k = 0; k < int(flags.back().size()); ++k)
+        if (int z = flags.back()[k]; z >= 0) r.choices[k] = -row.at(z);
+      capture->rows.push_back(std::move(r));
+    }
     m.row(fixed/eta,row,kHighsInf);err.push_back(y);
   }
   if(o.costProfile) applyPrices(m,prices,flags);
-  ok(m.h.run());if(m.h.getModelStatus()!=HighsModelStatus::kOptimal)throw std::runtime_error("boundary_milp_infeasible");
+  ok(m.h.run());
+  if (m.h.getModelStatus() != HighsModelStatus::kOptimal) {
+    if (capture) {
+      capture->provenInfeasible = m.h.getModelStatus() == HighsModelStatus::kInfeasible;
+      if (!capture->provenInfeasible) throw std::runtime_error("boundary_solver_not_optimal");
+    }
+    throw std::runtime_error("boundary_milp_infeasible");
+  }
   auto vals=m.h.getSolution().col_value;s.k.assign(g.edges.size(),0);
   for(size_t i=0;i<flags.size();++i)for(size_t k=0;k<flags[i].size();++k)if(flags[i][k]>=0 && vals[flags[i][k]]>.5)s.k[i]=k;
   if(auto v=replay(g,o,s);!v.reason.empty())throw std::runtime_error("boundary_concrete_replay: "+v.reason);
   s.objective=m.h.getObjectiveValue();verifyPricedObjective(g,o,s);return s;
 }
+BoundaryProjection projectBoundaryCut(const Graph &g, const Options &o, const BoundaryRows &model,
+                                      const std::vector<std::pair<int, int>> &cuts) {
+  if (!model.provenInfeasible || model.rows.size() != g.edges.size() || cuts.empty())
+    throw std::invalid_argument("missing_boundary_rows_or_cut");
+  BoundaryProjection out;
+  auto stop = [&](const char *why, int i = -1) {
+    out.status = why; out.blockedEdge = i; return out;
+  };
+  // A measured hoist can couple K choices across sites. Do not claim that
+  // independently minimizing its member rows realizes a permitted assignment.
+  if (o.costProfile) return stop("coupled_measured_choices_unsupported");
+  std::vector<double> local;
+  std::map<int, int> downToCut;
+  for (size_t j = 0; j < cuts.size(); ++j) {
+    auto [producer, down] = cuts[j];
+    const auto &e = g.edges.at(down);
+    if (e.op != Op::Down || e.inputs.size() != 1 || !downToCut.emplace(down, j).second)
+      throw std::invalid_argument("invalid_down_binding");
+    int a = e.inputs[0];
+    // The only supported implicit alignment is a cost-free, unit-gain Drop.
+    if (a != producer && !(g.edges[a].op == Op::Drop && g.edges[a].inputs == std::vector<int>{producer} &&
+                           model.rows[a].parents.at(producer) == 1 && model.rows[a].fixed == 0))
+      throw std::invalid_argument("invalid_down_input_binding");
+  }
+  for (int i = 0; i < int(g.edges.size()); ++i) {
+    const auto &e = g.edges[i];
+    const auto &r = model.rows[i];
+    double v = r.fixed;
+    if (keyOp(e.op) || e.op == Op::Down) {
+      if (r.choices.empty()) return stop("no_admissible_boundary_k", i);
+      v += std::min_element(r.choices.begin(), r.choices.end(),
+                            [](auto a, auto b) { return a.second < b.second; })->second;
+    }
+    local.push_back(v * o.tolerance);
+    double floor = local.back();
+    for (auto [a, gain] : r.parents) floor += gain * out.floors.at(a);
+    if (!std::isfinite(floor)) return stop("nonfinite_boundary_projection", i);
+    out.floors.push_back(floor);
+    if (i != g.sink && floor > 8 * o.tolerance && out.internalCapEdge < 0)
+      out.internalCapEdge = i;
+  }
+  // Reverse substitution stops at each Down *input*, not at the first visit
+  // to its producer (one producer may also feed the other crossing upstream).
+  std::vector<double> adj(g.edges.size()); adj[g.sink] = 1;
+  out.gains.resize(cuts.size());
+  for (int i = g.sink; i >= 0; --i) {
+    if (!adj[i]) continue;
+    if (g.edges[i].op == Op::Source) return stop("incomplete_boundary_cut", i);
+    out.suffix += adj[i] * local[i];
+    if (auto it = downToCut.find(i); it != downToCut.end()) {
+      out.gains[it->second] = adj[i] * model.rows[i].parents.at(g.edges[i].inputs[0]);
+    } else {
+      if (g.edges[i].op == Op::Down) return stop("incomplete_boundary_cut", i);
+      for (auto [a, gain] : model.rows[i].parents) adj[a] += adj[i] * gain;
+    }
+  }
+  for (size_t j = 0; j < cuts.size(); ++j)
+    out.demand += out.gains[j] * out.floors[cuts[j].first];
+  out.jointBudget = o.tolerance - g.approximation - out.suffix;
+  out.deficit = out.demand - out.jointBudget;
+  if (!std::isfinite(out.demand) || !std::isfinite(out.deficit)) return stop("nonfinite_boundary_projection");
+  out.status = "projected";
+  return out;
+}
 namespace {
-Solution search(const Graph &g, const Options &o, std::ostream *out, const IRMagnitudeOrigins *origins) {
+std::optional<Solution> search(const Graph &g, const Options &o, std::ostream *out,
+                               const IRMagnitudeOrigins *origins,
+                               const std::vector<SourceCutBound> &bounds = {}, SourceCutStats *stats = nullptr) {
   validate(g, o);
   std::optional<Solution> best;
   if(o.costProfile) {
@@ -611,7 +713,7 @@ Solution search(const Graph &g, const Options &o, std::ostream *out, const IRMag
       try { (void)priceGroups(g,b); } catch(const MissingCost &) {missing=std::current_exception();continue;}
       covered=true;
       for(int d=o.minScale;d<=o.maxScale;++d) {
-        auto s=fixed(g,o,d,b.p.size(),out,origins,&b);
+        auto s=fixed(g,o,d,b.p.size(),out,origins,&b,bounds,stats);
         if(s && (!best || s->objective<best->objective-1e-8)) best=std::move(s);
       }
     }
@@ -622,29 +724,45 @@ Solution search(const Graph &g, const Options &o, std::ostream *out, const IRMag
   } else
   for (int alpha=1; alpha<=4; ++alpha) if(o.admits(alpha))
   for (int d = o.minScale; d <= o.maxScale; ++d) {
-    auto s = fixed(g, o, d, alpha, out, origins);
+    auto s = fixed(g, o, d, alpha, out, origins,nullptr,bounds,stats);
     if (s && (!best || s->objective < best->objective - 1e-8))
       best = std::move(s);
   }
+  return best;
+}
+Solution requireSource(std::optional<Solution> best) {
   if (!best)
     throw std::runtime_error(
         "Pass 3 infeasible under requested scale, precision and QP bounds");
-  return *best;
+  return std::move(*best);
 }
 } // namespace
 
 Solution optimize(const Graph &g, const Options &o, std::ostream &rejections) {
-  return search(g, o, &rejections, nullptr);
+  return requireSource(search(g, o, &rejections, nullptr));
 }
 Solution optimize(const Graph &g, const Options &o, std::ostream &rejections,
                   const IRMagnitudeOrigins &origins) {
-  return search(g, o, &rejections, &origins);
+  return requireSource(search(g, o, &rejections, &origins));
 }
 std::ostream *rejectionTraceStream() {
   const char *flag = std::getenv("SNABF_PASS3_TRACE_REJECTIONS");
   return flag && std::string_view(flag) == "1" ? &std::cerr : nullptr;
 }
 Solution optimize(const Graph &g, const Options &o) {
-  return search(g, o, rejectionTraceStream(), nullptr);
+  return requireSource(search(g, o, rejectionTraceStream(), nullptr));
+}
+std::optional<Solution> optimizeForCuts(const Graph &g, const Options &o,
+                                      const std::vector<SourceCutBound> &bounds, SourceCutStats &stats) {
+  stats = {};
+  if (bounds.empty()) throw std::invalid_argument("missing_source_cut_bound");
+  for (const auto &b : bounds) {
+    if (b.weights.empty() || !std::isfinite(b.budget) || b.budget < 0)
+      throw std::invalid_argument("invalid_source_cut_bound");
+    for (auto [i, w] : b.weights)
+      if (i < 0 || i >= int(g.edges.size()) || !std::isfinite(w) || w <= 0)
+        throw std::invalid_argument("invalid_source_cut_term");
+  }
+  return search(g, o, nullptr, nullptr, bounds, &stats);
 }
 } // namespace snabf::pass3

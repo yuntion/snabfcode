@@ -7,6 +7,11 @@ static void ck(bool b) {
     throw std::runtime_error("Pass4Test failure");
 }
 int main() {
+  CutFeedbackVisits visits;
+  ck(visits.enter("basis_a").empty() && visits.enter("basis_a") == "repeated_boundary_profile");
+  for (auto key : {"basis_b", "basis_c", "basis_d"}) ck(visits.enter(key).empty());
+  ck(visits.full() && visits.enter("basis_e") == "feedback_round_limit" &&
+     visits.enter("basis_c") == "repeated_boundary_profile");
   auto w = commonCutLevels({{2,5},{3,4}});
   ck(w && w->required==3 && w->current==4);
   w = commonCutLevels({{2,2},{1,4}});
