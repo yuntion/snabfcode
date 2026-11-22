@@ -49,6 +49,18 @@ int64_t periodicWidth(CtType t, ProfileOp profile) {
   return width;
 }
 
+Value periodicSourcePort(SourceOp s, ProfileOp profile) {
+  auto ext=s.getCipher().getDefiningOp();
+  require(ext && name(ext)=="tensor.extract" && ext->getNumOperands()==2,"unbound affine source port");
+  auto arg=dyn_cast<BlockArgument>(ext->getOperand(0));
+  auto func=s->getParentOfType<func::FuncOp>();
+  auto idx=ext->getOperand(1).getDefiningOp();
+  require(arg && func && arg.getOwner()==&func.getBody().front() && idx && name(idx)=="arith.constant" &&
+          field<IntegerAttr>(idx,"value").getInt()==0 &&
+          func.getArgAttr(arg.getArgNumber(),"tensor_ext.original_type")==profile.getLayout(),
+          "affine interval: source is not the witnessed ct=0 input port");
+  return arg;
+}
 DictionaryAttr affineReport(Builder& b, const affine::AffineIntervalAnalyzer& engine,
                             affine::AffineIntervalAnalyzer::Value v, StringRef rule, double error) {
   SmallVector<double> lo, hi, naiveLo, naiveHi, rem, rounding;
@@ -75,7 +87,7 @@ DictionaryAttr affineReport(Builder& b, const affine::AffineIntervalAnalyzer& en
 // Topological, choice-independent pass. By induction a candidate family is
 // covered if EVERY admitted real polynomial satisfies its own same-input
 // residual cap on the incoming enclosure. These are not CKKS noise bounds.
-AffineFacts affineFacts(ModuleOp m, bool reports) {
+AffineFacts affineFacts(ModuleOp m, bool reports, AffineSlotMagnitudes *absolute = nullptr) {
   AffineFacts facts;
   if (!affineMode(m)) return facts;
   Builder b(m.getContext());
@@ -98,15 +110,7 @@ AffineFacts affineFacts(ModuleOp m, bool reports) {
         rule="source_periodic";
         double bound=field<FloatAttr>(o,"input_bound").getValueAsDouble();
         require(std::isfinite(bound) && bound>0,"invalid affine source bound");
-        auto ext=s.getCipher().getDefiningOp();
-        require(ext && name(ext)=="tensor.extract" && ext->getNumOperands()==2,"unbound affine source port");
-        auto arg=dyn_cast<BlockArgument>(ext->getOperand(0));
-        auto func=o->getParentOfType<func::FuncOp>();
-        auto idx=ext->getOperand(1).getDefiningOp();
-        require(arg && func && arg.getOwner()==&func.getBody().front() && idx && name(idx)=="arith.constant" &&
-                field<IntegerAttr>(idx,"value").getInt()==0 &&
-                func.getArgAttr(arg.getArgNumber(),"tensor_ext.original_type")==profile.getLayout(),
-                "affine interval: source is not the witnessed ct=0 input port");
+        auto arg = periodicSourcePort(s, profile);
         if (auto it=ports.find(arg); it!=ports.end()) {
           require(it->second.first==bound && engine.slots(it->second.second).size()==size_t(width),
                   "conflicting affine domains for one input port");
@@ -153,6 +157,12 @@ AffineFacts affineFacts(ModuleOp m, bool reports) {
       throw ContractError("unsupported affine SSA transfer: "+name(o).str());
     };
     Handle id=eval(); require(engine.slots(id).size()==size_t(width),"affine logical slot count changed");
+    if (absolute) {
+      auto &bounds = (*absolute)[v];
+      bounds.reserve(width);
+      for (const auto &s : engine.slots(id))
+        bounds.push_back(std::max(-s.enclosure.lo, s.enclosure.hi));
+    }
     edges.try_emplace(v,id);
     facts.try_emplace(v,AffineFact{engine.domain(id),reports?affineReport(b,engine,id,rule,error):DictionaryAttr{}});
   });
@@ -437,6 +447,15 @@ std::vector<RouteDepthCut> analyze(ModuleOp m, bool checkOnly) {
 }
 }  // namespace
 double linearNorm(DenseFPElementsAttr w,bool m){return norm(w,m);}
+void checkPeriodicMagnitudeSource(SourceOp s, ProfileOp p) {
+  (void)periodicWidth(s.getOut().getType(), p);
+  (void)periodicSourcePort(s, p);
+}
+AffineSlotMagnitudes affinePlanningSlotMagnitudes(ModuleOp m) {
+  AffineSlotMagnitudes out;
+  (void)affineFacts(m, false, &out);
+  return out;
+}
 llvm::DenseMap<Value,std::pair<double,double>> affinePlanningDomains(ModuleOp m) {
   llvm::DenseMap<Value,std::pair<double,double>> domains;
   for (const auto& [v,f]:affineFacts(m,false))

@@ -50,8 +50,8 @@ struct Parameters {
 };
 Parameters decodeParameters(Attribute a);
 std::string weightId(DenseFPElementsAttr weights);
-DenseFPElementsAttr preparedWeights(Value table, ArrayRef<int64_t> diagonals);
-DenseFPElementsAttr plainWeights(Value table);
+DenseFPElementsAttr preparedWeights(Value table, ArrayRef<int64_t> diagonals, bool checkedLiteral = false);
+DenseFPElementsAttr plainWeights(Value table, bool checkedLiteral = false);
 void importCKKS(ModuleOp m, int64_t bytes, double inputBound, double hoist,
                 double giant, double eta);
 void planModule(ModuleOp m, bool independent);

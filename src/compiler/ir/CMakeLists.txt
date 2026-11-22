@@ -32,6 +32,11 @@ if(BUILD_TESTING)
   add_test(NAME B2iTransfersTest COMMAND B2iTransfersTest)
   add_executable(ExactScaleTraceTest ../../../test/compiler/ExactScaleTraceTest.cpp)
   target_link_libraries(ExactScaleTraceTest PRIVATE snabf_pipeline)
+  add_executable(Pass3SlotBoundsTest ../../../test/compiler/Pass3SlotBoundsTest.cpp)
+  target_link_libraries(Pass3SlotBoundsTest PRIVATE snabf_pipeline)
+  add_test(NAME Pass3SlotBoundsTest COMMAND Pass3SlotBoundsTest)
+  add_test(NAME Pass3SlotBoundsIR COMMAND "${Python3_EXECUTABLE}" -B
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../test/compiler/pass3_slot_bounds_ir.py" "$<TARGET_FILE:snabf-opt>")
   add_test(NAME ExactScaleTrackerTest COMMAND ExactScaleTrackerTest)
   add_test(NAME ExactScaleReplayTest COMMAND "${Python3_EXECUTABLE}" -B
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../test/compiler/test_exact_scale.py" "$<TARGET_FILE:ExactScaleTrackerTest>")
