@@ -1,6 +1,7 @@
 #pragma once
 #include <functional>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 namespace snabf::pass4 {
@@ -30,4 +31,13 @@ struct Decision {
 Decision search(std::optional<Evaluation> baseline,
                 const std::vector<Proposal> &, unsigned maxIters,
                 const std::function<Evaluation(const Proposal &)> &, bool requireDown = false);
+// Source-profile evaluations on one fixed proposal are distinct from the
+// existing (N, level) enumeration. The screened initial profile counts as one.
+struct CutFeedbackVisits {
+  static constexpr unsigned limit = 4;
+  std::string enter(const std::string &fingerprint);
+  bool full() const { return seen.size() >= limit; }
+private:
+  std::set<std::string> seen;
+};
 } // namespace snabf::pass4

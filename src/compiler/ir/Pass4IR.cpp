@@ -2,6 +2,7 @@
 #include "Pass2IR.h"
 #include "Pass3IR.h"
 #include "Target/Lattigo/EmitVerifier.h"
+#include "pass3/ParameterMILP.h"
 #include "pass3/PrimeInstantiator.h"
 #include "pass4/DynamicRingPlanner.h"
 #include "pass4/RingSwitchPlan.h"
@@ -841,7 +842,7 @@ struct SearchPolicy {
   int64_t minRing, rounds;
   double price;
   int64_t switchBits;
-  bool dual, forceDown;
+  bool dual, forceDown, feedback;
 };
 static DictionaryAttr policyAttr(Builder &b, SearchPolicy v) {
   require(v.minRing >= 4 && std::has_single_bit(uint64_t(v.minRing)) &&
@@ -857,7 +858,7 @@ static DictionaryAttr policyAttr(Builder &b, SearchPolicy v) {
        b.getNamedAttr("switching_key_security_bits",
                       b.getI64IntegerAttr(v.switchBits))}));
   // Preserve the frozen v1 replay representation when neither extension is used.
-  if (v.dual) fields.set("cut_profile", b.getStringAttr("dual-live-v1"));
+  if (v.dual) fields.set("cut_profile", b.getStringAttr(v.feedback ? "dual-live-feedback-v1" : "dual-live-v1"));
   if (v.forceDown) fields.set("force_down", b.getBoolAttr(true));
   return fields.getDictionary(b.getContext());
 }
@@ -865,7 +866,8 @@ static SearchPolicy readPolicy(ModuleOp m, bool admitting = true) {
   auto p = field<DictionaryAttr>(source(m), policyName);
   SearchPolicy v{num(p, "min_ring"), num(p, "max_iters"),
                  real(p, "switch_price"),
-                 num(p, "switching_key_security_bits"), bool(p.get("cut_profile")), bool(p.get("force_down"))};
+                 num(p, "switching_key_security_bits"), bool(p.get("cut_profile")), bool(p.get("force_down")),
+                 p.get("cut_profile") == StringAttr::get(m.getContext(), "dual-live-feedback-v1")};
   Builder b(m.getContext());
   require(
       m->getAttrOfType<UnitAttr>("snabf.pass4_required") &&
@@ -879,7 +881,7 @@ static SearchPolicy readPolicy(ModuleOp m, bool admitting = true) {
 // Always starts with a verified, single-domain input. The verifier invokes
 // this on a clone with every derived Pass 4 result removed.
 static void searchFromBaseline(ModuleOp m, SearchPolicy policy) {
-  auto [minRing, rounds, price, bits, dual, forceDown] = policy;
+  auto [minRing, rounds, price, bits, dual, forceDown, feedback] = policy;
   verifyPlan(m);
   verifyPass3(m);
   auto base = field<DictionaryAttr>(m, "snabf.pass3");
@@ -924,6 +926,13 @@ static void searchFromBaseline(ModuleOp m, SearchPolicy policy) {
     }
   }
   std::map<std::string, NamedAttrList> phases;
+  struct Miss {
+    Proposal proposal;
+    OwningOpRef<ModuleOp> scratch;
+    SmallVector<Value> live;
+    pass3::BoundaryRows rows;
+  };
+  std::vector<Miss> misses;
   // Ring capacity and the SIMD map are invariant across boundary levels.
   // Security and numerical failures are only no-goods for their exact QP.
   std::map<int64_t, std::string> impossibleLayouts;
@@ -956,7 +965,19 @@ static void searchFromBaseline(ModuleOp m, SearchPolicy policy) {
           log.set("route_inventory",
                   field<DictionaryAttr>(x, "snabf.inventory"));
           phase("pass3_boundary_milp_and_replay");
-          auto par = boundaryParameters(x, base);
+          DictionaryAttr par;
+          pass3::BoundaryRows rows;
+          try {
+            par = boundaryParameters(x, base, {}, feedback ? &rows : nullptr);
+          } catch (const std::runtime_error &) {
+            if (rows.provenInfeasible) {
+              require(inputs.record == baseCut.record, "stale_feedback_cut");
+              SmallVector<Value> live;
+              for (const auto &operand : inputs.operands) live.push_back(operand.value);
+              misses.push_back({q, std::move(scratch), std::move(live), std::move(rows)});
+            }
+            throw;
+          }
           // Independently replay the concrete result even for a rejected
           // proposal.
           boundaryParameters(x, base, par);
@@ -1023,6 +1044,26 @@ static void searchFromBaseline(ModuleOp m, SearchPolicy policy) {
           throw;
         }
       }, forceDown);
+  // At most one source-profile loop for this search, not one loop per (N,L).
+  // Other numeric misses may carry initial row evidence, never another replan.
+  bool used = false;
+  bool anyChecked = llvm::any_of(d.trace, [](const Round &r) { return r.result.checked; });
+  for (auto &miss : misses) {
+    const auto &q = miss.proposal;
+    auto &phase = phases.at(q.fingerprint);
+    auto security = screen(p, q.target, levels.at(q.fingerprint), bits);
+    phase.set("feedback_security", security.record);
+    StringRef disable = !security.reason.empty() ? StringRef(security.reason) :
+                        anyChecked ? "checked_proposal_exists" : used ? "diagnosis_only" : "";
+    SmallVector<Value> live;
+    for (const auto &operand : baseCut.operands) live.push_back(operand.value);
+    auto report = boundaryFeedback(m, *miss.scratch, base, live, miss.live,
+                                   field<ArrayAttr>(baseCut.record, "live_values"), q.fingerprint,
+                                   miss.rows, disable);
+    auto steps = field<ArrayAttr>(report, "rounds");
+    used |= llvm::any_of(steps, [](Attribute a) { return cast<DictionaryAttr>(a).contains("source_constraints"); });
+    phase.set("cut_margin_feedback", report);
+  }
   SmallVector<Attribute> events;
   for (auto &r : d.trace) {
     NamedAttrList a = phases.at(r.proposal.fingerprint);
@@ -1102,7 +1143,8 @@ void checkRings(ModuleOp m) {
 }
 void planRings(ModuleOp input, int64_t minRing, unsigned rounds, double price,
                StringRef audit, StringRef cutProfile, bool forceDown) {
-  require(cutProfile == "single-live-v1" || cutProfile == "dual-live-v1", "unsupported_cut_profile");
+  const bool feedback = cutProfile == "dual-live-feedback-v1";
+  require(cutProfile == "single-live-v1" || cutProfile == "dual-live-v1" || feedback, "unsupported_cut_profile");
   // A rejected replan must leave the original sealed input intact. Only the
   // explicit planner gets this transition; replaySearch never reseals an IR.
   OwningOpRef<ModuleOp> draft(cast<ModuleOp>(input->clone()));
@@ -1132,7 +1174,7 @@ void planRings(ModuleOp input, int64_t minRing, unsigned rounds, double price,
     else
       clearSearch(m);
   }
-  searchFromBaseline(m, {minRing, rounds, price, bits, cutProfile == "dual-live-v1", forceDown});
+  searchFromBaseline(m, {minRing, rounds, price, bits, cutProfile != "single-live-v1", forceDown, feedback});
   if (forceDown) requireCheckedRingDown(m);
   if (!audit.empty()) {
     std::error_code ec;

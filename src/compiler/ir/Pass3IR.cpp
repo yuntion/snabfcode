@@ -3,6 +3,9 @@
 #include "pass3/ConcreteVerifier.h"
 #include "pass3/CostProfile.h"
 #include "pass3/ParameterMILP.h"
+#include "pass4/DynamicRingPlanner.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/Support/SHA256.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -606,7 +609,7 @@ ConcreteSSAContext concreteSSAContext(ModuleOp m, DictionaryAttr par) {
   return out;
 }
 DictionaryAttr boundaryParameters(ModuleOp m, DictionaryAttr base,
-                                  DictionaryAttr check) {
+                                  DictionaryAttr check, p::BoundaryRows *capture) {
   Builder b(m.getContext());
   auto in = extract(m);
   auto o = readOptions(field<DictionaryAttr>(base, "options"),m);
@@ -620,7 +623,7 @@ DictionaryAttr boundaryParameters(ModuleOp m, DictionaryAttr base,
     auto v = p::replay(in.g, o, s);
     require(v.reason.empty(), v.reason);
   } else
-    s = p::optimizeAtBoundary(in.g, o, s);
+    s = p::optimizeAtBoundary(in.g, o, s, capture);
   auto rec = record(b, in, o, s);
   require(!check || rec == check,
           "stale mixed parameter/scale/gadget transfer");
@@ -628,6 +631,161 @@ DictionaryAttr boundaryParameters(ModuleOp m, DictionaryAttr base,
 }
 void verifySourceScreen(ModuleOp m, DictionaryAttr base) {
   checkSecurity(field<StringAttr>(m, "snabf.security_screen").getValue(), base);
+}
+namespace {
+DictionaryAttr profileBasis(Builder &b, const p::Solution &s) {
+  return b.getDictionaryAttr({b.getNamedAttr("q", b.getDenseI64ArrayAttr(s.q)),
+                              b.getNamedAttr("p", b.getDenseI64ArrayAttr(s.p)),
+                              b.getNamedAttr("scale", b.getI64IntegerAttr(s.scale))});
+}
+std::string digest(StringRef text) {
+  return llvm::toHex(llvm::SHA256::hash(llvm::arrayRefFromStringRef(text)), true);
+}
+// Preserve the actual rows and choice domain so a checker outside the solver
+// can recompute the forward floors and the reverse substitution independently.
+ArrayAttr projectionRows(Builder &b, const p::Graph &g, const p::BoundaryRows &model) {
+  SmallVector<Attribute> rows;
+  for (auto [i, r] : llvm::enumerate(model.rows)) {
+    NamedAttrList x;
+    x.set("id", b.getStringAttr(g.edges[i].id));
+    x.set("op", b.getStringAttr(p::name(g.edges[i].op)));
+    x.set("fixed_over_epsilon", b.getF64FloatAttr(r.fixed));
+    auto put = [&](StringRef idx, StringRef val, const auto &terms) {
+      SmallVector<int64_t> keys; SmallVector<double> values;
+      for (auto [k, v] : terms) { keys.push_back(k); values.push_back(v); }
+      x.set(idx, b.getDenseI64ArrayAttr(keys)); x.set(val, b.getDenseF64ArrayAttr(values));
+    };
+    put("parents", "gains", r.parents);
+    if (p::keyOp(g.edges[i].op) || g.edges[i].op == O::Down)
+      put("ks", "increments_over_epsilon", r.choices);
+    rows.push_back(x.getDictionary(b.getContext()));
+  }
+  return b.getArrayAttr(rows);
+}
+} // namespace
+DictionaryAttr boundaryFeedback(ModuleOp src, ModuleOp mixed, DictionaryAttr base,
+                                ArrayRef<Value> sourceValues, ArrayRef<Value> mixedValues,
+                                ArrayAttr uses, StringRef proposal, const p::BoundaryRows &initial,
+                                StringRef disabledReason) {
+  auto before = extract(src), after = extract(mixed);
+  const auto &g = after.g;
+  auto o = readOptions(field<DictionaryAttr>(base, "options"), src);
+  Builder b(src.getContext());
+  require(uses.size() == sourceValues.size() && uses.size() == mixedValues.size() &&
+          uses.size() == after.bridges.size(), "incomplete_feedback_bindings");
+  std::vector<std::pair<int,int>> cuts;
+  SmallVector<int> sourceIndices;
+  for (auto [j, v] : llvm::enumerate(mixedValues)) {
+    auto bridge = llvm::find_if(after.bridges, [&](ConvertOp op) { return op.getInput() == v; });
+    auto si = before.results.find(sourceValues[j]), mi = after.results.find(v);
+    require(bridge != after.bridges.end() && si != before.results.end() && mi != after.results.end() &&
+            before.g.edges[si->second].id == field<StringAttr>(cast<DictionaryAttr>(uses[j]), "edge_id").getValue(),
+            "unbound_feedback_ssa");
+    sourceIndices.push_back(si->second);
+    auto down = after.results.find(bridge->getOut());
+    require(down != after.results.end(), "unbound_feedback_down");
+    cuts.emplace_back(mi->second, down->second);
+  }
+  p::Solution profile;
+  profile.scale = before.profile.getDefaultLogScale();
+  profile.q.assign(before.profile.getQ().begin(), before.profile.getQ().end());
+  profile.p.assign(before.profile.getP().begin(), before.profile.getP().end());
+  pass4::CutFeedbackVisits visits;
+  std::vector<p::SourceCutBound> bounds; // intersection, never replace/loosen a previous cut
+  SmallVector<Attribute> rounds;
+  NamedAttrList result;
+  result.set("schema", b.getStringAttr("snabf.periodic-cut-margin.v1"));
+  result.set("proposal", b.getStringAttr(proposal));
+  result.set("bindings", uses);
+  result.set("round_limit", b.getI64IntegerAttr(visits.limit));
+  result.set("units", b.getStringAttr("decoded absolute error; joint at sink"));
+  result.set("epsilon", b.getF64FloatAttr(o.tolerance));
+  result.set("approximation", b.getF64FloatAttr(g.approximation));
+  result.set("sink", b.getI64IntegerAttr(g.sink));
+  result.set("authorizes_conversion", b.getBoolAttr(false));
+  const auto modelDigest = digest(spelling(projectionRows(b, g, initial)));
+  result.set("initial_row_sha256", b.getStringAttr(modelDigest));
+  const auto context = proposal.str() + ":" + modelDigest + ":" + digest(spelling(field<DictionaryAttr>(mixed, "snabf.inventory")) + spelling(uses));
+  auto fingerprint = [&](const p::Solution &s) { return digest(context + ":" + spelling(profileBasis(b,s))); };
+  auto finish = [&](StringRef status) {
+    result.set("stop", b.getStringAttr(status)); result.set("rounds", b.getArrayAttr(rounds));
+    return result.getDictionary(b.getContext());
+  };
+  for (;;) {
+    auto fp = fingerprint(profile);
+    if (auto stop = visits.enter(fp); !stop.empty()) return finish(stop);
+    NamedAttrList r;
+    r.set("fingerprint", b.getStringAttr(fp));
+    r.set("basis", profileBasis(b, profile));
+    r.set("basis_origin", b.getStringAttr(rounds.empty() ? "screened_checkpoint" : "unapproved_source_search"));
+    auto seal = [&] { rounds.push_back(r.getDictionary(b.getContext())); };
+    p::BoundaryRows retry;
+    if (!rounds.empty()) {
+      try {
+        // Arithmetic on the same replanned SSA DAG only. A changed basis needs
+        // actual specialization and fresh estimator evidence before admission.
+        auto s = p::optimizeAtBoundary(g, o, profile, &retry);
+        r.set("boundary", b.getStringAttr("concrete_arithmetic_passed"));
+        r.set("sink_error", b.getF64FloatAttr(s.errors[g.sink]));
+        r.set("k", b.getDenseI64ArrayAttr(SmallVector<int64_t>(s.k.begin(), s.k.end())));
+        seal(); return finish("requires_specialization_and_fresh_security");
+      } catch (const std::runtime_error &e) {
+        StringRef why(e.what());
+        if (!retry.provenInfeasible) {
+          if (!why.starts_with("boundary_concrete_replay: ") && !why.starts_with("unaligned physical add: ") &&
+              why != "incompatible physical scales in polynomial DAG") throw;
+          r.set("boundary", b.getStringAttr(why)); seal(); return finish("candidate_replay_rejected");
+        }
+      }
+    }
+    const auto &rows = rounds.empty() ? initial : retry;
+    auto margin = p::projectBoundaryCut(g, o, rows, cuts);
+    r.set("boundary", b.getStringAttr("boundary_milp_infeasible"));
+    r.set("projection", b.getStringAttr(margin.status));
+    if (margin.blockedEdge >= 0) r.set("blocked_edge", b.getStringAttr(g.edges[margin.blockedEdge].id));
+    if (margin.status != "projected") { seal(); return finish(margin.status); }
+    r.set("rows", projectionRows(b, g, rows));
+    if (margin.internalCapEdge >= 0) r.set("internal_cap_edge", b.getStringAttr(g.edges[margin.internalCapEdge].id));
+    auto f = [&](StringRef key, double value) { r.set(key, b.getF64FloatAttr(value)); };
+    f("sink_floor", margin.floors[g.sink]); f("suffix_floor", margin.suffix);
+    f("joint_budget", margin.jointBudget); f("joint_demand", margin.demand); f("signed_deficit", margin.deficit);
+    p::SourceCutBound bound{{}, margin.jointBudget};
+    SmallVector<Attribute> terms;
+    for (auto [j, cut] : llvm::enumerate(cuts)) {
+      auto [input, down] = cut;
+      NamedAttrList t;
+      t.set("binding", b.getI64IntegerAttr(j)); t.set("producer", b.getI64IntegerAttr(input));
+      t.set("down", b.getI64IntegerAttr(down)); t.set("source_edge", b.getStringAttr(before.g.edges[sourceIndices[j]].id));
+      t.set("gain", b.getF64FloatAttr(margin.gains[j])); t.set("input_floor", b.getF64FloatAttr(margin.floors[input]));
+      if (margin.gains[j] > 0) bound.weights[sourceIndices[j]] += margin.gains[j];
+      terms.push_back(t.getDictionary(b.getContext()));
+    }
+    r.set("terms", b.getArrayAttr(terms));
+    if (!disabledReason.empty()) { seal(); return finish(disabledReason); }
+    if (margin.deficit <= 0) { seal(); return finish("no_positive_sink_deficit"); }
+    if (bound.budget < 0 || bound.weights.empty()) { seal(); return finish("no_transferable_source_budget"); }
+    if (visits.full()) { seal(); return finish("feedback_round_limit"); }
+    bounds.push_back(std::move(bound));
+    p::SourceCutStats stats;
+    auto next = p::optimizeForCuts(before.g, o, bounds, stats);
+    r.set("source_constraints", b.getI64IntegerAttr(bounds.size()));
+    NamedAttrList counts;
+    counts.set("candidates", b.getI64IntegerAttr(stats.candidates));
+    counts.set("models_with_cut_rows", b.getI64IntegerAttr(stats.modelsWithCuts));
+    counts.set("solver_runs", b.getI64IntegerAttr(stats.solverRuns));
+    counts.set("solver_proved_infeasible", b.getI64IntegerAttr(stats.solverInfeasible));
+    counts.set("concrete_cut_misses", b.getI64IntegerAttr(stats.concreteCutMisses));
+    r.set("source_search", counts.getDictionary(b.getContext()));
+    if (!next) { seal(); return finish("no_source_candidate_under_original_limits"); }
+    r.set("next_basis", profileBasis(b, *next));
+    r.set("next_fingerprint", b.getStringAttr(fingerprint(*next)));
+    r.set("source_sink_error", b.getF64FloatAttr(next->errors[before.g.sink]));
+    SmallVector<double> actual;
+    for (int i : sourceIndices) actual.push_back(next->errors[i]);
+    r.set("source_cut_errors", b.getDenseF64ArrayAttr(actual));
+    r.set("source_k", b.getDenseI64ArrayAttr(SmallVector<int64_t>(next->k.begin(), next->k.end())));
+    seal(); profile = std::move(*next);
+  }
 }
 void publishPass3(ModuleOp m, const p::Options &o, bool fixed, StringRef audit,
                   StringRef security, double sourceFraction) {

@@ -4,6 +4,13 @@
 #include <map>
 #include <stdexcept>
 namespace snabf::pass4 {
+std::string CutFeedbackVisits::enter(const std::string &fingerprint) {
+  if (fingerprint.empty()) throw std::invalid_argument("empty_cut_feedback_fingerprint");
+  if (seen.contains(fingerprint)) return "repeated_boundary_profile";
+  if (full()) return "feedback_round_limit";
+  seen.insert(fingerprint);
+  return {};
+}
 Decision search(std::optional<Evaluation> base,
                 const std::vector<Proposal> &proposals, unsigned limit,
                 const std::function<Evaluation(const Proposal &)> &eval, bool requireDown) {
