@@ -1,5 +1,6 @@
 """Independent N1 evidence checks. Component receipts are not release certificates."""
 import hashlib
+from contextlib import nullcontext
 import json
 import math
 import os
@@ -28,13 +29,15 @@ def source_digest(label, path):
     return actual
 
 
-def audit_exec(argv, cwd, env=None):
+def audit_exec(argv, cwd, env=None, *, trace_dir=None):
     """Trace the entire Linux process tree, including failed exec attempts. Never infer from PATH alone."""
     tracer = shutil.which('strace')
     if sys.platform != 'linux' or not tracer:
         raise ValueError('Linux strace required; process tree not verified')
     root = Path(argv[0]).resolve(strict=True)
-    with tempfile.TemporaryDirectory(prefix='n1-exec-') as td:
+    if trace_dir is not None:
+        Path(trace_dir).mkdir(mode=0o700)
+    with (nullcontext(trace_dir) if trace_dir is not None else tempfile.TemporaryDirectory(prefix='n1-exec-')) as td:
         tmp = Path(td)
         # -ff writes a log per task, avoiding interleaved/unfinished exec lines.
         # -xx makes path decoding independent of the locale and quote escapes.
@@ -71,7 +74,7 @@ def corpus(label, src):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'frontend/snabf_frontend'))
     if label == 'single_gelu':
         from gelu_witness import evidence
-        return evidence(src)[0]
+        return evidence(src, source_literal=True)[0]
     from pass2_evidence import Oracle
     from gelu_witness import atom
     oracle = Oracle(src.read_text(encoding='utf-8'))
@@ -83,7 +86,7 @@ def corpus(label, src):
     return rows
 
 
-def replay_slots(label, source, trials, *, seal, ring, level, slots):
+def replay_slots(label, source, trials, *, seal, ring, level, slots, scale=None):
     """Offline only: verify runner rows against original source, not a printed error or truth vector."""
     if (not re.fullmatch(r'[0-9a-f]{64}', seal) or type(ring) is not int or ring < 2 or ring & (ring-1)
             or type(level) is not int or level < 0 or type(slots) is not int or not 1 <= slots <= ring//2):
@@ -91,21 +94,57 @@ def replay_slots(label, source, trials, *, seal, ring, level, slots):
     rows = corpus(label, source)
     if len(rows) != 64 or slots % len(rows[0]['truth']):
         raise ValueError('wrong input coverage or unsupported periodic layout')
+    def unique(pairs):
+        d = dict(pairs)
+        if len(d) != len(pairs): raise ValueError('duplicate observation field')
+        return d
     peak = 0.0
     with Path(trials).open(encoding='utf-8') as f:
         for i, (line, case) in enumerate(zip(f, rows, strict=True)):
-            r = json.loads(line)
+            r = json.loads(line, object_pairs_hook=unique)
             if (r['trial'] != i or r['emit_sha256'] != seal or r['source_sha256'] != SOURCE[label]
                     or r['ring'] != ring or r['level'] != level or len(r['decoded']) != slots
                     or r['x'] != case['x']):
                 raise ValueError(f'trial {i}: wrong source, input, plan or sink ABI')
             truth = case['truth']
+            if scale is not None:
+                if (r.keys() != {'schema','emit_sha256','source_sha256','x','ring','level','slots','scale','trial','decoded','imag'}
+                        or r['schema'] != 'snabf.n1-complex-slots.v1' or r['scale'] != scale
+                        or any(type(r[k]) is not int for k in ('ring','level','trial','slots')) or r['slots'] != slots
+                        or not isinstance(r['imag'], list) or len(r['imag']) != slots or not isinstance(r['decoded'], list)
+                        or any(type(v) not in (float,int) for v in r['x'])):
+                    raise ValueError(f'trial {i}: invalid complex slot record')
             for j, v in enumerate(r['decoded']):
-                if type(v) not in (float, int):
+                im = r['imag'][j] if scale is not None else 0.
+                if type(v) not in (float, int) or type(im) not in (float,int):
                     raise ValueError('non-numeric decoded slot')
-                err = abs(v-truth[j % len(truth)])
+                err = math.hypot(v-truth[j % len(truth)], im)
                 if not math.isfinite(err) or err >= 2**-12:
                     raise ValueError(f'trial {i} slot {j}: error {err} is not below 2^-12')
                 peak = max(peak, err)
-    return dict(schema='snabf.n1-slot-replay.v1', graph=label, emit_sha256=seal,
+    return dict(schema='snabf.n1-slot-replay.v2' if scale is not None else 'snabf.n1-slot-replay.v1', graph=label, emit_sha256=seal,
                 source_sha256=SOURCE[label], inputs=len(rows), slots_checked=len(rows)*slots, linf=peak)
+
+
+def replay_batch(root, expected_manifest):
+    """Offline only: verify the transferred bytes before interpreting any row."""
+    root = Path(root)
+    raw = (root/'manifest.json').read_bytes()
+    if hashlib.sha256(raw).hexdigest() != expected_manifest: raise ValueError('wrong batch digest')
+    m = json.loads(raw)
+    if m['schema'] != 'snabf.n1-offline.v1' or set(m['graphs']) != set(SOURCE): raise ValueError('incomplete batch')
+    reports = {}
+    for label, abi in m['graphs'].items():
+        src, records = root/(label+'.mlir'), root/(label+'.jsonl')
+        if hashlib.sha256(records.read_bytes()).hexdigest() != abi['raw_sha256']: raise ValueError('wrong JSONL digest: '+label)
+        reports[label] = replay_slots(label, src, records, **{k:abi[k] for k in ('seal','ring','level','slots','scale')})
+        reports[label]['raw_sha256'] = abi['raw_sha256']
+    return dict(head=m['head'], tree=m['tree'], platform=sys.platform, manifest_sha256=expected_manifest, graphs=reports)
+
+
+if __name__ == '__main__':
+    import argparse
+    ap = argparse.ArgumentParser(description='Offline original-source replay of a native N1 observation batch')
+    ap.add_argument('batch', type=Path); ap.add_argument('manifest_sha256')
+    args = ap.parse_args()
+    print(json.dumps(replay_batch(args.batch, args.manifest_sha256), indent=2))

@@ -47,6 +47,7 @@ type fixturePlan struct {
 	Q, P                      []uint64
 	Sink                      *int
 	Edges                     []fixtureEdge
+	Source                    string
 	EmitSHA                   string    `json:"emit_sha256"`
 	InputDomain               []float64 `json:"input_domain"`
 }
@@ -501,23 +502,25 @@ func TestNativeSingleFixture(t *testing.T) {
 		t.Fatalf("BindNative: %v", err)
 	}
 	var stats fixtureStats
+	var observations *json.Encoder
+	if name := os.Getenv("N1_RAW_JSONL"); name != "" {
+		f, err := os.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { if err := f.Close(); err != nil { t.Error(err) } })
+		observations = json.NewEncoder(f)
+	}
 	for j, trial := range trials {
-		src := s.encode(t, p, enc, 0, x[0], fixtureTile(t, trial.Input, s.Slots))
-		plain := make(map[int]*rlwe.Plaintext)
-		for i := 1; i < len(s.Edges); i++ {
-			if s.Edges[i].Plain != nil {
-				plain[i] = s.encode(t, p, enc, i, x[i], x[i].public)
-			}
+		src, err := bound.EncodeInput(trial.Input)
+		if err != nil || src == nil || src.MetaData == nil {
+			t.Fatalf("bound EncodeInput: %v", err)
 		}
 		if j == 0 {
-			pt, err := bound.EncodeInput(trial.Input)
-			if err != nil || pt == nil || pt.MetaData == nil {
-				t.Fatalf("bound EncodeInput: %v", err)
-			}
-			if err := s.observe(pt.El(), *s.Edges[0].Level, 0, x[0].ptMeta); err != nil || !pt.Equal(src) {
+			reference := s.encode(t, p, enc, 0, x[0], fixtureTile(t, trial.Input, s.Slots))
+			if err := s.observe(src.El(), *s.Edges[0].Level, 0, x[0].ptMeta); err != nil || !src.Equal(reference) {
 				t.Fatalf("bound EncodeInput disagrees with independent encoding: %v", err)
 			}
-			src = pt
 		}
 		input, err := encrypt.EncryptNew(src)
 		if err != nil || input == nil {
@@ -530,17 +533,33 @@ func TestNativeSingleFixture(t *testing.T) {
 		if j == 0 {
 			sameInput = input.CopyNew()
 		}
-		got := s.decode(t, enc, decrypt, s.checkedEval(t, ev, input, plain, x), x[*s.Sink])
+		out, err := bound.Eval(input)
+		if err != nil || out == nil {
+			t.Fatalf("bound Eval: %v", err)
+		}
+		got := s.decode(t, enc, decrypt, out, x[*s.Sink])
 		if j == 0 {
-			out, err := bound.Eval(sameInput)
-			if err != nil {
-				t.Fatalf("bound Eval: %v", err)
+			plain := make(map[int]*rlwe.Plaintext)
+			for i := 1; i < len(s.Edges); i++ {
+				if s.Edges[i].Plain != nil {
+					plain[i] = s.encode(t, p, enc, i, x[i], x[i].public)
+				}
 			}
 			// With identical encrypted input and evaluation keys, the two paths
 			// must decrypt identically. Do not count this extra replay as a trial.
-			if !slices.Equal(got, s.decode(t, enc, decrypt, out, x[*s.Sink])) {
+			if !slices.Equal(got, s.decode(t, enc, decrypt, s.checkedEval(t, ev, sameInput, plain, x), x[*s.Sink])) {
 				t.Fatal("bound Eval and independently checked EvaluateNative decrypt differently")
 			}
+		}
+		if observations != nil {
+			re, im := make([]float64, len(got)), make([]float64, len(got))
+			for i, z := range got { re[i], im[i] = real(z), imag(z) }
+			scale, _ := out.Scale.Value.Rat(nil)
+			row := map[string]any{"schema":"snabf.n1-complex-slots.v1", "trial":j,
+				"source_sha256":s.Source, "emit_sha256":PlanSHA256, "x":trial.Input,
+				"ring":len(out.Value[0].Coeffs[0]), "level":out.Level(), "slots":out.Slots(),
+				"scale":scale.RatString(), "decoded":re, "imag":im}
+			if err := observations.Encode(row); err != nil { t.Fatal(err) }
 		}
 		for k, z := range got {
 			d := math.Hypot(real(z)-trial.Want[k%s.Width], imag(z))

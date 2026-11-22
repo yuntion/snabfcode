@@ -56,5 +56,22 @@ class EvidenceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 replay()
 
+    def test_complex_replay_requires_every_imaginary_slot_and_exact_scale(self):
+        rows = [dict(x=[0], truth=[0.]) for _ in range(64)]
+        opts = dict(seal='3'*64, ring=8, level=0, slots=2, scale='3/2')
+        with tempfile.TemporaryDirectory() as t, patch.object(n1,'corpus',return_value=rows):
+            p = Path(t)/'raw.jsonl'
+            data = [dict(schema='snabf.n1-complex-slots.v1',trial=i,emit_sha256=opts['seal'],
+                         source_sha256=n1.SOURCE['residual'], x=[0.], ring=8, level=0, slots=2,
+                         scale='3/2', decoded=[0.,0.], imag=[0.,0.]) for i in range(64)]
+            def replay():
+                p.write_text(''.join(json.dumps(row)+'\n' for row in data))
+                return n1.replay_slots('residual',None,p,**opts)
+            self.assertEqual(replay()['slots_checked'],128)
+            for change in (dict(imag=[0.,2**-12]),dict(imag=[0.]),dict(scale='1'),dict(level=False)):
+                old=data[-1]; data[-1]={**old,**change}
+                with self.assertRaises(ValueError): replay()
+                data[-1]=old
+
 
 if __name__=='__main__': unittest.main()

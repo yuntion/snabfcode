@@ -13,11 +13,13 @@ from security_cache import ERROR, MODEL, PIN, SECRET, digest, measure, request
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def carrier(fields):
+def mlir_string(raw):
     # MLIR byte escapes preserve CR/LF, quotes and non-ASCII source bytes.
-    def attr(raw):
-        return '"'+''.join(chr(b) if 32 <= b < 127 and b not in (34, 92) else f'\\{b:02X}' for b in raw)+'"'
-    return 'module attributes {'+', '.join(f'snabf.n1_{k} = {attr(v)}' for k, v in fields.items())+'} {}\n'
+    return '"'+''.join(chr(b) if 32 <= b < 127 and b not in (34, 92) else f'\\{b:02X}' for b in raw)+'"'
+
+
+def carrier(fields):
+    return 'module attributes {'+', '.join(f'snabf.n1_{k} = {mlir_string(v)}' for k, v in fields.items())+'} {}\n'
 
 
 def screen(proposal, cache, estimator):
