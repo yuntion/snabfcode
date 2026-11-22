@@ -1,6 +1,7 @@
 """Independent N1 evidence checks. Component receipts are not release certificates."""
 import hashlib
 from contextlib import nullcontext
+from fractions import Fraction
 import json
 import math
 import os
@@ -91,6 +92,9 @@ def replay_slots(label, source, trials, *, seal, ring, level, slots, scale=None)
     if (not re.fullmatch(r'[0-9a-f]{64}', seal) or type(ring) is not int or ring < 2 or ring & (ring-1)
             or type(level) is not int or level < 0 or type(slots) is not int or not 1 <= slots <= ring//2):
         raise ValueError('invalid independently supplied sink ABI')
+    if scale is not None and (not isinstance(scale,str) or not re.fullmatch('[1-9][0-9]*(/[1-9][0-9]*)?',scale)
+                              or str(Fraction(scale)) != scale):
+        raise ValueError('invalid exact sink scale')
     rows = corpus(label, source)
     if len(rows) != 64 or slots % len(rows[0]['truth']):
         raise ValueError('wrong input coverage or unsupported periodic layout')
@@ -107,6 +111,8 @@ def replay_slots(label, source, trials, *, seal, ring, level, slots, scale=None)
                     or r['x'] != case['x']):
                 raise ValueError(f'trial {i}: wrong source, input, plan or sink ABI')
             truth = case['truth']
+            if scale is None and ('schema' in r or 'imag' in r):
+                raise ValueError('complex observations require an independent exact sink scale')
             if scale is not None:
                 if (r.keys() != {'schema','emit_sha256','source_sha256','x','ring','level','slots','scale','trial','decoded','imag'}
                         or r['schema'] != 'snabf.n1-complex-slots.v1' or r['scale'] != scale
@@ -135,6 +141,8 @@ def replay_batch(root, expected_manifest):
     if m['schema'] != 'snabf.n1-offline.v1' or set(m['graphs']) != set(SOURCE): raise ValueError('incomplete batch')
     reports = {}
     for label, abi in m['graphs'].items():
+        if abi['ring'] != 16384 or abi['slots'] != 4096 or not abi.get('scale'):
+            raise ValueError('incomplete physical N1 sink ABI: '+label)
         src, records = root/(label+'.mlir'), root/(label+'.jsonl')
         if hashlib.sha256(records.read_bytes()).hexdigest() != abi['raw_sha256']: raise ValueError('wrong JSONL digest: '+label)
         reports[label] = replay_slots(label, src, records, **{k:abi[k] for k in ('seal','ring','level','slots','scale')})

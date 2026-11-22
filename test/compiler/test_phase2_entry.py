@@ -22,7 +22,7 @@ class EntryTests(unittest.TestCase):
             common = ['compile','--mlir','missing.mlir','--input-bound','1','--out-dir',str(dest),'--security','192']
             for args, reason in (([], 'SNABF_UNSUPPORTED_SECURITY_TARGET'),
                                  (['--frontend','legacy-heir'], 'SNABF_UNSUPPORTED_SECURITY_TARGET'),
-                                 (['--frontend','native-linalg'], 'SNABF_NATIVE_FRONTEND_UNAVAILABLE')):
+                                 (['--frontend','native-linalg'], 'SNABF_NATIVE_PROFILE')):
                 err = io.StringIO()
                 with patch.object(sys,'argv',common+args), contextlib.redirect_stderr(err), \
                      patch('subprocess.Popen',side_effect=AssertionError('unexpected subprocess')), \

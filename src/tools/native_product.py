@@ -73,7 +73,7 @@ def native_compile(a):
         if (plan['source'] != hashlib.sha256(source).hexdigest() or plan['input_spec'] != hashlib.sha256(spec).hexdigest()
                 or plan['input_domain'] != d or plan['probabilistic_cert_issued'] is not False):
             raise ValueError('[SNABF_NATIVE_PROFILE] proposal not bound to requested original bytes/domain')
-        security = screen(proposal, a.security_cache, os.getenv('LATTICE_ESTIMATOR'))
+        security = screen(proposal, a.security_cache, Path(os.getenv('LATTICE_ESTIMATOR',ext/'lattice-estimator')))
         (publish/'security.json').write_text(json.dumps(security, sort_keys=True, allow_nan=False)+'\n')
         run('--snabf-check-plan=native-security=security.json','planned.mlir','-o','checked.mlir')
         if a.emit_go:

@@ -41,8 +41,8 @@ python3 -B test/compiler/phase2_native_cipher.py "$EXE" "$R/security" "$R/cipher
 ```
 
 The engineering driver calls the real C++ checker and emitter; `--check` here
-is not the MLIR `--snabf-check-plan` pass. Keep the public native CLI closed
-until its source/sealed-plan handoff and independent release gates are ready.
+is not the MLIR `--snabf-check-plan` pass. For the public CLI, MLIR passes
+and independent product gates, see `src/tools/native_n1.md`.
 The private harness checks known source hashes, per-PID compiler traces,
 coordinated mutations, module dependencies, immutable package files and every
 complex decoded slot against independent source truth. Do not publish its

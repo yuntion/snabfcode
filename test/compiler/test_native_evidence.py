@@ -68,6 +68,8 @@ class EvidenceTests(unittest.TestCase):
                 p.write_text(''.join(json.dumps(row)+'\n' for row in data))
                 return n1.replay_slots('residual',None,p,**opts)
             self.assertEqual(replay()['slots_checked'],128)
+            with self.assertRaisesRegex(ValueError,'require an independent exact sink scale'):
+                n1.replay_slots('residual',None,p,**{k:v for k,v in opts.items() if k!='scale'})
             for change in (dict(imag=[0.,2**-12]),dict(imag=[0.]),dict(scale='1'),dict(level=False)):
                 old=data[-1]; data[-1]={**old,**change}
                 with self.assertRaises(ValueError): replay()
