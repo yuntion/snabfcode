@@ -299,7 +299,9 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
   if (b0 >= (block ? o.primeWidthMax : 60.)) {
     if (out) {
       auto input = diagnostic::baseWidth(g, o, b0);
-      input.add_child("base_expression", baseExpression(g, d, o.guardBits, terms, origins));
+      auto expr = baseExpression(g, d, o.guardBits, terms, origins);
+      if (o.coSlotMagnitude) expr.put("ir_magnitude_mode", "co-slot-v1");
+      input.add_child("base_expression", std::move(expr));
       trace.record("model_bounds", "base_width", 0, nullptr, -1, &input);
     }
     return {};
@@ -585,6 +587,10 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
   return trace.reject("refinement", "round_limit", 12);
 }
 } // namespace
+double baseWidthLower(const Graph &g, int edge, int d, double guard) {
+  if (g.edges.at(edge).level != 0) throw std::invalid_argument("base width needs a level-zero edge");
+  return baseWidthTerm(g, edge, d, guard).lower();
+}
 Solution optimizeAtBoundary(const Graph &g,const Options &o,Solution s, BoundaryRows *capture){
   if (capture) *capture = {};
   validate(g,o);Model m;std::vector<int> err;std::vector<std::vector<int>> flags;

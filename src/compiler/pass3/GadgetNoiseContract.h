@@ -62,6 +62,7 @@ struct Options {
   double primeWidthMin = 24., primeWidthMax = 59.;
   int auxMarginBits = 2;
   std::shared_ptr<const CostProfile> costProfile; // null: frozen legacy proxy
+  bool coSlotMagnitude = false; // IR extraction policy; absent in frozen plans.
   bool customLimits() const { return primeWidthMin != 24. || primeWidthMax != 59. || auxMarginBits != 2; }
   bool blockSearch() const { return alpha != -1 || heterogeneous || customLimits(); }
   bool admits(int count) const {

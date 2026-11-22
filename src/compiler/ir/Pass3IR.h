@@ -5,7 +5,7 @@
 namespace snabf::pass3 { struct BoundaryRows; }
 namespace snabf::ir {
 void publishPass3(ModuleOp, const pass3::Options &, bool fixed, StringRef audit,
-                  StringRef security, double sourceFraction);
+                  StringRef security, double sourceFraction, StringRef magnitudeAudit);
 void verifyPass3(ModuleOp);
 DictionaryAttr boundaryParameters(ModuleOp, DictionaryAttr baseline,
                                   DictionaryAttr replay = {}, pass3::BoundaryRows *capture = nullptr);

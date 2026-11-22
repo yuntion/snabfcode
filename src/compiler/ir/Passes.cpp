@@ -110,12 +110,14 @@ struct Parameters3 : impl::Pass3ParametersBase<Parameters3> {
  void runOnOperation() override {
    if (failed(diagnosed(getOperation(),[&]{
      pass3::Options options{minScale,maxScale,maxK,tolerance,cap,minBase,guard,gadgetAlpha,hetero,heirAnchor,widthMin,widthMax,auxMargin};
+     require(magnitudeMode == "legacy" || magnitudeMode == "co-slot-v1", "unknown Pass 3 magnitude mode");
+     options.coSlotMagnitude = magnitudeMode == "co-slot-v1";
      require(costProfileFile.empty()==costHardware.empty(), "cost_profile_and_hardware_id_required_together");
      if (!costProfileFile.empty()) {
        require(options.blockSearch(), "calibrated_cost_requires_explicit_gadget_alpha");
        options.costProfile=pass3::CostProfile::loadFile(costProfileFile.getValue(),costHardware.getValue());
      }
-     publishPass3(getOperation(),options,fixed,audit,security,sourceFraction);
+     publishPass3(getOperation(),options,fixed,audit,security,sourceFraction,magnitudeAudit);
    }))) signalPassFailure();
  }
 };
