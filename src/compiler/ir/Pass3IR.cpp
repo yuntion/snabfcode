@@ -79,6 +79,7 @@ Input extract(ModuleOp m, bool coSlot, p::IRMagnitudeOrigins *origins = nullptr)
   g.n = in.profile.getRing();
   g.levels = in.profile.getQ().size();
   std::optional<Pass3SlotBounds> slotBounds;
+  std::optional<LinearEntryBounds> entryBounds;
   AffineSlotMagnitudes affine;
   if (coSlot) {
     require(in.bridges.empty(), "co-slot-v1 does not prove a cross-ring slot map");
@@ -96,6 +97,7 @@ Input extract(ModuleOp m, bool coSlot, p::IRMagnitudeOrigins *origins = nullptr)
     g.edges.push_back({std::move(id), op, l, std::move(a), std::move(w), mag,
                        mask, poly, node});
     if (slotBounds) g.edges.back().magnitude = slotBounds->append(g.edges.back(), t);
+    if (entryBounds) entryBounds->annotate(i, g.edges.back(), t);
     return i;
   };
   auto magnitude = [&](int a) { return g.edges.at(a).magnitude; };
@@ -143,6 +145,7 @@ Input extract(ModuleOp m, bool coSlot, p::IRMagnitudeOrigins *origins = nullptr)
       result = make("input", O::Source, l, {}, {}, bound.getValueAsDouble());
     } else if (auto op = dyn_cast<LintransOp>(o)) {
       int a = at(op.getInput()), level = g.edges[a].level;
+      if (coSlot) entryBounds.emplace(in.profile.getSlots(), a, first);
       auto route = field<DictionaryAttr>(op, "selected");
       auto ts = field<DenseI64ArrayAttr>(route, "terms");
       auto wt = preparedWeights(op.getTable(), op.getDiagonals(), coSlot);
@@ -207,6 +210,7 @@ Input extract(ModuleOp m, bool coSlot, p::IRMagnitudeOrigins *origins = nullptr)
       }
       int v = sum("merge", all);
       result = make(prefix + "rescale", O::Rescale, l, {v}, {1}, magnitude(v));
+      entryBounds.reset();
     } else if (auto op = dyn_cast<PolyEvalOp>(o)) {
       auto sel = field<DictionaryAttr>(o, "poly_selected");
       int a = at(op.getInput()), level = g.edges[a].level;
@@ -341,6 +345,10 @@ void writeMagnitudeAudit(StringRef path, ModuleOp m, const p::Graph &g, const p:
     for (auto w : e.gains) gains.push_back(w);
     row["inputs"] = std::move(inputs);
     row["gains"] = std::move(gains);
+    if (e.linearEntry >= 0) {
+      row["linear_noise_entry"] = e.linearEntry;
+      row["inherited_noise_gain"] = e.entryGain;
+    }
     if (e.level == 0) {
       llvm::json::Array terms;
       for (int d = o.minScale; d <= o.maxScale; ++d) {
@@ -558,6 +566,10 @@ DictionaryAttr record(Builder &b, Input &in, const p::Options &o,
     a.set("inputs", b.getDenseI64ArrayAttr(SmallVector<int64_t>(
                         e.inputs.begin(), e.inputs.end())));
     a.set("gains", b.getDenseF64ArrayAttr(e.gains));
+    if (e.linearEntry >= 0) {
+      a.set("linear_noise_entry", b.getI64IntegerAttr(e.linearEntry));
+      a.set("inherited_noise_gain", b.getF64FloatAttr(e.entryGain));
+    }
     a.set("magnitude", b.getF64FloatAttr(e.magnitude));
     a.set("physical_log_scale", b.getF64FloatAttr(s.physical[i]));
     a.set("decoded_arithmetic_bound", b.getF64FloatAttr(s.errors[i]));

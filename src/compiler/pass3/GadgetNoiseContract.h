@@ -32,6 +32,11 @@ struct Edge {
   int poly = -1, node = -1;
   int ring = 0; // 0 means the source profile; Down's switching arithmetic is in the source ring.
   int shift = 0, routeSite = -1; // Actual emitted rotation and hoist grouping.
+  // Only a checked co-slot lintrans sets these. Its entrance error has unit
+  // infinity norm before the actual masks/rotations. Fresh site errors use
+  // the original scalar gains above, never this row-sum coefficient.
+  int linearEntry = -1;
+  double entryGain = 0;
 };
 struct PolyNode {
   std::string op;

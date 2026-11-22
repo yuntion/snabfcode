@@ -86,6 +86,16 @@ void validate(const Graph &g, const Options &o) {
       if (v.inputs[j] < 0 || v.inputs[j] >= i || !std::isfinite(v.gains[j]) ||
           v.gains[j] < 0)
         throw std::invalid_argument("invalid predecessor/gain");
+    if (v.linearEntry != -1) {
+      if (!o.coSlotMagnitude || v.linearEntry < 0 || v.linearEntry >= i ||
+          !std::isfinite(v.entryGain) || v.entryGain < 0 || v.inputs.empty() ||
+          !(v.op == Op::Baby || v.op == Op::Mask || v.op == Op::Add ||
+            v.op == Op::Giant || v.op == Op::Rescale))
+        throw std::invalid_argument("invalid lintrans noise provenance");
+      for (int a : v.inputs)
+        if (a != v.linearEntry && g.edges[a].linearEntry != v.linearEntry)
+          throw std::invalid_argument("foreign lintrans noise predecessor");
+    }
   }
 }
 } // namespace snabf::pass3
