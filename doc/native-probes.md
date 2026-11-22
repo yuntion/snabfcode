@@ -61,3 +61,10 @@ To attribute a 17-Q search refusal independently, run
 pre-solver guard uses the decoded magnitude envelope from the selected DAG.
 A refusal of this envelope is not a proof that the graph cannot execute with
 any concrete 17-prime parameterization.
+
+The separate `test/compiler/phase2_fullslot_linear_runtime.sh PASS1 NEW_DIR
+[OPT]` probe exercises a real one-to-two full-slot split, four nonempty target
+linear blocks, the joint rotation-key inventory, and reconstruction by logical
+index. Provide the pinned Go toolchain and offline module cache. This is a
+runtime component test; the production Pass 4 profile, three whole-graph arms,
+concrete security admission and feedback loop are not enabled by it.
