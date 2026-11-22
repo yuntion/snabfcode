@@ -1,3 +1,6 @@
+#include "NativeProduct.h"
+#include "mlir/Pass/Pass.h"
+#ifndef SNABF_NATIVE_ONLY
 #include "Pipeline.h"
 #include "NativeContracts.h"
 #include "Pass2IR.h"
@@ -12,12 +15,14 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "lib/Dialect/Lattigo/IR/LattigoDialect.h"
-#include "mlir/Pass/Pass.h"
 #include "llvm/Support/FileSystem.h"
+#endif
 
 namespace snabf::ir {
+using namespace mlir;
 #define GEN_PASS_DECL
 #include "Passes.h.inc"
+#ifndef SNABF_NATIVE_ONLY
 #define GEN_PASS_DEF_IMPORTHEIR
 #define GEN_PASS_DEF_PASS1CANDIDATES
 #define GEN_PASS_DEF_MARKACTIVATIONS
@@ -25,14 +30,18 @@ namespace snabf::ir {
 #define GEN_PASS_DEF_PASS3PARAMETERS
 #define GEN_PASS_DEF_DYNAMICRINGS
 #define GEN_PASS_DEF_PLAN
+#define GEN_PASS_DEF_BINDLATTIGO
+#endif
 #define GEN_PASS_DEF_CHECKPLAN
 #define GEN_PASS_DEF_LOWERCKKS
-#define GEN_PASS_DEF_BINDLATTIGO
+#define GEN_PASS_DEF_NATIVEPLAN
 #include "Passes.h.inc"
 
+#ifndef SNABF_NATIVE_ONLY
 template <class F>
 static LogicalResult diagnosed(ModuleOp module, F &&action) {
   try {
+    if (native::isProduct(module)) return module.emitError("native carrier in legacy pass");
     if (failed(rejectNativeExecution(module))) return failure();
     action();
     return success();
@@ -133,9 +142,33 @@ struct Planner : impl::PlanBase<Planner> {
       signalPassFailure();
   }
 };
-struct Checker : impl::CheckPlanBase<Checker> {
+#endif
+struct NativePlanner : impl::NativePlanBase<NativePlanner> {
   using Base::Base;
   void runOnOperation() override {
+    if (failed(native::planProduct(getOperation(), proposal))) signalPassFailure();
+  }
+};
+struct Checker : impl::CheckPlanBase<Checker> {
+  using Base::Base;
+#ifndef SNABF_NATIVE_ONLY
+  void getDependentDialects(DialectRegistry &r) const override {
+    r.insert<SNABF, func::FuncDialect, mlir::heir::lattigo::LattigoDialect>();
+  }
+#endif
+  void runOnOperation() override {
+    if (native::isProduct(getOperation())) {
+      if (requireDown || !noiseAudit.empty() || requireNoiseCert || precisionBits != 12) {
+        getOperation().emitError("unsupported native ring or noise certificate request");
+        return signalPassFailure();
+      }
+      if (failed(native::checkProduct(getOperation(), nativeSecurity))) signalPassFailure();
+      return;
+    }
+#ifdef SNABF_NATIVE_ONLY
+    getOperation().emitError("expected native product module"); signalPassFailure();
+#else
+    if (!nativeSecurity.empty()) { getOperation().emitError("expected native product module"); return signalPassFailure(); }
     if (failed(diagnosed(getOperation(), [&] {
           auto m = getOperation();
           lattigo_target::checkAndSeal(m);
@@ -144,18 +177,34 @@ struct Checker : impl::CheckPlanBase<Checker> {
             auditNoisePlan(m,noiseAudit,requireNoiseCert,precisionBits);
         })))
       signalPassFailure();
+#endif
   }
 };
 struct Lower : impl::LowerCKKSBase<Lower> {
   using Base::Base;
+#ifndef SNABF_NATIVE_ONLY
+  void getDependentDialects(DialectRegistry &r) const override {
+    r.insert<SNABF, func::FuncDialect, mlir::heir::lattigo::LattigoDialect>();
+  }
+#endif
   void runOnOperation() override {
+    if (native::isProduct(getOperation())) {
+      if (failed(native::lowerProduct(getOperation(), nativeSecurity, nativeOutput))) signalPassFailure();
+      return;
+    }
+#ifdef SNABF_NATIVE_ONLY
+    getOperation().emitError("expected native product module"); signalPassFailure();
+#else
+    if (!nativeSecurity.empty() || !nativeOutput.empty()) { getOperation().emitError("expected native product module"); return signalPassFailure(); }
     if (failed(diagnosed(getOperation(), [&] {
           if (directGo) lattigo_target::lowerDirect(getOperation());
           else lowerCKKS(getOperation());
         })))
       signalPassFailure();
+#endif
   }
 };
+#ifndef SNABF_NATIVE_ONLY
 struct Bind : impl::BindLattigoBase<Bind> {
   using Base::Base;
   void runOnOperation() override {
@@ -176,7 +225,10 @@ struct Bind : impl::BindLattigoBase<Bind> {
       signalPassFailure();
   }
 };
+#endif
 void registerPasses() {
+  PassRegistration<NativePlanner>();
+#ifndef SNABF_NATIVE_ONLY
   PassRegistration<Import>();
   PassRegistration<Pass1>();
   PassRegistration<Marker>();
@@ -184,8 +236,9 @@ void registerPasses() {
   PassRegistration<Parameters3>();
   PassRegistration<Rings>();
   PassRegistration<Planner>();
+  PassRegistration<Bind>();
+#endif
   PassRegistration<Checker>();
   PassRegistration<Lower>();
-  PassRegistration<Bind>();
 }
 }  // namespace snabf::ir

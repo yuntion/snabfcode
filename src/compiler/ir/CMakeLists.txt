@@ -1,5 +1,10 @@
 set(sdk "${SNABF_MLIR_ROOT}")
 set(gen "${CMAKE_CURRENT_BINARY_DIR}")
+option(SNABF_NATIVE_ONLY "Build the native product driver without the HEIR checkout or dialect" OFF)
+add_custom_command(OUTPUT "${gen}/Passes.h.inc" COMMAND "${sdk}/bin/mlir-tblgen" -gen-pass-decls -name SNABF
+  -I "${sdk}/include" "${CMAKE_CURRENT_SOURCE_DIR}/Passes.td" -o "${gen}/Passes.h.inc" DEPENDS Passes.td VERBATIM)
+add_custom_target(snabf_pass_decls DEPENDS "${gen}/Passes.h.inc")
+if(NOT SNABF_NATIVE_ONLY)
 include(HeirDialect.cmake)
 foreach(item "Dialect;-dialect" "Types;-typedef" "Attrs;-attrdef" "Ops;-op")
   list(GET item 0 name)
@@ -40,14 +45,14 @@ if(BUILD_TESTING)
 endif()
 add_library(snabf_import STATIC HEIRImport.cpp)
 target_link_libraries(snabf_import PUBLIC snabf_ir)
-add_custom_command(OUTPUT "${gen}/Passes.h.inc" COMMAND "${sdk}/bin/mlir-tblgen" -gen-pass-decls -name SNABF
-  -I "${sdk}/include" "${CMAKE_CURRENT_SOURCE_DIR}/Passes.td" -o "${gen}/Passes.h.inc" DEPENDS Passes.td VERBATIM)
-add_library(snabf_pipeline STATIC Planning.cpp Lowering.cpp Pass2Lowering.cpp ActivationRegions.cpp PolyRecords.cpp TransferRecords.cpp Passes.cpp ../pass1/NativeRouting.cpp ../pass1/NativeBootstrap.cpp "${gen}/Passes.h.inc")
+add_library(snabf_pipeline STATIC Planning.cpp Lowering.cpp Pass2Lowering.cpp ActivationRegions.cpp PolyRecords.cpp TransferRecords.cpp Passes.cpp ../pass1/NativeRouting.cpp ../pass1/NativeBootstrap.cpp)
+add_dependencies(snabf_pipeline snabf_pass_decls)
 target_sources(snabf_pipeline PRIVATE Pass3IR.cpp Pass4IR.cpp NoiseCertIR.cpp ../Target/Lattigo/RingEmitter.cpp
   ../Target/Lattigo/EmitVerifier.cpp ../Target/Lattigo/EmitGraph.cpp ../Target/Lattigo/DirectGo.cpp)
-target_link_libraries(snabf_pipeline PUBLIC snabf_import snabf_planner snabf_pass2 snabf_pass3 snabf_pass4 snabf_noise snabf_exact_scale snabf_affine_interval snabf_cost_profile heir_lattigo)
+target_link_libraries(snabf_pipeline PUBLIC snabf_import snabf_planner snabf_pass2 snabf_pass3 snabf_pass4 snabf_noise snabf_exact_scale snabf_affine_interval snabf_cost_profile heir_lattigo snabf_native_product)
 add_executable(snabf-opt Driver.cpp)
 target_link_libraries(snabf-opt PRIVATE snabf_pipeline)
+endif()
 
 # C-1 is a source inspection library, not a pass in the legacy pipeline.
 add_library(snabf_native_linalg_import STATIC NativeLinalgImport.cpp
@@ -59,6 +64,7 @@ target_link_libraries(snabf_native_linalg_import PUBLIC "${sdk}/lib/libMLIR.so" 
 add_executable(snabf-native-import NativeLinalgImportMain.cpp)
 target_link_libraries(snabf-native-import PRIVATE snabf_native_linalg_import)
 if(BUILD_TESTING)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
   set(native_test_dir "${CMAKE_CURRENT_SOURCE_DIR}/../../../test/compiler")
   add_executable(NativeLinalgImportTest "${native_test_dir}/NativeLinalgImportTest.cpp")
   target_link_libraries(NativeLinalgImportTest PRIVATE snabf_native_linalg_import)
@@ -79,6 +85,13 @@ configure_file("${native_target_dir}/NativeHelpers.cpp.in" "${gen}/NativeHelpers
 add_library(snabf_native_arithmetic STATIC NativeArithmetic.cpp NativePhysical.cpp NativeScaleLower.cpp ../Target/Lattigo/NativeSingleGo.cpp "${gen}/NativeHelpers.cpp")
 target_include_directories(snabf_native_arithmetic PRIVATE "${native_target_dir}")
 target_link_libraries(snabf_native_arithmetic PUBLIC snabf_native_linear snabf_pass2 snabf_pass3 snabf_affine_interval snabf_exact_scale)
+add_library(snabf_native_product STATIC NativeProduct.cpp)
+target_link_libraries(snabf_native_product PUBLIC snabf_native_arithmetic)
+add_executable(snabf-native-opt NativeProductMain.cpp Passes.cpp)
+add_dependencies(snabf-native-opt snabf_pass_decls)
+target_include_directories(snabf-native-opt PRIVATE "${gen}")
+target_compile_definitions(snabf-native-opt PRIVATE SNABF_NATIVE_ONLY=1)
+target_link_libraries(snabf-native-opt PRIVATE snabf_native_product)
 if(BUILD_TESTING)
   add_executable(NativeScaleLowerTest "${native_test_dir}/NativeScaleLowerTest.cpp")
   target_link_libraries(NativeScaleLowerTest PRIVATE snabf_native_arithmetic)
@@ -93,5 +106,5 @@ if(BUILD_TESTING)
   add_test(NAME NativeLinearRouteFourGraphs COMMAND "${Python3_EXECUTABLE}" -B
     "${native_test_dir}/NativeLinearRouteSources.py" "$<TARGET_FILE:snabf-native-linear>" "$<TARGET_FILE:NativeLinearRouteTest>")
   add_test(NAME NativeLinearRouteCLI COMMAND "${Python3_EXECUTABLE}" -B
-    "${native_test_dir}/test_native_route_cli.py" "$<TARGET_FILE:snabf-opt>")
+    "${native_test_dir}/test_native_route_cli.py" "$<TARGET_FILE:snabf-native-opt>")
 endif()
