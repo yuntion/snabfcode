@@ -66,3 +66,18 @@ if(BUILD_TESTING)
   add_test(NAME NativeLinalgImportSources COMMAND "${Python3_EXECUTABLE}" -B
     "${native_test_dir}/NativeLinalgImportSources.py" "$<TARGET_FILE:snabf-native-import>")
 endif()
+
+# Native square linear maps use the real Pass 1 subgroup enumerator only.
+add_library(snabf_native_linear STATIC NativeLinearRoute.cpp NativeLinearReceipt.cpp)
+target_link_libraries(snabf_native_linear PUBLIC snabf_native_linalg_import snabf_planner)
+add_executable(snabf-native-linear NativeLinearMain.cpp)
+target_link_libraries(snabf-native-linear PRIVATE snabf_native_linear)
+if(BUILD_TESTING)
+  add_executable(NativeLinearRouteTest "${native_test_dir}/NativeLinearRouteTest.cpp")
+  target_link_libraries(NativeLinearRouteTest PRIVATE snabf_native_linear)
+  add_test(NAME NativeLinearRouteAPI COMMAND NativeLinearRouteTest)
+  add_test(NAME NativeLinearRouteFourGraphs COMMAND "${Python3_EXECUTABLE}" -B
+    "${native_test_dir}/NativeLinearRouteSources.py" "$<TARGET_FILE:snabf-native-linear>" "$<TARGET_FILE:NativeLinearRouteTest>")
+  add_test(NAME NativeLinearRouteCLI COMMAND "${Python3_EXECUTABLE}" -B
+    "${native_test_dir}/test_native_route_cli.py" "$<TARGET_FILE:snabf-opt>")
+endif()
