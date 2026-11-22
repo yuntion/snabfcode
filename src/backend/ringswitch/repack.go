@@ -36,6 +36,7 @@ type SplitObservation struct {
 	MaskMulCount      int            `json:"mask_mul_count"`
 	RescaleCount      int            `json:"rescale_count"`
 	FoldRotCount      int            `json:"fold_rot_count"`
+	FoldAddCount      int            `json:"fold_add_count"`
 	DownConvCount     int            `json:"downconv_count"`
 	SlotMapID         string         `json:"slot_map_id"`
 	FoldGaloisElement uint64         `json:"fold_galois_element"`
@@ -200,6 +201,7 @@ func (f *FullSlotSplitter) fold(in *rlwe.Ciphertext, half int, r *SplitObservati
 	if e != nil {
 		return foldedHalf{}, e
 	}
+	r.FoldAddCount++
 	return foldedHalf{f, half, p}, nil
 }
 

@@ -12,7 +12,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 LATTIGO = 'github.com/tuneinsight/lattigo/v6'
 # Runtime sources, not tests, archives, frozen models or HEIR-generated helpers.
-BACKEND = ('src/backend', 'src/backend/gadget', 'src/backend/ringswitch',
+BACKEND = ('src/backend', 'src/backend/gadget', 'src/backend/tower', 'src/backend/ringswitch',
            'src/backend/ringswitch/epochs')
 
 
