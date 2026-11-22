@@ -21,7 +21,7 @@ Topology start() {
   u.input_draw = "input0"; u.source_bound = 1;
   const auto call = encode(u, Exact(1) + Exact(0x1p-53), {}).receipt();
   u.encoded_scale = call.realized_meta_scale; u.effective_encoder_scale = call.realized_eff_scale;
-  return {{{domain.key_id, domain.ring_n, domain.q, domain.p}}, {u}, {}};
+  return {{{domain.key_id, domain.ring_n, domain.q, domain.p}}, {u}, {}, 16};
 }
 Options options(const Topology &g) {
   Options o; o.b2i = true; o.mode = Mode::Probability;
@@ -82,8 +82,94 @@ void fixedPoint(bool add) {
   g.nodes[1] = n; g.nodes[1].id = "pt-other";
   expect(!verifyNoiseCertificate(g, o).errors.empty(), "reused receipt on other call");
 }
+
+Node tile(std::string id, Op kind, size_t parent, int level, std::vector<double> v) {
+  Node n = op(std::move(id), kind, {parent}, level);
+  n.plain_values = std::move(v);
+  n.bound_plain_call = encode(n, 1, n.plain_values);
+  const auto &call = n.bound_plain_call->receipt();
+  n.encoded_scale = call.realized_meta_scale; n.effective_encoder_scale = call.realized_eff_scale;
+  return n;
+}
+void uniformWords() {
+  auto g = start();
+  g.nodes.push_back(tile("mask", Op::VectorMulPlain, 0, 1, {200,200,200,200}));
+  g.outputs = {{"s",1}};
+  auto run = [&] { return verifyNoiseCertificate(g, options(g)); };
+  auto r = run();
+  const auto &enc = row(r, "mask/plain_encoding_at_output");
+  expect(r.errors.empty() && enc.encoded_constant == 200 && enc.delta_pt == 0 &&
+         enc.ntt_word_upper == 200+2*193*5 && enc.formula == "b2i/dc-word-bounded-ntt-v6.2.0", "unreduced positive limb");
+  expect(!row(r, "mask/mul_plain").blocker.empty() && !r.accepts() && !r.sinks[0].certified_bound_units,
+         "used plaintext proof as a ciphertext wrap guarantee");
+  expect(r.sink_forms.at("s").bias() == 200*(*g.nodes[0].encoded_scale-1), "vector lost parent bias");
+  g.direct_go_slots = 8;
+  expect(!run().errors.empty(), "accepted a different layout for the NTT stage count");
+  g.direct_go_slots = 16;
+  g.nodes[1] = tile("mask", Op::VectorMulPlain, 0, 1, {-1.75,-1.75});
+  r = run();
+  const Exact a = *g.nodes[0].encoded_scale;
+  expect(row(r, "mask/plain_encoding_at_output").lhs_gain == -2 &&
+         r.sink_forms.at("s").bias() == 2*(a-1)+a/4, "lost signed vector gain or double-counted delta*e");
+  g.nodes[1] = tile("mask", Op::VectorMulPlain, 0, 1, {0.,0.,0.,0.});
+  g.nodes[1].plain_values[2] = -0.;
+  expect(!run().errors.empty(), "accepted stale interior signed-zero word");
+  g.nodes[1] = tile("mask", Op::VectorMulPlain, 0, 1, {0.,0.,-0.,0.});
+  r = run();
+  expect(row(r, "mask/plain_encoding_at_output").blocker == "vector_ifft_not_proved" &&
+         !row(r, "mask/mul_plain").lhs_gain, "silently collapsed a nonidentical bit pattern");
+  g.nodes[1] = tile("mask", Op::VectorMulPlain, 0, 1, {-386.,-386.});
+  r = run(); // negative exact multiple writes q, not 0, on the 193 limb
+  expect(row(r, "mask/plain_encoding_at_output").ntt_word_upper == 193+2*193*5 &&
+         row(r, "mask/plain_encoding_at_output").encoded_constant == -386, "negative multiple fast CRT");
+}
+
+void exactProduct(int sign) {
+  auto g = start();
+  g.nodes.push_back(op("zero", Op::Sub, {0,0}));
+  g.nodes.push_back(op("drop", Op::Drop, {1}, 0));
+  const double v = sign*96.;
+  g.nodes.push_back(tile("base", Op::AddPlain, 2, 0, {v,v}));
+  g.nodes.push_back(tile("wrap", Op::VectorMulPlain, 3, 0, {5,5,5,5}));
+  g.nodes.push_back(tile("next", Op::VectorMulPlain, 4, 0, {-1,-1}));
+  g.outputs = {{"s",5}};
+  auto r = verifyNoiseCertificate(g, options(g));
+  const auto &wrap = row(r, "wrap/mul_plain");
+  expect(r.errors.empty() && wrap.formula == "b2i/exact-dc-recenter-v1" &&
+         wrap.dc_before_center == sign*480 && wrap.dc_after_center == sign*94 &&
+         wrap.dc_center_correction == -sign*386 && wrap.bias == 386, "wrong signed two-modulus correction");
+  const auto &next = row(r, "next/mul_plain");
+  expect(next.dc_before_center == -sign*94 && next.bias == 0, "propagated the unreduced coefficient");
+  const auto &f = r.sink_forms.at("s");
+  const Exact drift = *g.nodes[0].encoded_scale-1; // source cancels; AddPlain metadata mismatch remains
+  expect(f.bias() == 386 + 480*drift && f.missingContracts().contains("node/u/encrypt") &&
+         !r.total_delta_valid && !r.sinks[0].certified_bound_units && !r.accepts(), "lost bias/history or false issuance");
+  // Same public multiplier and modulus but a secret parent, not a known DC.
+  g.nodes[1] = op("zero", Op::Neg, {0});
+  r = verifyNoiseCertificate(g, options(g));
+  expect(!row(r, "wrap/mul_plain").dc_center_correction && !row(r, "wrap/mul_plain").bias &&
+         !row(r, "wrap/mul_plain").blocker.empty(), "inferred signed wrap from a mere bound");
+}
+
+void unsafeWordRange() {
+  std::set<int64_t> used;
+  const int n = 1024;
+  const auto q = uint64_t(pass3::nearestPrime(n, 60, used));
+  const ScaleDomain d{"wide", n, 39, {q}, {uint64_t(pass3::nearestPrime(n, 45, used))}};
+  auto g = start(); g.domains = {{d.key_id, n, d.q, d.p}}; g.nodes[0].level = 0; g.direct_go_slots = n/2;
+  auto m = op("tiny", Op::VectorMulPlain, {0}, 0); m.plain_values = {-.25,-.25};
+  m.bound_plain_call = BoundPlainCall::encode({"encode:tiny", "tiny", 1, 0, n/2, d, true,
+                                               "[]float64", 53, 53, false}, 1, m.plain_values);
+  m.effective_encoder_scale = 1; m.encoded_scale = 1;
+  g.nodes.push_back(m); g.outputs = {{"s",1}};
+  auto r = verifyNoiseCertificate(g, options(g));
+  const auto &enc = row(r, "tiny/plain_encoding_at_output");
+  expect(r.errors.empty() && enc.blocker == "unproved_ntt_word_range" && !enc.encoded_constant && !enc.ntt_word_upper,
+         "overflowed or silently normalized the raw q word");
+}
 } // namespace
 int main() {
   linear(); fixedPoint(false); fixedPoint(true);
-  std::cout << "B2-i centered lifts, signed gain, bias, binding and refusals passed\n";
+  uniformWords(); exactProduct(1); exactProduct(-1); unsafeWordRange();
+  std::cout << "B2-i public DC encodings, centered transfers, signed bias and refusals passed\n";
 }
