@@ -19,5 +19,5 @@ llvm::json::Object noiseAuditJSON(const noise::CertAuditReport &);
 void auditNoisePlan(ModuleOp, StringRef outputPath, bool requireCertificate,
                     unsigned precisionBits);
 void auditNoisePlan(ModuleOp, StringRef outputPath, bool requireCertificate,
-                    unsigned precisionBits, double targetFailureProb);
+                    unsigned precisionBits, double targetFailureProb, bool b2i = false);
 } // namespace snabf::ir

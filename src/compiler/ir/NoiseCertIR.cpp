@@ -27,7 +27,7 @@ std::vector<uint64_t> moduli(ArrayRef<int64_t> primes) {
 }
 } // namespace
 
-static ng::Topology collectTopology(ModuleOp m, std::vector<V1EncodingCall> *calls) {
+static ng::Topology collectTopology(ModuleOp m, std::vector<V1EncodingCall> *calls, bool b2i = false) {
   const bool mixed = isMixed(m);
   if (mixed) checkRings(m);
   else { verifyPlan(m); verifyPass3(m); checkRingSearch(m); }
@@ -44,6 +44,8 @@ static ng::Topology collectTopology(ModuleOp m, std::vector<V1EncodingCall> *cal
   const eg::EmitGraph emitted(program);
   auto receipt = m->getAttr("snabf.encoding_receipts");
   require(!receipt || receipt == emitted.encodingPlan, "stale_encoding_scale_binding");
+  if (b2i) require(!mixed && emitted.families.size() == 1 && receipt && m->hasAttr("snabf.emit_sha256"),
+                   "B2-i requires a sealed, single-ring v1 encoding program");
   ng::Topology g;
   std::map<int64_t, size_t> domain;
   for (const auto &[n, d] : emitted.families) {
@@ -80,15 +82,16 @@ static ng::Topology collectTopology(ModuleOp m, std::vector<V1EncodingCall> *cal
       }
       EncodingCallContext ctx{"encode:" + e.id, e.id, input ? 0 : 1, n.level, checkedInt(emitted.slots),
           {d.key_id, d.ring_n, def, d.q, d.p}, true, "[]float64", 53, std::max(53, def), input};
-      auto call = ExactScaleTracker::encode(ctx, pass2::plannedEncodingScale(log),
-                                            {e.values.data(), e.values.size()});
+      auto bound = ng::BoundPlainCall::encode(ctx, pass2::plannedEncodingScale(log), {e.values.data(), e.values.size()});
+      const auto &call = bound.receipt();
       require(eg::str(e.encoding, "payload_sha256") == call.payload_sha256 &&
               eg::str(e.encoding, "metadata_scale") == call.realized_meta_scale.get_str() &&
               eg::str(e.encoding, "effective_encoder_scale") == call.realized_eff_scale.get_str(),
               "stale_encoding_scale_binding");
       n.encoded_scale = call.realized_meta_scale;
       n.effective_encoder_scale = call.realized_eff_scale;
-      if (calls) calls->push_back({std::move(call), pass2::exactBinary(log)});
+      if (calls) calls->push_back({call, pass2::exactBinary(log)});
+      if (b2i && !input) n.bound_plain_call = std::move(bound);
     }
     const auto &key = g.domains[n.domain].key_id;
     using O = eg::Op;
@@ -282,16 +285,35 @@ j::Object noiseAuditJSON(const ng::CertAuditReport &r) {
   out["validity_events"] = std::move(events);
   out["missing_contract_terms"] = std::move(missing);
   out["errors"] = std::move(errors);
+  if (r.b2i) {
+    j::Array rows;
+    auto rational = [](const std::optional<ng::Exact> &v) -> j::Value {
+      return v ? j::Value(v->get_str()) : j::Value(nullptr);
+    };
+    for (const auto &t : r.local_transfers) {
+      j::Array inputs;
+      for (const auto &id : t.inputs) inputs.push_back(id);
+      rows.emplace_back(j::Object{{"site_id", t.site}, {"inputs", std::move(inputs)},
+          {"active_q_product", t.active_q.get_str()}, {"candidate_coeff_abs", rational(t.candidate_coeff_abs)},
+          {"formula_ref", exactText(t.formula)}, {"blocker", exactText(t.blocker)},
+          {"lhs_gain", rational(t.lhs_gain)}, {"rhs_gain", rational(t.rhs_gain)},
+          {"argument_sha256", exactText(t.argument_sha256)}, {"encoded_constant", rational(t.encoded_constant)},
+          {"sigma_pt_inf", t.encoded_constant ? j::Value(ng::Exact(abs(*t.encoded_constant)).get_str()) : j::Value(nullptr)},
+          {"delta_pt_signed", rational(t.delta_pt)}, {"local_bias_units", rational(t.bias)}});
+    }
+    out["b2i_local"] = j::Object{{"schema", "snabf.b2i.local.v1"}, {"transfers", std::move(rows)}};
+  }
   return out;
 }
 
-void auditNoisePlan(ModuleOp m, StringRef path, bool certify, unsigned bits, double target) {
+void auditNoisePlan(ModuleOp m, StringRef path, bool certify, unsigned bits, double target, bool b2i) {
   ng::CertAuditReport r;
   r.mode = certify ? ng::Mode::Probability : ng::Mode::Engineering;
   r.target_failure_prob = target;
   try {
     require(bits <= 16384 && std::isfinite(target) && target > 0 && target <= ng::theoremBudget,
             "invalid noise precision or failure budget");
+    require(!b2i || m->hasAttr("snabf.pass3"), "B2-i requires a materialized program");
     if (!m->hasAttr("snabf.pass3")) {
       // Legacy pre-specialization check: never invent a lowering, physical
       // scales or an empty set of primitive obligations from a high-level IR.
@@ -311,8 +333,9 @@ void auditNoisePlan(ModuleOp m, StringRef path, bool certify, unsigned bits, dou
       });
       require(index && !r.sinks.empty(), "empty legacy ciphertext/sink inventory");
     } else {
-      auto graph = checkedNoiseTopology(m);
+      auto graph = collectTopology(m, nullptr, b2i);
       ng::Options opts{r.mode, int(bits), target, {}};
+      opts.b2i = b2i;
       // Reserve at least half of the budget for the common validity event.
       double perSink = pass2::lowerDouble(pass2::exactBinary(target) /
           (ng::Exact(2) * ng::Exact(std::to_string(graph.outputs.size()))));

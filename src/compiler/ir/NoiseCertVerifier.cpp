@@ -261,6 +261,8 @@ void audit(const Topology &g, const Options &o, const AnalyticContracts *provide
   check(o.precision_bits >= 0 && o.precision_bits <= 16384, "invalid precision bits");
   Exact target = exactBinary(o.target_failure_prob);
   check(target > 0 && target <= exactBinary(theoremBudget), "target exceeds Theorem 1 or is not positive");
+  r.b2i = o.b2i;
+  check(!o.b2i || !provider, "cannot mix B2-i gains with a legacy conditional provider");
   std::vector<Step> steps;
   auto scales = replayPhysical(g, r, steps);
   std::set<std::string> outputs;
@@ -289,10 +291,22 @@ void audit(const Topology &g, const Options &o, const AnalyticContracts *provide
 
   std::vector<AffineErrorForm> edges;
   edges.reserve(g.nodes.size());
+  std::vector<LocalStep> local;
   auto bind = [&](AffineErrorForm &f, size_t i, Role role, const std::string &id) {
     const auto &n = g.nodes[i];
     std::string key = (role == Role::Output ? "sink/" : "node/") + id + "/" + name(role);
     auto &row = r.sites.emplace_back(SiteAudit{key, role, {}});
+    if (o.b2i && role != Role::Output) {
+      for (const auto &t : local.at(i).rows) {
+        if (t.site != key) continue;
+        r.local_transfers.push_back(t);
+        if (!t.formula.empty()) {
+          row.formula_ref = t.formula;
+          f.addBias(t.bias.value());
+          return; // deterministic local identity; NOT a CommonLaw or an event
+        }
+      }
+    }
     std::optional<SiteBound> b;
     if (law && scales[i] && provider->site)
       b = provider->site({g, n, role, id, *law, *scales[i], scales, edges});
@@ -322,6 +336,12 @@ void audit(const Topology &g, const Options &o, const AnalyticContracts *provide
 
   for (size_t i = 0; i < g.nodes.size(); ++i) {
     const auto &n = g.nodes[i];
+    if (o.b2i) {
+      local.push_back(boundedStep(g, i, local, n.inputs.empty() ? Scale{} : scales[n.inputs[0]],
+          n.inputs.empty() ? Scale{} : steps[n.inputs[0]].ideal, bool(scales[i]), steps[i].ma, steps[i].mb));
+      if (n.op == Op::ScalarMulPlain && !local.back().rows.front().formula.empty())
+        steps[i].gain = local.back().rows.front().lhs_gain.value();
+    }
     AffineErrorForm f;
     for (size_t a : n.inputs) f.inheritObligations(edges[a]);
     if (!scales[i]) f.markMissing("node/" + n.id + "/physical_scale");
