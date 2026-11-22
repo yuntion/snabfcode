@@ -73,7 +73,8 @@ def compile_model(a):
         if a.native_import_only or a.native_routes_only is not None:
             from native_inspection import inspect_native
             return inspect_native(a)
-        raise ValueError('[SNABF_NATIVE_FRONTEND_UNAVAILABLE] native execution has not passed N1; no HEIR fallback')
+        from native_product import native_compile
+        return native_compile(a)
     if a.native_import_only or a.native_routes_only is not None or a.input_spec is not None:
         raise ValueError('[SNABF_INVALID_OPTIONS] native inspection requires explicit --frontend native-linalg')
     if a.security_bits != 128:
@@ -229,7 +230,7 @@ def compile_model(a):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--frontend', choices=('legacy-heir', 'native-linalg'), default='legacy-heir',
-                   help='legacy-heir is default; native inspection never falls back to HEIR')
+                   help='legacy-heir is default; native-linalg uses the single-ring native backend with no HEIR fallback')
     inspection=p.add_mutually_exclusive_group()
     inspection.add_argument('--native-import-only', action='store_true', help='structural receipt only; cannot emit Go or certify')
     inspection.add_argument('--native-routes-only', metavar='ENCODED_SLOTS', type=int,

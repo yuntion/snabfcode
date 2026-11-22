@@ -1,0 +1,587 @@
+// Private server fixture. The test uses the generated schedule embedded at build time.
+package planned
+
+import (
+	"bytes"
+	"crypto/sha256"
+	_ "embed"
+	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"math"
+	"math/big"
+	"math/bits"
+	"os"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/tuneinsight/lattigo/v6/core/rlwe"
+	"github.com/tuneinsight/lattigo/v6/ring"
+	"github.com/tuneinsight/lattigo/v6/schemes/ckks"
+)
+
+//go:embed program.json
+var fixtureProgram []byte
+
+type fixturePlain struct {
+	Meta, Effective, Branch string
+	Bits                    []string
+	SHA                     *string
+	Requested               *string
+	Precision               *uint
+}
+
+type fixtureEdge struct {
+	ID, Op, Meta string
+	Level, Shift *int
+	Inputs       []int
+	Plain        *fixturePlain
+	DroppedQ     []uint64 `json:"dropped_q"`
+}
+
+type fixturePlan struct {
+	Ring, Slots, Width, Scale int
+	Q, P                      []uint64
+	Sink                      *int
+	Edges                     []fixtureEdge
+	Source                    string
+	EmitSHA                   string    `json:"emit_sha256"`
+	InputDomain               []float64 `json:"input_domain"`
+}
+
+type fixtureTrial struct{ Input, Want []float64 }
+
+type fixtureStats struct {
+	Trials   int     `json:"trials"`
+	Slots    int     `json:"slots"` // total comparisons, not slots per ciphertext
+	Exceeded int     `json:"exceeded"`
+	MaxError float64 `json:"max_error"`
+}
+
+// encoding/json otherwise accepts repeated keys and decodes null numbers as zero.
+func fixtureWire(d *json.Decoder) error {
+	v, err := d.Token()
+	if err != nil {
+		return err
+	}
+	switch v {
+	case nil:
+		return fmt.Errorf("null is not a fixture value")
+	case json.Delim('{'):
+		seen := make(map[string]bool)
+		for d.More() {
+			k, err := d.Token()
+			if err != nil {
+				return err
+			}
+			name, ok := k.(string)
+			if !ok || seen[name] || strings.ToLower(name) != name {
+				return fmt.Errorf("invalid or duplicate key %v", k)
+			}
+			seen[name] = true
+			if err := fixtureWire(d); err != nil {
+				return err
+			}
+		}
+		_, err = d.Token()
+	case json.Delim('['):
+		for d.More() {
+			if err := fixtureWire(d); err != nil {
+				return err
+			}
+		}
+		_, err = d.Token()
+	}
+	return err
+}
+
+func fixtureJSON(t *testing.T, raw []byte, out any) {
+	t.Helper()
+	w := json.NewDecoder(bytes.NewReader(raw))
+	w.UseNumber()
+	if err := fixtureWire(w); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Token(); err != io.EOF {
+		t.Fatal("trailing fixture JSON")
+	}
+	d := json.NewDecoder(bytes.NewReader(raw))
+	// The sealed physical plan also contains compiler-only evidence. It never
+	// supplies a reference result or instructions to a second evaluator.
+	if _, plan := out.(*fixturePlan); !plan {
+		d.DisallowUnknownFields()
+	}
+	if err := d.Decode(out); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func fixtureFinite(x float64) bool { return !math.IsNaN(x) && !math.IsInf(x, 0) }
+func fixturePow2(x int) bool       { return x > 0 && x&(x-1) == 0 }
+
+func fixtureRational(t *testing.T, s string) *big.Rat {
+	t.Helper()
+	if len(s) == 0 || len(s) > 10000 || strings.Trim(s, "0123456789/") != "" {
+		t.Fatal("invalid rational scale spelling")
+	}
+	q, ok := new(big.Rat).SetString(s)
+	if !ok || q.Sign() <= 0 || q.RatString() != s {
+		t.Fatalf("not a canonical positive scale: %s", s)
+	}
+	return q
+}
+
+func fixtureScale(t *testing.T, s string) rlwe.Scale {
+	t.Helper()
+	q := fixtureRational(t, s)
+	f := new(big.Float).SetPrec(rlwe.ScalePrecision).SetRat(q)
+	if back, _ := f.Rat(nil); back == nil || back.Cmp(q) != 0 {
+		t.Fatalf("not an exactly representable physical scale: %s", s)
+	}
+	return rlwe.NewScale(f)
+}
+
+type fixtureExpected struct {
+	degree       int
+	meta, ptMeta rlwe.Scale
+	public       []float64 // actual tiled argument, no source entry
+}
+
+func fixtureTile(t *testing.T, period []float64, slots int) []float64 {
+	t.Helper()
+	if len(period) == 0 || slots%len(period) != 0 {
+		t.Fatal("invalid logical tile")
+	}
+	out := make([]float64, slots)
+	for i := 0; i < slots; i += len(period) {
+		copy(out[i:], period)
+	}
+	return out
+}
+
+func fixtureDigest(values []float64) string {
+	h := sha256.New()
+	var word [8]byte
+	for _, v := range values {
+		binary.BigEndian.PutUint64(word[:], math.Float64bits(v))
+		h.Write(word[:])
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// Infer the expected shape of each observation, not the ciphertext arithmetic.
+func (s *fixturePlan) prepare(t *testing.T, p ckks.Parameters) []fixtureExpected {
+	t.Helper()
+	if s.Sink == nil || *s.Sink < 0 || *s.Sink >= len(s.Edges) || len(s.Edges) == 0 {
+		t.Fatal("missing output edge")
+	}
+	x := make([]fixtureExpected, len(s.Edges))
+	ids := make(map[string]bool)
+	for i, e := range s.Edges {
+		if e.ID == "" || ids[e.ID] || e.Level == nil || *e.Level < 0 || *e.Level > p.MaxLevel() || e.Shift == nil || e.Inputs == nil {
+			t.Fatalf("edge %d: invalid ID, level, shift or inputs", i)
+		}
+		ids[e.ID] = true
+		x[i].meta = fixtureScale(t, e.Meta)
+		for _, parent := range e.Inputs {
+			if parent < 0 || parent >= i {
+				t.Fatalf("%s: non-topological operand %d", e.ID, parent)
+			}
+			prev := *s.Edges[parent].Level
+			ok := prev == *e.Level
+			switch e.Op {
+			case "drop":
+				ok = prev > *e.Level
+			case "rescale":
+				ok = prev == *e.Level+1
+			}
+			if !ok {
+				t.Fatalf("%s: invalid physical level transition", e.ID)
+			}
+			x[i].degree = max(x[i].degree, x[parent].degree)
+		}
+		n := len(e.Inputs)
+		valid, plain := false, false
+		switch e.Op {
+		case "source":
+			valid, plain, x[i].degree = i == 0 && n == 0, true, 1
+		case "drop", "rescale":
+			valid = n == 1
+		case "baby", "giant":
+			valid = n == 1 && x[i].degree == 1
+		case "relin":
+			valid, x[i].degree = n == 1 && x[i].degree == 2, 1
+		case "mul":
+			valid, x[i].degree = n == 2 && x[i].degree == 1, 2
+		case "add":
+			valid = n >= 2
+		case "mask", "coefficient", "add_plain":
+			valid, plain = n == 1, true
+		}
+		if !valid || plain != (e.Plain != nil) || (e.Op != "baby" && e.Op != "giant" && *e.Shift != 0) {
+			t.Fatalf("%s: unsupported operation, arity, shift, or encoding binding", e.ID)
+		}
+		if e.DroppedQ != nil && (e.Op != "rescale" || len(e.DroppedQ) != 1 || e.DroppedQ[0] != s.Q[*e.Level+1]) {
+			t.Fatalf("%s: rescale receipt does not name the active last Q", e.ID)
+		}
+		if !plain {
+			continue
+		}
+		b := e.Plain
+		x[i].ptMeta = fixtureScale(t, b.Meta)
+		if b.Requested != nil {
+			v := new(big.Float).SetPrec(rlwe.ScalePrecision).SetRat(fixtureRational(t, *b.Requested))
+			if v.Cmp(&x[i].ptMeta.Value) != 0 {
+				t.Fatalf("%s: requested scale does not round to the declared plaintext scale", e.ID)
+			}
+		}
+		if b.Bits == nil || b.SHA == nil {
+			t.Fatalf("%s: missing encoding payload declaration", e.ID)
+		}
+		if e.Op == "source" {
+			if len(b.Bits) != 0 || *b.SHA != "" || b.Meta != e.Meta {
+				t.Fatalf("%s: source is not a dynamic input port", e.ID)
+			}
+			continue
+		}
+		if len(b.Bits) == 0 || s.Width%len(b.Bits) != 0 {
+			t.Fatalf("%s: not a logical plaintext tile", e.ID)
+		}
+		tile := make([]float64, len(b.Bits))
+		for j, word := range b.Bits {
+			buf, err := hex.DecodeString(word)
+			if err != nil || len(buf) != 8 {
+				t.Fatalf("%s: expected 16 hex digits per binary64", e.ID)
+			}
+			tile[j] = math.Float64frombits(binary.BigEndian.Uint64(buf))
+			if !fixtureFinite(tile[j]) {
+				t.Fatalf("%s: nonfinite public operand", e.ID)
+			}
+		}
+		x[i].public = fixtureTile(t, tile, s.Slots)
+	}
+	if s.Edges[0].Op != "source" || x[*s.Sink].degree != 1 {
+		t.Fatal("unsupported source or sink degree")
+	}
+	return x
+}
+
+func (s *fixturePlan) parameters(t *testing.T) ckks.Parameters {
+	t.Helper()
+	if !fixturePow2(s.Ring) || !fixturePow2(s.Slots) || s.Slots > s.Ring/2 || s.Width <= 0 || s.Slots%s.Width != 0 ||
+		s.Scale <= 0 || s.Scale > 64 || len(s.Q) == 0 || len(s.P) == 0 {
+		t.Fatal("invalid standard-ring dimensions, ordered basis, or single-Q precision mode")
+	}
+	p, err := ckks.NewParametersFromLiteral(ckks.ParametersLiteral{
+		RingType: ring.Standard, LogN: bits.TrailingZeros(uint(s.Ring)), Q: s.Q, P: s.P, LogDefaultScale: s.Scale,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.RingType() != ring.Standard || p.N() != s.Ring || p.MaxSlots() != s.Ring/2 ||
+		p.LevelsConsumedPerRescaling() != 1 || !slices.Equal(p.Q(), s.Q) || !slices.Equal(p.P(), s.P) ||
+		!p.DefaultScale().Equal(rlwe.NewScale(math.Ldexp(1, s.Scale))) {
+		t.Fatal("effective CKKS parameters differ from the sealed plan")
+	}
+	return p
+}
+
+// Inspect storage as well as metadata: a level on component zero alone does
+// not attest to the other ciphertext components or their active RNS limbs.
+func (s *fixturePlan) observe(el *rlwe.Element[ring.Poly], level, degree int, scale rlwe.Scale) error {
+	if el == nil || el.MetaData == nil || el.Degree() != degree || !el.IsBatched || !el.IsNTT || el.IsMontgomery || el.IsBitReversed ||
+		el.LogDimensions.Rows != 0 || el.LogDimensions.Cols != bits.TrailingZeros(uint(s.Slots)) || el.Slots() != s.Slots {
+		return fmt.Errorf("incorrect degree, flags or slot dimensions")
+	}
+	if el.Scale.Mod != nil || el.Scale.Value.Prec() != rlwe.ScalePrecision || !scale.Equal(el.Scale) {
+		return fmt.Errorf("incorrect physical scale (want %s)", scale.Value.Text('x', -1))
+	}
+	for _, poly := range el.Value {
+		if poly.Level() != level {
+			return fmt.Errorf("RNS level %d, want %d", poly.Level(), level)
+		}
+		for _, limb := range poly.Coeffs {
+			if len(limb) != s.Ring {
+				return fmt.Errorf("RNS ring degree %d, want %d", len(limb), s.Ring)
+			}
+		}
+	}
+	return nil
+}
+
+// All embeddings in this ABI are real []float64 arguments to batched Encode.
+// Only initialize a *new plaintext*; never assign to live ciphertext metadata.
+func (s *fixturePlan) encode(t *testing.T, p ckks.Parameters, enc *ckks.Encoder, i int, x fixtureExpected, values []float64) *rlwe.Plaintext {
+	t.Helper()
+	e := s.Edges[i]
+	b := e.Plain
+	pt := ckks.NewPlaintext(p, *e.Level)
+	pt.Scale = rlwe.NewScale(&x.ptMeta.Value)
+	pt.LogDimensions.Cols = bits.TrailingZeros(uint(s.Slots))
+	if err := s.observe(pt.El(), *e.Level, 0, x.ptMeta); err != nil {
+		t.Fatalf("%s: before Encode: %v", e.ID, err)
+	}
+	prec := enc.Prec()
+	if prec != p.EncodingPrecision() || prec != uint(max(53, s.Scale)) || (b.Precision != nil && *b.Precision != prec) {
+		t.Fatalf("%s: actual encoder precision %d disagrees with plan", e.ID, prec)
+	}
+	eff, _ := pt.Scale.Value.Rat(nil)
+	branch := "bigfloat_value"
+	if prec <= 53 {
+		branch = "embed_double_f64"
+		eff = new(big.Rat).SetFloat64(pt.Scale.Float64())
+	}
+	if eff == nil || eff.Sign() <= 0 || eff.RatString() != b.Effective || branch != b.Branch {
+		t.Fatalf("%s: wrong effective scale or branch at the encoder call", e.ID)
+	}
+	if len(values) != s.Slots || (e.Op != "source" && fixtureDigest(values) != *b.SHA) {
+		t.Fatalf("%s: wrong tiled argument at the encoder call", e.ID)
+	}
+	if err := enc.Encode(values, pt); err != nil {
+		t.Fatalf("%s: Encode: %v", e.ID, err)
+	}
+	if err := s.observe(pt.El(), *e.Level, 0, x.ptMeta); err != nil {
+		t.Fatalf("%s: after Encode: %v", e.ID, err)
+	}
+	return pt
+}
+
+func (s *fixturePlan) evaluator(p ckks.Parameters, kg *rlwe.KeyGenerator, sk *rlwe.SecretKey) *ckks.Evaluator {
+	var rel *rlwe.RelinearizationKey
+	var keys []*rlwe.GaloisKey
+	seen := make(map[uint64]bool)
+	for _, e := range s.Edges {
+		switch e.Op {
+		case "relin":
+			if rel == nil {
+				rel = kg.GenRelinearizationKeyNew(sk)
+			}
+		case "baby", "giant":
+			// Even a sparse/periodic message rotates in the full group of N/2 slots.
+			rot := int(uint(*e.Shift) % uint(p.N()/2))
+			gal := p.GaloisElement(rot)
+			if gal != 1 && !seen[gal] {
+				keys = append(keys, kg.GenGaloisKeyNew(gal, sk))
+				seen[gal] = true
+			}
+		}
+	}
+	return ckks.NewEvaluator(p, rlwe.NewMemEvaluationKeySet(rel, keys...))
+}
+
+func (s *fixturePlan) checkedEval(t *testing.T, ev *ckks.Evaluator, input *rlwe.Ciphertext, plain map[int]*rlwe.Plaintext, x []fixtureExpected) *rlwe.Ciphertext {
+	t.Helper()
+	seen := make([]bool, len(s.Edges))
+	var sink *rlwe.Ciphertext
+	var firstErr error
+	observe := func(i int, ct *rlwe.Ciphertext) error {
+		if i < 0 || i >= len(seen) || seen[i] || ct == nil {
+			return fmt.Errorf("unbound, duplicate or nil observation at edge %d", i)
+		}
+		e := s.Edges[i]
+		for _, j := range e.Inputs {
+			if !seen[j] {
+				return fmt.Errorf("%s: operand %d not observed", e.ID, j)
+			}
+		}
+		if err := s.observe(ct.El(), *e.Level, x[i].degree, x[i].meta); err != nil {
+			return fmt.Errorf("%s: %w", e.ID, err)
+		}
+		if i == 0 && ct != input && !ct.Equal(input) {
+			return fmt.Errorf("%s: source is not the supplied encryption", e.ID)
+		}
+		if i == *s.Sink {
+			sink = ct.CopyNew()
+		}
+		seen[i] = true
+		return nil
+	}
+	out, err := EvaluateNative(ev, input, plain, func(i int, ct *rlwe.Ciphertext) error {
+		if firstErr == nil {
+			firstErr = observe(i, ct)
+		}
+		return firstErr
+	})
+	if firstErr != nil {
+		t.Fatal(firstErr) // Do not depend on the generated evaluator propagating the callback failure.
+	}
+	if err != nil {
+		t.Fatalf("EvaluateNative: %v", err)
+	}
+	if j := slices.Index(seen, false); j >= 0 {
+		t.Fatalf("EvaluateNative omitted edge %s", s.Edges[j].ID)
+	}
+	if out == nil || out.MetaData == nil || sink == nil || !sink.Equal(out) {
+		t.Fatal("EvaluateNative did not return the observed sink")
+	}
+	return out
+}
+
+func (s *fixturePlan) decode(t *testing.T, enc *ckks.Encoder, dec *rlwe.Decryptor, ct *rlwe.Ciphertext, sink fixtureExpected) []complex128 {
+	t.Helper()
+	level := *s.Edges[*s.Sink].Level
+	if ct == nil {
+		t.Fatal("nil result ciphertext")
+	}
+	if err := s.observe(ct.El(), level, sink.degree, sink.meta); err != nil {
+		t.Fatalf("returned ciphertext: %v", err)
+	}
+	pt := dec.DecryptNew(ct)
+	if err := s.observe(pt.El(), level, 0, sink.meta); err != nil {
+		t.Fatalf("decrypted plaintext: %v", err)
+	}
+	y := make([]complex128, s.Slots)
+	for i := range y {
+		y[i] = complex(math.NaN(), math.NaN()) // a missing decoded slot must not pass as zero
+	}
+	if err := enc.Decode(pt, y); err != nil {
+		t.Fatal(err)
+	}
+	for i, v := range y {
+		if !fixtureFinite(real(v)) || !fixtureFinite(imag(v)) {
+			t.Fatalf("nonfinite or missing decoded slot %d", i)
+		}
+	}
+	return y
+}
+
+func (s *fixturePlan) vectors(t *testing.T, path string) []fixtureTrial {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var trials []fixtureTrial
+	fixtureJSON(t, raw, &trials)
+	if len(trials) != 64 {
+		t.Fatalf("expected 64 independent test vectors, got %d", len(trials))
+	}
+	d := s.InputDomain
+	if d != nil && (len(d) != 2 || !fixtureFinite(d[0]) || !fixtureFinite(d[1]) || d[0] > d[1]) {
+		t.Fatal("invalid declared input domain")
+	}
+	for j, trial := range trials {
+		if len(trial.Input) != s.Width || len(trial.Want) != s.Width {
+			t.Fatalf("trial %d: input and reference must each cover one logical period", j)
+		}
+		for k, v := range trial.Input {
+			if !fixtureFinite(v) || !fixtureFinite(trial.Want[k]) || (d != nil && (v < d[0] || v > d[1])) {
+				t.Fatalf("trial %d: nonfinite vector or out-of-domain input", j)
+			}
+		}
+	}
+	return trials
+}
+
+func TestNativeSingleFixture(t *testing.T) {
+	vecPath, resultPath := os.Getenv("TEST_VECTORS"), os.Getenv("TEST_RESULT")
+	if vecPath == "" || resultPath == "" {
+		t.Fatal("TEST_VECTORS and TEST_RESULT paths are required")
+	}
+	sum := sha256.Sum256(fixtureProgram)
+	if hex.EncodeToString(sum[:]) != NativeProgramFileSHA256 {
+		t.Fatal("program.json file SHA-256 does not match generated model")
+	}
+	var s fixturePlan
+	fixtureJSON(t, fixtureProgram, &s)
+	if len(s.EmitSHA) != 2*sha256.Size || strings.Trim(s.EmitSHA, "0123456789abcdef") != "" || s.EmitSHA != PlanSHA256 {
+		t.Fatal("program.json semantic seal does not match generated model")
+	}
+	p := s.parameters(t)
+	x := s.prepare(t, p)
+	trials := s.vectors(t, vecPath)
+	kg := rlwe.NewKeyGenerator(p)
+	sk, pk := kg.GenKeyPairNew()
+	enc, encrypt, decrypt := ckks.NewEncoder(p), rlwe.NewEncryptor(p, pk), rlwe.NewDecryptor(p, sk)
+	ev := s.evaluator(p, kg, sk)
+	bound, err := BindNative(p, ev)
+	if err != nil || bound == nil {
+		t.Fatalf("BindNative: %v", err)
+	}
+	var stats fixtureStats
+	var observations *json.Encoder
+	if name := os.Getenv("N1_RAW_JSONL"); name != "" {
+		f, err := os.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { if err := f.Close(); err != nil { t.Error(err) } })
+		observations = json.NewEncoder(f)
+	}
+	for j, trial := range trials {
+		src, err := bound.EncodeInput(trial.Input)
+		if err != nil || src == nil || src.MetaData == nil {
+			t.Fatalf("bound EncodeInput: %v", err)
+		}
+		if j == 0 {
+			reference := s.encode(t, p, enc, 0, x[0], fixtureTile(t, trial.Input, s.Slots))
+			if err := s.observe(src.El(), *s.Edges[0].Level, 0, x[0].ptMeta); err != nil || !src.Equal(reference) {
+				t.Fatalf("bound EncodeInput disagrees with independent encoding: %v", err)
+			}
+		}
+		input, err := encrypt.EncryptNew(src)
+		if err != nil || input == nil {
+			t.Fatalf("trial %d public-key encryption: %v", j, err)
+		}
+		if err := s.observe(input.El(), *s.Edges[0].Level, x[0].degree, x[0].meta); err != nil {
+			t.Fatalf("trial %d fresh encryption: %v", j, err)
+		}
+		var sameInput *rlwe.Ciphertext
+		if j == 0 {
+			sameInput = input.CopyNew()
+		}
+		out, err := bound.Eval(input)
+		if err != nil || out == nil {
+			t.Fatalf("bound Eval: %v", err)
+		}
+		got := s.decode(t, enc, decrypt, out, x[*s.Sink])
+		if j == 0 {
+			plain := make(map[int]*rlwe.Plaintext)
+			for i := 1; i < len(s.Edges); i++ {
+				if s.Edges[i].Plain != nil {
+					plain[i] = s.encode(t, p, enc, i, x[i], x[i].public)
+				}
+			}
+			// With identical encrypted input and evaluation keys, the two paths
+			// must decrypt identically. Do not count this extra replay as a trial.
+			if !slices.Equal(got, s.decode(t, enc, decrypt, s.checkedEval(t, ev, sameInput, plain, x), x[*s.Sink])) {
+				t.Fatal("bound Eval and independently checked EvaluateNative decrypt differently")
+			}
+		}
+		if observations != nil {
+			re, im := make([]float64, len(got)), make([]float64, len(got))
+			for i, z := range got { re[i], im[i] = real(z), imag(z) }
+			scale, _ := out.Scale.Value.Rat(nil)
+			row := map[string]any{"schema":"snabf.n1-complex-slots.v1", "trial":j,
+				"source_sha256":s.Source, "emit_sha256":PlanSHA256, "x":trial.Input,
+				"ring":len(out.Value[0].Coeffs[0]), "level":out.Level(), "slots":out.Slots(),
+				"scale":scale.RatString(), "decoded":re, "imag":im}
+			if err := observations.Encode(row); err != nil { t.Fatal(err) }
+		}
+		for k, z := range got {
+			d := math.Hypot(real(z)-trial.Want[k%s.Width], imag(z))
+			if !fixtureFinite(d) {
+				t.Fatalf("trial %d: nonfinite complex error at slot %d", j, k)
+			}
+			stats.Slots++
+			stats.MaxError = max(stats.MaxError, d)
+			if d >= 0x1p-12 {
+				stats.Exceeded++
+			}
+		}
+		stats.Trials++
+	}
+	payload, err := json.Marshal(stats)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(resultPath, append(payload, '\n'), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if stats.Exceeded != 0 {
+		t.Fatalf("%d of %d encoded slots reached the error threshold", stats.Exceeded, stats.Slots)
+	}
+}

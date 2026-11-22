@@ -34,12 +34,17 @@ def Plan : ModuleStage<"snabf-plan","Select candidates over SSA, re-solve violat
   let options = [Option<"independent","independent","bool","false","Decide per layer, score physical key union">];
 }
 def CheckPlan : ModuleStage<"snabf-check-plan","Recompute budget transfers, selected routes and key inventory"> {
-  let options = [Option<"requireDown","require-ring-down","bool","false","Reject a checked fallback when a physical down-conversion was requested">,
+  let options = [Option<"nativeSecurity","native-security","std::string","\"\"","Trusted source/port-bound concrete estimate for native replay">,
+    Option<"requireDown","require-ring-down","bool","false","Reject a checked fallback when a physical down-conversion was requested">,
     Option<"noiseAudit","noise-audit","std::string","\"\"","Write an independent conditional-noise audit of the checked program">,
     Option<"b2iLocal","b2i-local","bool","false","Audit deterministic centered transfers of the bound single-ring DirectGo v1 program">,
     Option<"requireNoiseCert","require-noise-cert","bool","false","Fail unless the Theorem 1 noise budget passes for every sink">,
     Option<"precisionBits","precision-bits","unsigned","12","Decoded precision in bits for the noise audit">];
-  let dependentDialects = ["::snabf::ir::SNABF", "::mlir::func::FuncDialect", "::mlir::heir::lattigo::LattigoDialect"];
+  let dependentDialects = []; // Legacy dialects are registered by the full driver pass.
+}
+def NativePlan : ModuleStage<"snabf-native-plan","Specialize the original native source and materialize its physical plan"> {
+  let dependentDialects = [];
+  let options = [Option<"proposal","proposal","std::string","\"\"","Write the ordered integer security request and plan">];
 }
 def Pass3Parameters : ModuleStage<"snabf-pass3", "Optimize and concretize RNS, scales and centered-prefix gadget sites"> {
   let options=[Option<"minScale","min-scale","int","36","Smallest default encoding exponent">, Option<"maxScale","max-scale","int","46","Largest default encoding exponent">,
@@ -68,9 +73,11 @@ def DynamicRings : ModuleStage<"snabf-pass4", "Replan and independently screen p
     Option<"forceDown","force-down","bool","false","Choose the least-cost feasible down proposal even without net benefit">,
     Option<"audit","audit","std::string","\"\"","Optional decision trace JSON">];
 }
-def LowerCKKS : ModuleStage<"snabf-lower-ckks","Materialize the selected implementations into HEIR CKKS"> {
-  let options = [Option<"directGo","direct-go","bool","false","Preserve checked SSA for the direct Go target (automatic with Pass 4)">];
-  let dependentDialects = ["::snabf::ir::SNABF", "::mlir::func::FuncDialect", "::mlir::heir::lattigo::LattigoDialect"];
+def LowerCKKS : ModuleStage<"snabf-lower-ckks","Lower a checked program for its selected CKKS backend"> {
+  let options = [Option<"directGo","direct-go","bool","false","Preserve checked SSA for the direct Go target (automatic with Pass 4)">,
+    Option<"nativeSecurity","native-security","std::string","\"\"","Trusted source/port-bound concrete estimate for native replay">,
+    Option<"nativeOutput","native-output","std::string","\"\"","New directory for verified native Go package sources">];
+  let dependentDialects = [];
 }
 def BindLattigo : ModuleStage<"snabf-bind-lattigo","Bind verified routes and key inventory after HEIR bufferization"> {
   let dependentDialects = ["::mlir::heir::lattigo::LattigoDialect", "::mlir::func::FuncDialect", "::mlir::memref::MemRefDialect"];

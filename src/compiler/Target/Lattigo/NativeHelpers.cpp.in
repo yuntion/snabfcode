@@ -1,0 +1,4 @@
+#include "NativeSingleGo.h"
+namespace snabf::native {
+llvm::StringRef nativeSingleRuntimeSource(){return R"SNABF(@NATIVE_SINGLE_RUNTIME@)SNABF";}
+}

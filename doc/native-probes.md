@@ -2,8 +2,8 @@
 
 `legacy-heir` remains the default. A native inspection is a source witness,
 not a parameter plan, security decision, proof of approximation, or encrypted
-run. The normal native execution request remains fail-closed until the N1
-lowerer, four-graph numerical gate, and independent scale checks are ready.
+run. The separate single-ring execution profile, its supported options and
+its four-graph gate are described in `src/tools/native_n1.md`.
 
 With the pinned `snabf-native-import` built next to `snabf-opt`, inspect one
 static source into a new directory:

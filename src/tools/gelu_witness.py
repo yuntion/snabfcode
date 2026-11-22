@@ -33,21 +33,29 @@ def sqrt_two_over_pi():
     return F(floor_root(2/hi), SCALE), F(floor_root(2/lo)+1, SCALE)
 
 
-def erf_bounds(h):
+def erf_bounds(h, source_literal=False):
     # erf(h/sqrt(2)) = sqrt(2/pi)*sum (-1)^n h^(2n+1)/(2^n n! (2n+1)).
     # Exact rational arithmetic, stop only in the decreasing alternating tail.
     x = abs(F.from_float(h))
     if not x:
         return F(0), F(0)
     require(x <= 4, 'outside C1 public erf witness domain')
+    # For product replay use the f32 multiplier matched by recognize_region,
+    # not the idealized inverse square root in the historical C1 witness.
+    denominator = 1 if source_literal else 2
+    if source_literal:
+        x *= F(float.fromhex('0x1.6a09e6p-1'))
     t, s = x, F(0)
     for n in itertools.count():
-        if x*x <= 2*(n+1) and abs(t)*SCALE < x:
+        if x*x <= denominator*(n+1) and abs(t)*SCALE < x:
             lo, hi = sorted((s, s+t))
             c, d = sqrt_two_over_pi()
+            if source_literal:
+                r = math.isqrt(2*SCALE*SCALE)
+                c, d = c*F(r, SCALE), d*F(r+1, SCALE)
             return (lo*c, hi*d) if h > 0 else (-hi*d, -lo*c)
         s += t
-        t *= -x*x*(2*n+1) / (2*(n+1)*(2*n+3))
+        t *= -x*x*(2*n+1) / (denominator*(n+1)*(2*n+3))
 
 
 def decimal_endpoint(v, rounding):
@@ -60,8 +68,8 @@ def decimal_endpoint(v, rounding):
 def atom(kind, hx):
     h = float.fromhex(hx)
     require(math.isfinite(h), 'invalid transcendental input')
-    if kind == 'gelu':
-        a,b = erf_bounds(h)
+    if kind in ('gelu', 'gelu_src_f32'):
+        a,b = erf_bounds(h, kind == 'gelu_src_f32')
         lo, hi = decimal_endpoint(a, ROUND_FLOOR), decimal_endpoint(b, ROUND_CEILING)
         if not h and hx.startswith('-'):
             lo = hi = Decimal('-0')
@@ -157,7 +165,7 @@ class Source:
         require((result==g and len(self.nodes)==3) or (result in mixed and len(self.nodes)==6), 'unknown C1 graph topology')
         self.case = 'single' if result==g else 'mixed'
 
-    def evaluate(self, x, atoms):
+    def evaluate(self, x, atoms, source_literal=False):
         values={self.x:x}
         for dst,(kind,arg,*rest) in self.nodes.items():
             h=values[arg]
@@ -172,7 +180,7 @@ class Source:
             else:
                 y=[]
                 for h0 in h:
-                    hx=h0.hex(); cert=atom(kind,hx); atoms[kind][hx]=cert; ref=float.fromhex(cert['binary64'])
+                    hx=h0.hex(); cert=atom('gelu_src_f32' if source_literal and kind=='gelu' else kind,hx); atoms[kind][hx]=cert; ref=float.fromhex(cert['binary64'])
                     y.append(h0/(1.+ref) if kind=='silu' else (0.5*h0)*(1.+ref))
             values[dst]=y
         return values[self.sink]
@@ -186,9 +194,9 @@ def cases(width):
     return rows
 
 
-def evidence(source):
+def evidence(source, *, source_literal=False):
     graph=Source(source.read_text(encoding='utf-8')); atoms={'gelu':{},'silu':{}}
-    corpus=[{'trial':i,'x':x,'truth':graph.evaluate(x,atoms)} for i,x in enumerate(cases(graph.width))]
+    corpus=[{'trial':i,'x':x,'truth':graph.evaluate(x,atoms,source_literal)} for i,x in enumerate(cases(graph.width))]
     return corpus, dict(schema='snabf.c1.transcendental.v1', source_sha256=sha(source), graph=graph.case,
                         decimal_digits=PREC, erf_hidden_over_sqrt2=atoms['gelu'], exp_negative_hidden=atoms['silu'])
 

@@ -17,7 +17,7 @@ with tempfile.TemporaryDirectory() as d:
     for flags, reason in ((['--native-import-only','--emit-go'],'SNABF_NATIVE_INSPECTION'),
                           (['--native-import-only','--mode','force-down'],'SNABF_NATIVE_INSPECTION'),
                           (['--native-import-only','--certify-failure-bits','40'],'SNABF_NATIVE_INSPECTION'),
-                          (['--emit-go'],'SNABF_NATIVE_FRONTEND_UNAVAILABLE')):
+                          (['--emit-go','--mode','force-down'],'SNABF_NATIVE_PROFILE')):
         p = subprocess.run(cmd+flags,capture_output=True)
         if p.returncode != 1 or reason.encode() not in p.stderr or out.exists():
             raise AssertionError((flags,p.returncode,p.stderr))
