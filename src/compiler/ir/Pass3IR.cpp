@@ -1,5 +1,6 @@
 #include "Pass3IR.h"
 #include "Pass2IR.h"
+#include "Pass3SlotBounds.h"
 #include "pass3/ConcreteVerifier.h"
 #include "pass3/CostProfile.h"
 #include "pass3/ParameterMILP.h"
@@ -9,6 +10,7 @@
 #include <boost/multiprecision/cpp_int.hpp>
 #include <cmath>
 #include <map>
+#include <optional>
 #include <set>
 namespace snabf::ir {
 namespace p = ::snabf::pass3;
@@ -38,7 +40,7 @@ ProfileOp domain(Value v) {
           "unbound_ciphertext_key_domain");
   return p;
 }
-Input extract(ModuleOp m, p::IRMagnitudeOrigins *origins = nullptr) {
+Input extract(ModuleOp m, bool coSlot, p::IRMagnitudeOrigins *origins = nullptr) {
   Input in;
   auto &g = in.g;
   Builder b(m.getContext());
@@ -73,16 +75,24 @@ Input extract(ModuleOp m, p::IRMagnitudeOrigins *origins = nullptr) {
   });
   g.n = in.profile.getRing();
   g.levels = in.profile.getQ().size();
+  std::optional<Pass3SlotBounds> slotBounds;
+  AffineSlotMagnitudes affine;
+  if (coSlot) {
+    require(in.bridges.empty(), "co-slot-v1 does not prove a cross-ring slot map");
+    slotBounds.emplace(in.profile.getSlots());
+    affine = affinePlanningSlotMagnitudes(m);
+  }
   in.keys =
       field<ArrayAttr>(field<DictionaryAttr>(m, "snabf.inventory"), "keys");
   auto &edges = in.results;
   int polyIndex = 0, stepIndex = 0, downIndex = 0;
   auto make = [&](std::string id, O op, int l, std::vector<int> a,
-                  std::vector<double> w, double mag, int mask = -1,
-                  int poly = -1, int node = -1) {
+                  std::vector<double> w, double mag, Pass3SlotBounds::Operands t = {},
+                  int mask = -1, int poly = -1, int node = -1) {
     int i = g.edges.size();
     g.edges.push_back({std::move(id), op, l, std::move(a), std::move(w), mag,
                        mask, poly, node});
+    if (slotBounds) g.edges.back().magnitude = slotBounds->append(g.edges.back(), t);
     return i;
   };
   auto magnitude = [&](int a) { return g.edges.at(a).magnitude; };
@@ -122,39 +132,54 @@ Input extract(ModuleOp m, p::IRMagnitudeOrigins *origins = nullptr) {
         a = make(id + ".align", O::Drop, l, {a}, {1}, magnitude(a));
       result = make(id, O::Down, l, {a}, {1}, magnitude(a));
     } else if (auto s = dyn_cast<SourceOp>(o)) {
-      result = make("input", O::Source, l, {}, {},
-                    field<FloatAttr>(o, "input_bound").getValueAsDouble());
+      auto bound = field<FloatAttr>(o, "input_bound");
+      if (coSlot) {
+        checkPeriodicMagnitudeSource(s, in.profile);
+        require(bound.getType().isF32() || bound.getType().isF64(), "unproven Pass 3 input-bound precision");
+      }
+      result = make("input", O::Source, l, {}, {}, bound.getValueAsDouble());
     } else if (auto op = dyn_cast<LintransOp>(o)) {
       int a = at(op.getInput()), level = g.edges[a].level;
       auto route = field<DictionaryAttr>(op, "selected");
       auto ts = field<DenseI64ArrayAttr>(route, "terms");
-      auto wt = preparedWeights(op.getTable(), op.getDiagonals());
+      auto wt = preparedWeights(op.getTable(), op.getDiagonals(), coSlot);
       auto shape = wt.getType().getShape();
       require(shape.size() == 2 && shape[0] * 3 == ts.size() && level == l + 1,
               "mismatched tower/level");
-      std::vector<double> maxRow(shape[0]);
-      size_t j = 0;
-      for (auto f : wt.getValues<APFloat>()) {
-        auto &v = maxRow[j++ / shape[1]];
-        v = std::max(v, std::abs(f.convertToDouble()));
-      }
+      if (coSlot)
+        require(!op.getOutsInit() && !op.getInLayoutAttr() && !op.getOutLayoutAttr() &&
+                    shape[0] == int64_t(op.getDiagonals().size()) &&
+                    shape[1] == int64_t(in.profile.getSlots()),
+                "unproven Pass 3 packed diagonal table");
+      auto raw = wt.getValues<APFloat>();
+      auto it = raw.begin();
+      std::vector<double> row(coSlot ? shape[1] : 0);
       int site = field<IntegerAttr>(o, "site").getInt();
       std::string prefix = "lin" + std::to_string(site) + ".";
       std::map<int, int> babies{{0, a}};
       std::map<int, std::vector<int>> groups;
-      std::map<int, double> weights;
       for (int t = 0; t < ts.size(); t += 3) {
+        if (slotBounds)
+          slotBounds->checkTerm(op.getDiagonals()[t / 3], ts[t], ts[t+1], ts[t+2], g.n / 2);
         int baby = ts[t + 1], giant = ts[t + 2];
         if (!babies.contains(baby)) {
           babies[baby] = make(prefix + "baby" + std::to_string(baby), O::Baby,
-                              level, {a}, {1}, magnitude(a));
+                              level, {a}, {1}, magnitude(a), {.shift = baby});
           g.edges[babies[baby]].shift = baby;
           g.edges[babies[baby]].routeSite = site;
         }
         int parent = babies[baby];
-        double w = maxRow[t / 3];
+        double w = 0;
+        for (int64_t j = 0; j < shape[1]; ++j, ++it) {
+          double value = (*it).convertToDouble();
+          if (coSlot) {
+            require(std::isfinite(value), "nonfinite Pass 3 diagonal weight");
+            row[j] = value;
+          }
+          w = std::max(w, std::abs(value)); // uniform noise gain, even on ideal-zero slots
+        }
         int v = make(prefix + "mask" + std::to_string(ts[t]), O::Mask, level,
-                     {parent}, {w}, w * magnitude(a), level);
+                     {parent}, {w}, w * magnitude(a), {.shift = giant, .row = row}, level);
         groups[giant].push_back(v);
       }
       auto sum = [&](std::string id, std::vector<int> v) {
@@ -171,7 +196,7 @@ Input extract(ModuleOp m, p::IRMagnitudeOrigins *origins = nullptr) {
         int v = sum("coset" + std::to_string(giant), terms);
         if (giant) {
           v = make(prefix + "giant" + std::to_string(giant), O::Giant, level,
-                   {v}, {1}, magnitude(v));
+                   {v}, {1}, magnitude(v), {.shift = giant});
           g.edges[v].shift = giant;
           g.edges[v].routeSite = site;
         }
@@ -226,7 +251,7 @@ Input extract(ModuleOp m, p::IRMagnitudeOrigins *origins = nullptr) {
             if (linear) {
               double c = std::abs(w[j]);
               t = make(id + "pt" + std::to_string(j), O::Coefficient, start,
-                       {t}, {c}, magnitude(t) * c, -1, pi, node);
+                       {t}, {c}, magnitude(t) * c, {}, -1, pi, node);
               if (origins) origins->polynomialLiterals.emplace(t, w[j]);
             }
             terms.push_back(t);
@@ -244,7 +269,7 @@ Input extract(ModuleOp m, p::IRMagnitudeOrigins *origins = nullptr) {
         double constant = std::abs(signedConstant);
         if (constant) {
           v = make(id + "constant", O::AddPlain, end, {v}, {1},
-                   magnitude(v) + constant);
+                   magnitude(v) + constant, {.absConstant = constant});
           if (origins) origins->polynomialLiterals.emplace(v, signedConstant);
         }
         values.push_back(v);
@@ -269,7 +294,8 @@ Input extract(ModuleOp m, p::IRMagnitudeOrigins *origins = nullptr) {
                       mul ? magnitude(a) * magnitude(c)
                           : magnitude(a) + magnitude(c));
       } else if (k == "ckks.mul_plain") {
-        double w = linearNorm(plainWeights(o->getOperand(1)), false);
+        auto wt = plainWeights(o->getOperand(1), coSlot);
+        double w = linearNorm(wt, false); // Supremum; no inferred lane map for an arbitrary encoded plaintext.
         result = make(id, O::Coefficient, l, {a}, {w}, w * magnitude(a));
       } else {
         require(k == "ckks.level_reduce" || k == "ckks.rescale" ||
@@ -291,8 +317,51 @@ Input extract(ModuleOp m, p::IRMagnitudeOrigins *origins = nullptr) {
     require(result >= 0 && g.edges.at(result).level == l &&
                 edges.try_emplace(out, result).second,
             "unbound_concrete_ssa_result");
+    if (slotBounds) {
+      auto it = affine.find(out);
+      slotBounds->finish(first, result, g.edges[result],
+                         it == affine.end() ? ArrayRef<double>{} : ArrayRef<double>(it->second));
+    }
   });
   return in;
+}
+
+void writeMagnitudeAudit(StringRef path, ModuleOp m, const p::Graph &g, const p::Options &o) {
+  p::validate(g, o);
+  llvm::json::Array edges, lower;
+  std::vector<double> b0(o.maxScale - o.minScale + 1, o.minBase);
+  for (auto [i, e] : llvm::enumerate(g.edges)) {
+    llvm::json::Object row{{"id", e.id}, {"op", p::name(e.op)}, {"level", e.level},
+                           {"magnitude", e.magnitude}, {"shift", e.shift}};
+    llvm::json::Array inputs, gains;
+    for (auto a : e.inputs) inputs.push_back(a);
+    for (auto w : e.gains) gains.push_back(w);
+    row["inputs"] = std::move(inputs);
+    row["gains"] = std::move(gains);
+    if (e.level == 0) {
+      llvm::json::Array terms;
+      for (int d = o.minScale; d <= o.maxScale; ++d) {
+        double term = p::baseWidthLower(g, i, d, o.guardBits);
+        b0[d-o.minScale] = std::max(b0[d-o.minScale], term);
+        terms.push_back(term);
+      }
+      row["base_width_term_bits"] = std::move(terms);
+    }
+    edges.push_back(std::move(row));
+  }
+  for (double v : b0) lower.push_back(v);
+  auto mode = m->getAttrOfType<StringAttr>("snabf.interval_mode");
+  llvm::json::Object report{{"schema", "snabf.pass3.ideal-magnitude.v1"},
+    {"magnitude_mode", o.coSlotMagnitude ? "co-slot-v1" : "legacy"},
+    {"interval_mode", mode ? mode.str() : "naive"}, {"min_scale", o.minScale},
+    {"max_scale", o.maxScale}, {"base_width_lower_bits", std::move(lower)},
+    {"edges", std::move(edges)}};
+  std::error_code ec;
+  llvm::raw_fd_ostream out(path, ec, llvm::sys::fs::OF_Text);
+  require(!ec, "cannot open Pass 3 magnitude audit");
+  out << llvm::formatv("{0:2}\n", llvm::json::Value(std::move(report)));
+  out.flush();
+  require(!out.has_error(), "cannot write Pass 3 magnitude audit");
 }
 
 DictionaryAttr options(Builder &b, const p::Options &o) {
@@ -302,6 +371,7 @@ DictionaryAttr options(Builder &b, const p::Options &o) {
   i("min_scale", o.minScale);
   i("max_scale", o.maxScale);
   i("max_k", o.maxK);
+  if (o.coSlotMagnitude) d.set("magnitude_mode", b.getStringAttr("co-slot-v1"));
   if (o.blockSearch()) {
     i("gadget_alpha", o.alpha);
     d.set("heterogeneous_scales", b.getBoolAttr(o.heterogeneous));
@@ -327,6 +397,11 @@ p::Options readOptions(DictionaryAttr d, ModuleOp m) {
           int(num(d, "max_k")),     real(d, "tolerance"),
           real(d, "security_cap"),  real(d, "min_base"),
           real(d, "guard")};
+  if (d.contains("magnitude_mode")) {
+    require(field<StringAttr>(d, "magnitude_mode").getValue() == "co-slot-v1",
+            "unknown recorded Pass 3 magnitude mode");
+    o.coSlotMagnitude = true;
+  }
   if (d.contains("gadget_alpha")) {
     o.alpha=int(num(d,"gadget_alpha"));
     o.heterogeneous=field<BoolAttr>(d,"heterogeneous_scales").getValue();
@@ -588,7 +663,8 @@ void checkSecurity(StringRef text, DictionaryAttr plan) {
 }
 } // namespace
 ConcreteSSAContext concreteSSAContext(ModuleOp m, DictionaryAttr par) {
-  auto in = extract(m);
+  auto o = readOptions(field<DictionaryAttr>(par, "options"), m);
+  auto in = extract(m, o.coSlotMagnitude);
   Builder b(m.getContext());
   auto edges = field<ArrayAttr>(par, "edges");
   require(edges.size() == in.g.edges.size(), "stale_concrete_ssa_edges");
@@ -608,8 +684,8 @@ ConcreteSSAContext concreteSSAContext(ModuleOp m, DictionaryAttr par) {
 DictionaryAttr boundaryParameters(ModuleOp m, DictionaryAttr base,
                                   DictionaryAttr check) {
   Builder b(m.getContext());
-  auto in = extract(m);
   auto o = readOptions(field<DictionaryAttr>(base, "options"),m);
+  auto in = extract(m, o.coSlotMagnitude);
   p::Solution s;
   s.q.assign(in.profile.getQ().begin(), in.profile.getQ().end());
   s.p.assign(in.profile.getP().begin(), in.profile.getP().end());
@@ -630,14 +706,15 @@ void verifySourceScreen(ModuleOp m, DictionaryAttr base) {
   checkSecurity(field<StringAttr>(m, "snabf.security_screen").getValue(), base);
 }
 void publishPass3(ModuleOp m, const p::Options &o, bool fixed, StringRef audit,
-                  StringRef security, double sourceFraction) {
+                  StringRef security, double sourceFraction, StringRef magnitudeAudit) {
   verifyPlan(m);
   Builder b(m.getContext());
   auto *trace = fixed ? nullptr : p::rejectionTraceStream();
   p::IRMagnitudeOrigins origins;
-  auto in = extract(m, trace ? &origins : nullptr);
+  auto in = extract(m, o.coSlotMagnitude, trace ? &origins : nullptr);
   p::Solution s;
   require(sourceFraction > 0 && sourceFraction <= 1 && (!fixed || sourceFraction == 1), "invalid_source_arithmetic_fraction");
+  if (!magnitudeAudit.empty()) writeMagnitudeAudit(magnitudeAudit, m, in.g, o);
   const double requestedFraction = sourceFraction;
   if (!fixed) {
     auto solve = [&](const p::Options &opts) {
@@ -731,7 +808,8 @@ void verifyPass3(ModuleOp m) {
     return;
   Builder b(m.getContext());
   auto d = field<DictionaryAttr>(m, "snabf.pass3");
-  auto in = extract(m);
+  auto o = readOptions(field<DictionaryAttr>(d, "options"),m);
+  auto in = extract(m, o.coSlotMagnitude);
   require(in.profile->getAttr("pass3_parameters") == d &&
               in.profile.getQAttr() == d.get("q") &&
               in.profile.getPAttr() == d.get("p") &&
@@ -743,7 +821,6 @@ void verifyPass3(ModuleOp m) {
   s.scale = in.profile.getDefaultLogScale();
   for (auto e : field<ArrayAttr>(d, "edges"))
     s.k.push_back(num(cast<DictionaryAttr>(e), "K"));
-  auto o = readOptions(field<DictionaryAttr>(d, "options"),m);
   auto v = p::replay(in.g, o, s);
   require(v.reason.empty(), v.reason);
   require(record(b, in, o, s) == d,

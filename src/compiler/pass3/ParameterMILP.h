@@ -4,6 +4,8 @@
 #include <map>
 namespace snabf::pass3 {
 Solution optimize(const Graph &, const Options &);
+// One level-zero edge's actual pre-solve base-width term, not a concrete Q.
+double baseWidthLower(const Graph &, int edge, int defaultScale, double guard);
 // Trace-only IR inputs discarded by absolute-value propagation. An arbitrary
 // caller-supplied Graph has no such provenance; do not infer a signed literal
 // by subtracting two rounded magnitudes.

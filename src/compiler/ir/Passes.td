@@ -50,6 +50,8 @@ def Pass3Parameters : ModuleStage<"snabf-pass3", "Optimize and concretize RNS, s
     Option<"widthMax","prime-bw-max","double","59.0","Upper continuous prime width (at most 59)">,
     Option<"auxMargin","aux-prime-margin-bits","int","2","Minimum extra bits of P above every original Q block (at least two)">,
     Option<"sourceFraction","source-arithmetic-fraction","double","1.0","Fraction of post-approximation headroom allocated to source parameter synthesis">,
+    Option<"magnitudeMode","magnitude-mode","std::string","\"legacy\"","Ideal decoded bounds: legacy or co-slot-v1 (single periodic ring)">,
+    Option<"magnitudeAudit","magnitude-audit","std::string","\"\"","Write ideal edge magnitudes and base-width guards before the parameter search">,
     Option<"costProfileFile","cost-profile","std::string","\"\"","Optional measured site profile, matched on concrete ordered Q/P">,
     Option<"costHardware","cost-hardware-id","std::string","\"\"","Independent expected hardware fingerprint for the site profile">,
     Option<"cap","security-cap","double","350","Pre-screen QP bits (concrete estimator also required)">,Option<"minBase","min-base","double","24","Minimum q0 bit width">,

@@ -93,19 +93,41 @@ static Operation *storedProducer(Value table) {
   require(value, "unbound HEIR table slot");
   return value;
 }
-DenseFPElementsAttr preparedWeights(Value table, ArrayRef<int64_t> diagonals) {
+static DenseFPElementsAttr tableLiteral(Operation *producer, Value load, bool checked) {
+  if (checked)
+    require(producer->getNumOperands() == 1 && producer->getNumResults() == 1 &&
+                producer->getResult(0).getType() == load.getType(), "unbound Pass 3 table type");
+  auto input = producer->getOperand(0);
+  Operation *literal = input.getDefiningOp();
+  if (checked)
+    require(literal && name(literal) == "arith.constant" && literal->getNumResults() == 1 &&
+                !literal->getNumOperands(), "unproven Pass 3 literal payload");
+  auto w = field<DenseFPElementsAttr>(literal, "value");
+  if (checked)
+    require(w.getType() == input.getType() && (w.getElementType().isF32() || w.getElementType().isF64()),
+            "unproven Pass 3 literal precision");
+  return w;
+}
+DenseFPElementsAttr preparedWeights(Value table, ArrayRef<int64_t> diagonals, bool checkedLiteral) {
   auto *o = storedProducer(table);
   require(name(o) == "kernel.prepare_linear_transform",
           "not a prepared transform");
   require(
       field<DenseI64ArrayAttr>(o, "diagonal_indices").asArrayRef() == diagonals,
       "apply and preparation disagree on diagonals");
-  return field<DenseFPElementsAttr>(o->getOperand(0).getDefiningOp(), "value");
+  auto w = tableLiteral(o, table, checkedLiteral);
+  if (checkedLiteral) {
+    auto type = spelling(table.getType());
+    require(StringRef(type).starts_with("!kernel.prepared_linear_transform<") &&
+                w.getType().getRank() == 2 && number(type, "slots = ") == w.getType().getShape()[1],
+            "unproven Pass 3 prepared slot count");
+  }
+  return w;
 }
-DenseFPElementsAttr plainWeights(Value table) {
+DenseFPElementsAttr plainWeights(Value table, bool checkedLiteral) {
   auto *o = storedProducer(table);
   require(name(o) == "lwe.rlwe_encode", "not an encoded mask");
-  return field<DenseFPElementsAttr>(o->getOperand(0).getDefiningOp(), "value");
+  return tableLiteral(o, table, checkedLiteral);
 }
 
 void importCKKS(ModuleOp m, int64_t bytes, double bound, double hoist,
