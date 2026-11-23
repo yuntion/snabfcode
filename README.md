@@ -236,3 +236,6 @@ Keep the generated evidence outside the source repository.
 For RFC-004 native source inspection, isolated Go package checks, and the
 difference between these probes and encrypted N1 acceptance, see
 [the native probe guide](doc/native-probes.md).
+
+For the source-to-ciphertext single-ring engineering path (not the released
+`--frontend native-linalg` CLI), see [the server gate](doc/native-single-engineering.md).

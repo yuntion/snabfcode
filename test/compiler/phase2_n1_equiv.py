@@ -33,7 +33,9 @@ def probe(a):
         if a.mode == 'inspect':
             argv.append('--native-import-only')
         else:
-            argv += ['--emit-go','--cut-profile', 'dual-live-v1' if g == 'cross_residual' else 'single-live-v1']
+            argv += ['--emit-go','--mode','keep-source']
+            if a.security_cache is not None:
+                argv += ['--security-cache',a.security_cache.absolute()]
         p, trace = audit_exec(argv, case)
         (case/'stdout.txt').write_bytes(p.stdout.encode())
         (case/'stderr.txt').write_bytes(p.stderr.encode())
@@ -68,12 +70,14 @@ def main():
         g.add_argument('--single-gelu', type=Path, required=True)
         g.add_argument('--snabf-opt', type=Path, required=True)
         g.add_argument('--out', type=Path, required=True)
+        if op == 'compile': g.add_argument('--security-cache', type=Path)
     for op in ('slots','observe'):
         g = s.add_parser(op)
         g.add_argument('graph', choices=SOURCE)
         g.add_argument('source', type=Path)
         if op == 'slots':
             g.add_argument('jsonl', type=Path)
+            g.add_argument('--scale', help='checked exact sink scale, required for complex product observations')
         else:
             g.add_argument('module', type=Path)
             g.add_argument('--out', required=True, type=Path)
@@ -89,7 +93,7 @@ def main():
         return 0
     if a.mode == 'slots':
         print(json.dumps(replay_slots(a.graph, a.source, a.jsonl, seal=a.seal, ring=a.ring,
-                                      level=a.level, slots=a.slots), allow_nan=False))
+                                      level=a.level, slots=a.slots, scale=a.scale), allow_nan=False))
         return 0
     return probe(a)
 
