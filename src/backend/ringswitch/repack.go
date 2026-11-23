@@ -30,6 +30,7 @@ type SplitOutput struct {
 	LogicalStart  int     `json:"logical_start"`
 	UsedSlots     int     `json:"used_slots"`
 	LogScale      float64 `json:"log2_scale"`
+	ExactScale    string  `json:"exact_scale"`
 	DownKeySHA256 string  `json:"down_key_sha256"`
 }
 type SplitObservation struct {
@@ -240,7 +241,7 @@ func (f *FullSlotSplitter) Split(in *rlwe.Ciphertext) ([2]*rlwe.Ciphertext, Spli
 		}
 		r.DownConvCount++
 		n := f.dst.MaxSlots()
-		r.Outputs[i] = SplitOutput{N: out[i].Value[0].N(), Level: out[i].Level(), LogicalStart: i * n, UsedSlots: min(n, f.used-i*n), LogScale: out[i].LogScale(), DownKeySHA256: f.downID}
+		r.Outputs[i] = SplitOutput{N: out[i].Value[0].N(), Level: out[i].Level(), LogicalStart: i * n, UsedSlots: min(n, f.used-i*n), LogScale: out[i].LogScale(), ExactScale: exactScale(out[i]), DownKeySHA256: f.downID}
 	}
 	return out, r, nil
 }

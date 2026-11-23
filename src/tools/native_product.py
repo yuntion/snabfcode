@@ -35,16 +35,20 @@ def screen(proposal, cache, estimator):
 
 
 def native_compile(a):
-    relu = (a.log_n,a.q_count,a.gadget_alpha,a.interval_mode)==(16,29,2,'affine')
-    old = (a.log_n,a.q_count,a.gadget_alpha,a.interval_mode)==(14,8,None,None)
+    coords = (a.log_n, a.q_count, a.gadget_alpha, a.interval_mode, a.min_slots)
+    relu = coords == (16,29,2,'affine',4096)
+    n1 = coords == (14,8,None,None,4096)
+    n2 = a.interval_mode is None and a.gadget_alpha in (1,2)
+    n2_shape = (n2 and a.mode == 'keep-source' and 14 <= a.log_n <= 16 and 2 <= a.q_count <= 32 and
+                1 <= a.min_slots <= 1 << (a.log_n-1) and not a.min_slots & (a.min_slots-1))
     if (a.input_spec is None or not math.isfinite(a.input_bound) or a.input_bound <= 0 or
-            (a.security_bits,a.switch_security_bits,a.precision_bits,a.min_slots)!=(128,128,12,4096) or not (old or relu)
+            (a.security_bits, a.switch_security_bits, a.precision_bits) != (128,128,12) or not (n1 or relu or n2_shape)
             or a.mode not in ('adaptive','keep-source') or a.cut_profile != 'single-live-v1' or
-            a.cost_profile or a.cost_hardware_id or
-            a.heterogeneous_scales or a.scale_mode not in (None,'narrow') or a.max_k not in (None,0) or
+            a.cost_profile or a.cost_hardware_id or a.heterogeneous_scales or
+            a.scale_mode not in ((None,'narrow','wide') if n2 else (None,'narrow')) or a.max_k not in (None,0) or
             a.source_arithmetic_fraction is not None or a.certify_failure_bits is not None or a.certify_failure_prob is not None
             or (a.prime_bw_min,a.prime_bw_max,a.aux_prime_margin_bits) != (24,59,2)):
-        raise ValueError('[SNABF_NATIVE_PROFILE] expected single periodic port, exact single-ring N1 profile; no noise certificate')
+        raise ValueError('[SNABF_NATIVE_PROFILE] expected N1, affine ReLU, or explicit fixed-block N2; no noise certificate')
     source, spec = a.mlir.read_bytes(), a.input_spec.read_bytes()
     ports = json.loads(spec, object_pairs_hook=unique_fields)
     inputs = ports.get('inputs') if isinstance(ports, dict) else None
@@ -68,12 +72,25 @@ def native_compile(a):
         tmp = Path(td); publish = tmp/'publish'; publish.mkdir()
         def run(*args):
             subprocess.run([binary, '--mlir-print-op-on-diagnostic=false', *args], cwd=publish, env=env, check=True)
-        fields=dict(source=source, ports=spec, stage=b'source')
-        if relu: fields['profile']=b'relu-affine-2p-v1'
+        fields = dict(source=source, ports=spec, stage=b'source')
+        if relu:
+            fields['profile'] = b'relu-affine-2p-v1'
+        elif n2:
+            from n2.search import search_envelope
+            estimator = Path(os.getenv('LATTICE_ESTIMATOR',ext/'lattice-estimator'))
+            envelope = search_envelope(1 << a.log_n, 128, lambda rows: measure(rows, a.security_cache, estimator))
+            profile = dict(schema='snabf.n2-profile.v1', log_n=a.log_n, slots=a.min_slots, q_count=a.q_count,
+                           scale_mode=a.scale_mode or 'narrow', alpha=a.gadget_alpha, cap_bits=envelope['cap_bits'])
+            fields['n2_profile'] = json.dumps(profile,sort_keys=True,separators=(',',':')).encode('ascii')
+            (publish/'search-envelope.json').write_text(json.dumps(envelope,sort_keys=True,allow_nan=False)+'\n')
         (publish/'source.mlir').write_text(carrier(fields),encoding='ascii')
         run('--snabf-native-plan=proposal=../proposal.json','source.mlir','-o','planned.mlir')
         proposal = json.loads((tmp/'proposal.json').read_bytes(), object_pairs_hook=unique_fields)
         plan = proposal['plan']
+        if n2 and (plan['n2_search']['cap_bits'] != envelope['cap_bits'] or plan['n2_search']['alpha'] != a.gadget_alpha or
+                   plan['n2_search']['scale_mode'] != profile['scale_mode'] or plan['ring'] != 1 << a.log_n or
+                   plan['slots'] != a.min_slots or len(plan['q']) != a.q_count or len(plan['p']) != a.gadget_alpha):
+            raise ValueError('[SNABF_NATIVE_PROFILE] N2 plan does not bind the requested coordinates')
         if (plan['source'] != hashlib.sha256(source).hexdigest() or plan['input_spec'] != hashlib.sha256(spec).hexdigest()
                 or plan['input_domain'] != d or plan['probabilistic_cert_issued'] is not False):
             raise ValueError('[SNABF_NATIVE_PROFILE] proposal not bound to requested original bytes/domain')

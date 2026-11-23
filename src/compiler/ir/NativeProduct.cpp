@@ -10,7 +10,8 @@ namespace {
 using mlir::ModuleOp;
 using llvm::StringRef;
 constexpr StringRef source = "snabf.n1_source", ports = "snabf.n1_ports",
-                    stage = "snabf.n1_stage", plan = "snabf.n1_plan", seal = "snabf.n1_seal";
+                    stage = "snabf.n1_stage", plan = "snabf.n1_plan", seal = "snabf.n1_seal",
+                    n2 = "snabf.n1_n2_profile";
 void need(bool ok, StringRef why) { if (!ok) throw std::invalid_argument(why.str()); }
 StringRef field(ModuleOp m, StringRef name) {
   auto a = m->getAttrOfType<mlir::StringAttr>(name);
@@ -23,9 +24,11 @@ void set(ModuleOp m, StringRef k, StringRef v) {
 void carrier(ModuleOp m, StringRef state) {
   std::set<StringRef> allowed{source, ports, stage};
   if(m->hasAttr("snabf.n1_profile")) {
+    need(!m->hasAttr(n2),"conflicting native ReLU and N2 profiles");
     need(field(m,"snabf.n1_profile")=="relu-affine-2p-v1","unknown native profile");
     allowed.insert("snabf.n1_profile");
   }
+  if (m->hasAttr(n2)) allowed.insert(n2);
   if (state != "source") allowed.insert(plan);
   if (state == "checked") allowed.insert(seal);
   need(m.getBody()->empty() && field(m, stage) == state, "wrong native product body/stage");
@@ -50,6 +53,31 @@ struct Rebuilt {
     options.maxK = 0; opt.activationTolerance = options.tolerance;
     if(m->hasAttr("snabf.n1_profile")) {
       configureNativeRelu(opt,options);
+    } else if (m->hasAttr(n2)) {
+      auto raw = field(m, n2);
+      auto parsed = llvm::json::parse(raw);
+      if (!parsed) throw std::invalid_argument(llvm::toString(parsed.takeError()));
+      auto *cfg = parsed->getAsObject();
+      need(cfg && cfg->size() == 7 && cfg->getString("schema") == "snabf.n2-profile.v1" &&
+           llvm::formatv("{0}", *parsed).str() == raw, "noncanonical native N2 profile");
+      auto integer = [&](StringRef name, int lo, int hi) -> int {
+        auto x = cfg->getInteger(name);
+        need(x && *x >= lo && *x <= hi, "invalid native N2 profile coordinate");
+        return *x;
+      };
+      int logN = integer("log_n", 14, 16), n = 1 << logN;
+      int slots = integer("slots", 1, n/2);
+      need(!(slots & (slots-1)), "invalid native N2 slot count");
+      opt.domain = {unsigned(logN), unsigned(slots)};
+      opt.qCount = integer("q_count", 2, 32);
+      options.alpha = integer("alpha", 1, 2);
+      auto mode = cfg->getString("scale_mode");
+      need(mode == "narrow" || mode == "wide", "invalid native N2 scale mode");
+      options.heterogeneous = mode == "wide";
+      int cap = integer("cap_bits", n/128, n/32);
+      need(cap % (n/512) == 0, "off-grid native N2 envelope");
+      options.securityCap = cap;
+      options.minScale = 42; options.maxScale = 49;
     }
     std::string errors;
     llvm::raw_string_ostream diag(errors);
