@@ -7,7 +7,7 @@ import hashlib
 import math
 import struct
 
-from exact_scale_replay import need, pow2, rn
+from exact_scale_replay import encoding_scales, need, pow2, rn
 
 
 @dataclass(frozen=True)
@@ -17,7 +17,45 @@ class DCEncoding:
     word_upper: int | None
 
 
-def constant(values, call, q):
+@dataclass(frozen=True)
+class Diagonal:
+    proof: dict
+    peak: int
+
+
+def diagonal(values, call, primes):
+    slots, n = call['slots'], call['ring_n']
+    if n > 65536 or slots > min(32768, n//2):
+        return 'vector_ifft_not_proved'
+    # Find the shortest *bitwise* tile, independently of the C++ half-fold.
+    words = struct.pack('>'+str(len(values))+'d', *values)
+    p = next((1 << k for k in range(1, 7) if 1 << k <= len(values) and
+              words == words[:8 << k] * (len(values) >> k)), None)
+    if not p:
+        return 'vector_ifft_not_proved'
+    w = max(map(abs, map(Q, values[:p])))
+    e = Q(call['realized_eff_scale'])
+    if not pow2(-300) <= w <= pow2(60) or not pow2(-300) <= e <= pow2(300):
+        return 'unsupported_diagonal_range'
+    err = w*(p.bit_length()-1)/2**44
+    if e*(w+err) >= 2**48:
+        return 'unsupported_diagonal_fixed_point_range'
+    rounding = Q(9,16)
+    c = math.floor(e*(w+err) + rounding)
+    if 2*c >= math.prod(primes):
+        return 'plaintext_centered_lift_unproved'
+    if any(q >= 2**60 for q in primes):
+        return 'ntt_modulus_outside_proved_range'
+    stages = (2*slots).bit_length()-1
+    peak = max(max(q,c) + 2*q*stages for q in primes)
+    if peak >= 2**64:
+        return 'unproved_ntt_word_range'
+    return Diagonal(dict(requires_backend='epochs.RequireDiagonalEncodingV1', period=p, coefficient_stride=n//(2*p),
+                         weight_abs=str(w), ifft_coeff_error=str(err), centered_coeff_abs=str(c),
+                         slot_delta_inf=str(2*p*(e*err+rounding))), peak)
+
+
+def constant(values, call, q, *, mask=False):
     """A source-bound bitwise-uniform public argument, or a scoped refusal."""
     words = b''.join(struct.pack('>d', x) for x in values)
     slots = call['slots']
@@ -26,10 +64,14 @@ def constant(values, call, q):
          call['payload_sha256'] == hashlib.sha256(words).hexdigest() and
          call['argument_sha256'] == hashlib.sha256(words * (slots // len(values))).hexdigest(),
          'different bound public encoding argument')
+    need(tuple(q) == tuple(call['q'][:call['level']+1]) and call['is_batched'] is True and
+         call['arg_type'] == '[]float64' and call['arg_precision_bits'] == 53 and
+         tuple(map(str, encoding_scales(Q(call['requested_scale']), call['encoder_prec_bits']))) ==
+         (call['realized_meta_scale'], call['realized_eff_scale']), 'different bound basis, branch or physical scale')
     if call['branch'] != 'embed_double_f64' or call['encoder_prec_bits'] != 53 or call['slots'] < 16:
         return 'unsupported_encoding_branch_or_slots'
     if words != words[:8] * len(values):
-        return 'vector_ifft_not_proved'
+        return diagonal(values, call, q) if mask else 'vector_ifft_not_proved'
     w = Q(values[0]); product = abs(w) * Q(call['realized_eff_scale'])
     if w and (not pow2(-512) <= abs(w) <= pow2(100) or product < pow2(-512)) or product >= pow2(52):
         return 'unsupported_fixed_point_range'
@@ -72,7 +114,7 @@ def centered_linear(q, parents, gains, bounds):
     return candidate, 2*candidate < q
 
 
-def transfers(trace, program, physical):
+def transfers(trace, program, physical, *, guarded_diagonals=False):
     calls = {c['site_id']: c for c in trace.calls}
     instructions = {e['ID']: e for e in program['instructions']}
     edges = {e['node_id']: e for e in physical}
@@ -132,11 +174,24 @@ def transfers(trace, program, physical):
             need(call['call_id'] == 'encode:'+node and call['operand_index'] == 1 and call['slots'] == program['slots'] and
                  call['level'] == edge['level'] and tuple(call['q']) == tuple(trace.d['q']), 'different bound encoding use')
             enc['argument_sha256'] = call['argument_sha256']
-            result = constant(instructions[node]['values'], call, primes)
+            result = constant(instructions[node]['values'], call, primes, mask=guarded_diagonals and op == 'mask')
             r = site('add_plain' if add else 'mul_plain')
             if isinstance(result, str):
                 enc['blocker'] = result
                 r['blocker'] = 'unproved_plaintext_polynomial'
+                continue
+            if isinstance(result, Diagonal):
+                v = result.proof
+                bias = Q(edges[p]['physical_scale_exact']) * Q(edges[p]['ideal_abs_bound']) * Q(v['slot_delta_inf'])
+                enc.update(periodic_diagonal=v, noncanonical_ntt_word_upper=str(result.peak),
+                           formula_ref='b2i/guarded-periodic-real-diagonal-v1', local_bias_units=str(bias))
+                candidate = bounds[p] * 2*v['period'] * int(v['centered_coeff_abs'])
+                r['candidate_coeff_abs'] = str(candidate)
+                if 2*candidate < modulus:
+                    bounds[node] = candidate
+                    r['blocker'] = 'unproved_vector_parent_error'
+                else:
+                    r['blocker'] = 'need_tighter_centered_decryption_coefficients'
                 continue
             c, delta = result.coefficient, result.delta
             if add:

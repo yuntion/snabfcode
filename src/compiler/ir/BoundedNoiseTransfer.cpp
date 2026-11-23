@@ -16,6 +16,51 @@ Exact rn53(const Exact &x) {
   return result;
 }
 
+// For a period P, descending DIF first doubles equal halves exactly. Only the
+// first P lanes survive (zero times a finite root stays zero). Bit reversal,
+// split real/imag, then Y -> X^(N/(2S)) give stride N/(2P), at most 2P words.
+// RequireDiagonalEncodingV1 checks every relevant twiddle component to 2^-48
+// against integer half-angle enclosures, not a guessed math.Cos ulp bound.
+const char *diagonal(const Node &n, const Domain &d, int slots, std::span<const double> v, LocalTransfer &r) {
+  if (!n.diagonal_mask || n.op != Op::VectorMulPlain || slots > 32768 || d.ring_n > 65536 ||
+      slots > d.ring_n/2 || v.size() > unsigned(slots) || slots % v.size()) return "vector_ifft_not_proved";
+  unsigned p = v.size();
+  auto equal = [](double x, double y) { return std::bit_cast<uint64_t>(x) == std::bit_cast<uint64_t>(y); };
+  while (p > 1 && std::equal(v.begin(), v.begin()+p/2, v.begin()+p/2, equal)) p /= 2;
+  if (p < 2 || p > 64) return "vector_ifft_not_proved";
+  Exact w = 0;
+  for (double x : v.first(p)) w = std::max(w, Exact(abs(pass2::exactBinary(x))));
+  const Exact e = *n.effective_encoder_scale;
+  if (w < Exact(0x1p-300) || w > Exact(0x1p60) || e < Exact(0x1p-300) || e > Exact(0x1p300))
+    return "unsupported_diagonal_range";
+  // In complex modulus the ideal inputs at live stage j have size <= 2^j W
+  // (before normalization, with the same initial S/P factor). Divide error
+  // by this envelope. A butterfly gives 1+r' <= (1+r)(1+2^-45): twiddle
+  // error <= 2*2^-48, and sum/diff, 4 products, 2 adds (or FMA) cost <64u,
+  // u=2^-53. Absolute underflow errors (<2^-1022 per op) and division by S
+  // fit the slack since W>=2^-300. k<=6; (1+2^-45)^k-1 < k*2^-44.
+  const Exact err = w * std::countr_zero(p) * Exact(0x1p-44);
+  const Exact scaled = e*(w+err);
+  if (scaled >= Exact(0x1p48)) return "unsupported_diagonal_fixed_point_range";
+  // uint64(RN(RN(|c|*E)+.5)): the two RN errors sum to <= 1/16 here,
+  // including the fused case. Rounding the final integer costs <= 9/16.
+  const Exact quant(9,16), envelope = scaled + quant;
+  const mpz_class c = envelope.get_num() / envelope.get_den();
+  if (2*c >= r.active_q) return "plaintext_centered_lift_unproved";
+  Exact peak = 0;
+  for (int l=0; l<=n.level; ++l) {
+    if (d.q[l] >= (uint64_t(1)<<60)) return "ntt_modulus_outside_proved_range";
+    const mpz_class q(std::to_string(d.q[l]));
+    // Positive small words can be unreduced; negative multiples can write q.
+    const Exact u(std::max(q,c) + 2*q*std::bit_width(unsigned(slots)));
+    if (u >= Exact(0x1p64)) return "unproved_ntt_word_range";
+    peak = std::max(peak,u);
+  }
+  r.ntt_word_upper = peak;
+  r.diagonal = DiagonalEncoding{int(p), d.ring_n/int(2*p), w, err, Exact(c), 2*p*(e*err+quant)};
+  return nullptr;
+}
+
 // DirectGo v1 tiles the public argument BEFORE calling Encode([]float64).
 // For a constant real tile every non-DC IFFT butterfly multiplies zero by
 // a finite root. The DC path doubles exactly, divides by slots, and stays at
@@ -36,7 +81,7 @@ const char *constant(const Node &n, const Domain &d, int slots, LocalTransfer &r
   const double value = values.front();
   if (!std::all_of(values.begin(), values.end(), [&](double v) {
         return std::bit_cast<uint64_t>(v) == std::bit_cast<uint64_t>(value);
-      })) return "vector_ifft_not_proved";
+      })) return diagonal(n, d, slots, values, row);
   const Exact w = pass2::exactBinary(value);
   const Exact a = abs(w), product = a * *n.effective_encoder_scale;
   // Narrow normal-only proof, restricted to the small uint64 fixed-point path.
@@ -140,7 +185,10 @@ LocalStep boundedStep(const Topology &g, size_t i, const std::vector<LocalStep> 
     auto why = constant(n, d, g.direct_go_slots, enc);
     if (why) enc.blocker = why;
     else if (!scale_bound || !a || (!add && !ideal)) enc.blocker = "missing_metadata_reference_or_ideal_bound";
-    else {
+    else if (enc.diagonal) {
+      enc.formula = "b2i/guarded-periodic-real-diagonal-v1";
+      enc.bias = *a * *ideal * enc.diagonal->delta_inf;
+    } else {
       // C*(A*x+e)-S*w*x = C*e + A*(C-E*w)*x + (A*E-S)*w*x.
       // The LAST summand (or its two-sided join analogue) is already in
       // replayPhysical. C carries delta*e, signed, even for shared-key terms.
@@ -150,8 +198,16 @@ LocalStep boundedStep(const Topology &g, size_t i, const std::vector<LocalStep> 
       if (!add) out.plain_mul_gain = enc.encoded_constant;
     }
     const auto c = enc.encoded_constant;
+    const auto diag = enc.diagonal; // row() can reallocate the transfers vector
     auto &op = row(add ? Role::PlainAdd : Role::PlainMul);
-    if (!c) op.blocker = "unproved_plaintext_polynomial";
+    if (diag) {
+      const Exact candidate = coeff(0) * (2*diag->period) * diag->coeff_abs;
+      op.candidate_coeff_abs = candidate;
+      if (2*candidate < q) out.centered_coeff_abs = candidate;
+      // Even when convolution fits, C*e is a transformed parent, not a
+      // signed scalar. Neither this role nor any common event is discharged.
+      op.blocker = 2*candidate < q ? "unproved_vector_parent_error" : "need_tighter_centered_decryption_coefficients";
+    } else if (!c) op.blocker = "unproved_plaintext_polynomial";
     else if (add && !scale_bound) op.blocker = "missing_alignment";
     else {
       op.lhs_gain = add ? ma : *c;
