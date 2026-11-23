@@ -1,4 +1,5 @@
 #include "NoiseCertVerifier.h"
+#include "FreshMulRescale.h"
 
 #include <bit>
 #include <mpfr.h>
@@ -221,6 +222,7 @@ LocalStep boundedStep(const Topology &g, size_t i, const std::vector<LocalStep> 
   }
   default: break;
   }
+  if (g.fresh_width) freshMulRescale(g, i, done, a, ideal, scale_bound, ma, mb, out);
   return out;
 }
 } // namespace snabf::ir::noise

@@ -1,4 +1,5 @@
 #include "NoiseCertVerifier.h"
+#include "CommonArithmeticSupport.h"
 #include "ExactScaleTracker.h"
 #include "pass3/PrimeInstantiator.h"
 
@@ -339,6 +340,8 @@ void audit(const Topology &g, const Options &o, const AnalyticContracts *provide
     if (o.b2i) {
       local.push_back(boundedStep(g, i, local, n.inputs.empty() ? Scale{} : scales[n.inputs[0]],
           n.inputs.empty() ? Scale{} : steps[n.inputs[0]].ideal, bool(scales[i]), steps[i].ma, steps[i].mb));
+      if (g.common_support) commonArithmeticSupport(g, i, local, scales[i], steps[i].ideal,
+                                                    steps[i].bias, steps[i].ma, steps[i].mb);
       if (local.back().plain_mul_gain) steps[i].gain = *local.back().plain_mul_gain;
     }
     AffineErrorForm f;

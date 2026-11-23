@@ -110,7 +110,11 @@ const RequireExactEncoding EncodingPolicy = 1
 // Two-argument Bind remains the archived engineering ABI. Newly emitted
 // programs require receipts even when a caller removes the entire port list.
 func Bind(s Program, evaluate Evaluation, policy ...EncodingPolicy) (*Runtime, error) {
-	diagonals := len(policy) == 1 && policy[0] == RequireDiagonalEncodingV1
+	return bind(s, evaluate, false, policy...)
+}
+
+func bind(s Program, evaluate Evaluation, fresh bool, policy ...EncodingPolicy) (*Runtime, error) {
+	diagonals := fresh || (len(policy) == 1 && policy[0] == RequireDiagonalEncodingV1)
 	exact := diagonals || (len(policy) == 1 && policy[0] == RequireExactEncoding)
 	if !exact && (len(policy) != 0 || len(s.Ports) != 0) {
 		return nil, fmt.Errorf("invalid encoding policy")
@@ -140,6 +144,9 @@ func Bind(s Program, evaluate Evaluation, policy ...EncodingPolicy) (*Runtime, e
 		if p.N() != e.N || p.MaxSlots() < s.Slots || !slices.Equal(p.Q(), e.Q) || !slices.Equal(p.P(), e.P) || sk[e.N] != nil {
 			return nil, fmt.Errorf("invalid epoch parameters")
 		}
+		if fresh && !freshShape(s, p) {
+			return nil, fmt.Errorf("unsupported fresh mul/rescale parameter or sampler profile")
+		}
 		g := rlwe.NewKeyGenerator(p)
 		sk[e.N] = g.GenSecretKeyNew()
 		var rel *rlwe.RelinearizationKey
@@ -162,6 +169,9 @@ func Bind(s Program, evaluate Evaluation, policy ...EncodingPolicy) (*Runtime, e
 		var gs []*rlwe.GaloisKey
 		for _, v := range e.Galois {
 			k := g.GenGaloisKeyNew(v, sk[e.N])
+			if fresh && (k.BaseTwoDecomposition != 0 || k.LevelQ() != p.MaxLevel() || k.LevelP() != 0) {
+				return nil, fmt.Errorf("unsupported fresh mul/rescale Galois basis")
+			}
 			size, err := r.key("galois", e.N, k.LevelQ(), k.LevelP(), v, k)
 			if err != nil {
 				return nil, err
@@ -238,6 +248,9 @@ func Bind(s Program, evaluate Evaluation, policy ...EncodingPolicy) (*Runtime, e
 			return nil, err
 		}
 		r.plain[i.Index] = pt
+	}
+	if fresh && !r.HasDiagonalRootGuard(s.Source) {
+		return nil, fmt.Errorf("missing fresh mul/rescale root guard")
 	}
 	return r, nil
 }

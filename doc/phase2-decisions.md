@@ -68,3 +68,13 @@ adaptive arms; a split carries two ordered halves and preserves the logical
 extent of the padded tail. Both plan checking and lowering replay the source
 before accepting the carrier. This does not extend support to arbitrary
 graphs, certify a failure probability, or establish a latency improvement.
+
+### Wave 1 B: production refusal is required
+
+Residual and single GeLU each still lack `node/input/encode`,
+`node/input/encrypt`, `common/validated_joint_law_and_domain`, and
+`sink/sink0/reference_approx_and_decode`. Local arithmetic proofs and dry-run
+budgets do not discharge these four obligations. Both graphs issue zero
+certificates. Accept the production refusal only at rc=1 with the expected
+denial, independently replayed missing terms, no valid event allocation and
+no certified sink margin.
