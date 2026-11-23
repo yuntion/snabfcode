@@ -23,11 +23,14 @@ const StageSpec& stageSpec(StageFunction stage) {
   static constexpr StageSpec quarter{F::TanhQuarter,"tanh_quarter","tanh(x/4)",{-inf,inf}};
   static constexpr StageSpec rational{F::Rational,"u_over_one_plus_u2","u/(1+u*u)",{-1,1}};
   static constexpr StageSpec gelu{F::GeluDirect,"half_erf_sqrt2","erf(x/sqrt(2))/2",{-inf,inf}};
+  static constexpr StageSpec relu{F::ReluSignPolynomial,"relu_sign_polynomial","literal odd polynomial",{-inf,inf},
+    kCandidateDegrees,FitBasis::LiteralOddPowers,FitDomain::RegisteredChain};
   switch (stage) {
     case F::SiluDirect: return silu;
     case F::TanhQuarter: return quarter;
     case F::Rational: return rational;
     case F::GeluDirect: return gelu;
+    case F::ReluSignPolynomial: return relu;
   }
   throw std::invalid_argument("unknown Pass 2 reference stage");
 }
@@ -253,6 +256,7 @@ Vec chebToPowers(const Vec& c, unsigned degree) {
 }  // namespace
 
 StagePolynomial generateStage(F stage, unsigned degree, Interval1D Iin) {
+  if (stage==F::ReluSignPolynomial) throw std::invalid_argument("literal ReLU stage needs its registered chain index");
   const auto& degrees = stageSpec(stage).degrees;
   if (std::find(degrees.begin(), degrees.end(), degree) == degrees.end())
     throw std::invalid_argument("unsupported Remez degree");

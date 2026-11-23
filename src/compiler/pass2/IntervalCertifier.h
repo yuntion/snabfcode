@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PolyTemplates.h"
+#include <span>
 
 namespace snabf::pass2 {
 
@@ -15,5 +16,14 @@ struct StageCertificate {
 // included. Invalid or unrepresentable inputs/bounds fail by exception.
 StageCertificate certifyStage(StageFunction stage, const StagePolynomial& p,
                               Interval1D Iin, Interval1D Ain);
+
+struct ReluReconstructionCertificate {
+  Interval1D input;
+  double leftEpsilon, rightEpsilon, epsilon;
+};
+// g is the composition in evaluation order. Compare x*(1+g(x))/2 to
+// max(x,0) on BOTH closed half intervals; no CKKS noise is included.
+ReluReconstructionCertificate certifyReluReconstruction(
+    std::span<const StagePolynomial> chain, Interval1D input);
 
 }  // namespace snabf::pass2

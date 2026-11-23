@@ -11,11 +11,11 @@ struct Interval1D {
   double lo, hi;
 };
 
-enum class StageFunction { SiluDirect, TanhQuarter, Rational, GeluDirect };
-enum class FitBasis { OddChebyshevRadiusNormalized };
-enum class FitDomain { PropagatedIdealInput };
+enum class StageFunction { SiluDirect, TanhQuarter, Rational, GeluDirect, ReluSignPolynomial };
+enum class FitBasis { OddChebyshevRadiusNormalized, LiteralOddPowers };
+enum class FitDomain { PropagatedIdealInput, RegisteredChain };
 enum class CoefficientFormat { AscendingBinary64OriginalPowers };
-enum class Reconstruction { MultiplyOriginalInputByOffsetPlusCore };
+enum class Reconstruction { MultiplyOriginalInputByOffsetPlusCore, HalfInputTimesOnePlusCore };
 
 inline constexpr std::array<unsigned, 6> kCandidateDegrees{3, 5, 7, 9, 13, 15};
 
@@ -32,7 +32,8 @@ struct StageSpec {
   CoefficientFormat coefficientFormat = CoefficientFormat::AscendingBinary64OriginalPowers;
 };
 
-// The original x bypasses all of the odd stages: output = x * (0.5 + last).
+// Both recipes carry the original x past the odd stages. The reconstruction
+// enum distinguishes x*(0.5+core) from (x/2)*(1+core).
 struct PolyTemplateSpec {
   std::string id;
   double templateRefError;

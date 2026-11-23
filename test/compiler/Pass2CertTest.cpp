@@ -1,5 +1,6 @@
 #include "pass2/IntervalCertifier.h"
 #include "pass2/PolyTemplates.h"
+#include "NativeReluJacobianTests.h"
 
 #include <mpfr.h>
 
@@ -216,6 +217,64 @@ void independentCertificate() {
         mutated.Aout.lo == changed.coefficients[1],"certificate ignored a one-ULP mutation");
 }
 
+void reluReconstruction() {
+  const double inf = std::numeric_limits<double>::infinity();
+  const std::vector<StagePolynomial> zero{{0,{0}}};
+  for (const double B : {0.,0.75,4.}) {
+    const auto c = certifyReluReconstruction(zero,{-B,B});
+    const double exact = B/2, upper = std::nextafter(exact,inf);
+    check(c.input.lo == -B && c.input.hi == B && c.leftEpsilon >= exact && c.leftEpsilon <= upper &&
+          c.rightEpsilon >= exact && c.rightEpsilon <= upper && c.epsilon == std::max(c.leftEpsilon,c.rightEpsilon),
+          "zero chain: expected B/2 within one outward ULP on both closed halves");
+    if (B == 4.) std::cout << "ReLU reconstruction: g=0 [-4,4] epsilon=" << c.epsilon << '\n';
+  }
+  const auto endpoint = certifyReluReconstruction(zero,{0,4});
+  check(endpoint.leftEpsilon == 0 && endpoint.rightEpsilon == 2 && endpoint.epsilon == 2,
+        "zero endpoint or right half missing from ReLU certificate");
+  const double tiny = std::numeric_limits<double>::denorm_min();
+  const auto sub = certifyReluReconstruction(zero,{-tiny,tiny});
+  check(sub.leftEpsilon == tiny && sub.rightEpsilon == tiny && sub.epsilon == tiny,
+        "positive subnormal half-error rounded inward");
+
+  // p1=2x, p2=z^3/32 gives g=x^3/4; reversing these stages is different.
+  // At t=|x| on [0,1.5] the magnitude is t/2-t^4/8. Its maximum
+  // on [0,1.5] is 3/8 at t=1, and on [0,0.5] it is 31/128 at t=0.5.
+  const std::vector<StagePolynomial> chain{{1,{0,2}},{3,{0,0,0,1./32}}};
+  const auto c = certifyReluReconstruction(chain,{-1.5,0.5});
+  auto enclosesTightly = [](double bound, double exact) { return bound >= exact && bound <= exact+1e-4; };
+  check(enclosesTightly(c.leftEpsilon,3./8) && enclosesTightly(c.rightEpsilon,31./128) &&
+        c.epsilon == c.leftEpsilon,"composed ReLU: interior extremum, stage order or side bound lost");
+  const auto mirror = certifyReluReconstruction(chain,{-0.5,1.5});
+  check(enclosesTightly(mirror.leftEpsilon,31./128) && enclosesTightly(mirror.rightEpsilon,3./8) &&
+        mirror.epsilon == mirror.rightEpsilon,"larger positive half lost");
+
+  // g=3x-4x^3 stays in [-1,1] (extrema at +/-1/2). Thus |r|<=|x|<=1,
+  // with equality at both endpoints. Both odd coefficients matter here.
+  const std::vector<StagePolynomial> mixedSigns{{1,{0,2}},{3,{0,1.5,0,-0.5}}};
+  const auto s = certifyReluReconstruction(mixedSigns,{-1,1});
+  check(s.leftEpsilon == 1 && s.rightEpsilon == 1 && s.epsilon == 1,
+        "mixed-sign cubic reconstruction lost an endpoint or coefficient");
+  // Exercise the longer-chain stationary-point cover on a non-symmetric
+  // interval, including two different stationary points of the stage.
+  auto longChain=chain; longChain.insert(longChain.begin(),{1,{0,1}});
+  const auto longCert=certifyReluReconstruction(longChain,{-1.5,0.5});
+  check(enclosesTightly(longCert.leftEpsilon,3./8) && enclosesTightly(longCert.rightEpsilon,31./128),
+        "long-chain certificate omitted an interior maximum");
+  auto stationary=mixedSigns; stationary.push_back({1,{0,1}});
+  check(certifyReluReconstruction(stationary,{-1,1}).epsilon>=1,"stationary cover lost endpoint");
+
+  // Old maximum 1; moving the actual coefficient one ULP makes the exact
+  // maximum 1+2^-53, which must round UP, not to the nearest even double.
+  std::vector<StagePolynomial> perturbed{{1,{0,-1}}};
+  check(certifyReluReconstruction(perturbed,{-1,1}).epsilon == 1,"wrong linear-chain maximum");
+  perturbed[0].coefficients[1] = std::nextafter(-1.,-inf);
+  check(certifyReluReconstruction(perturbed,{-1,1}).epsilon == std::nextafter(1.,inf),
+        "ReLU certificate ignored binary64 coefficient mutation or rounded inward");
+  const auto precision = std::cout.precision(std::numeric_limits<double>::max_digits10);
+  std::cout << "ReLU composed [-1.5,0.5] left=" << c.leftEpsilon << " right=" << c.rightEpsilon << '\n';
+  std::cout.precision(precision);
+}
+
 void invalidInputs() {
   const double inf=std::numeric_limits<double>::infinity(), nan=std::numeric_limits<double>::quiet_NaN();
   invalid([&]{generateStage(F::SiluDirect,4,{-1,1});});
@@ -225,13 +284,30 @@ void invalidInputs() {
   invalid([&]{certifyStage(F::TanhQuarter,{1,{0,nan}},{0,1},{0,1});});
   invalid([&]{certifyStage(F::SiluDirect,{1,{0,1}},{0,1},{nan,1});});
   invalid([&]{certifyStage(static_cast<F>(77),{1,{0,1}},{0,1},{0,1});});
+
+  const std::vector<StagePolynomial> identity{{1,{0,1}}};
+  for (auto axis : {Interval1D{1,-1},{1,2},{-2,-1},{-inf,1},{-1,inf},{nan,0}})
+    invalid([&]{certifyReluReconstruction(identity,axis);});
+  invalid([&]{certifyReluReconstruction({}, {-1,1});});
+  // Validate every stage, even when the input is exactly zero and the first
+  // stage already gives the zero polynomial.
+  for (auto bad : {StagePolynomial{3,{0,1}}, {0,{1}}, {3,{0,1,1e-300,0}},
+                   {1,{0,nan}}, {1,{0,inf}}, {17,std::vector<double>(18,0)}}) {
+    std::vector<StagePolynomial> chain{{0,{0}},bad};
+    invalid([&]{certifyReluReconstruction(chain,{0,0});});
+  }
+  const std::vector<StagePolynomial> huge{{1,{0,std::numeric_limits<double>::max()}}};
+  bool overflow = false;
+  try { (void)certifyReluReconstruction(huge,{-2,2}); }
+  catch (const std::overflow_error&) { overflow = true; }
+  check(overflow,"unrepresentable ReLU bound was accepted");
 }
 }  // namespace
 
 int main() {
   try {
     const auto start=std::chrono::steady_clock::now();
-    registry(); smallDomains(); independentCertificate(); broadDomains(); invalidInputs();
+    registry(); smallDomains(); independentCertificate(); broadDomains(); reluReconstruction(); nativeReluJacobianTests(); invalidInputs();
     std::cout << "Pass2CertTest passed (" << std::chrono::duration<double>(
         std::chrono::steady_clock::now()-start).count() << " s)\n";
     return 0;

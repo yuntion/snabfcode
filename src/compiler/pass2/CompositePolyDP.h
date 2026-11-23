@@ -1,6 +1,7 @@
 #ifndef SNABF_PASS2_COMPOSITE_POLY_DP_H
 #define SNABF_PASS2_COMPOSITE_POLY_DP_H
 
+#include <array>
 #include <cstddef>
 #include <limits>
 #include <optional>
@@ -93,6 +94,13 @@ struct NoiseContract {
 };
 
 struct PolyCandidate {
+  struct ReluProof {
+    std::array<double,2> mpfi;
+    std::array<std::string,2> bernstein;
+    std::array<unsigned,2> cells;
+    double bernsteinBudget;
+  };
+  std::optional<ReluProof> relu;
   std::string id, templateName, activation;
   std::vector<StageTrace> stages;
   NumericDAG dag;
@@ -133,6 +141,9 @@ DPResult synthesizeSiLU(PlanRange input, const DPOptions& options = {});
 // are rejected; a single-stage reference uses the 'direct' option.
 DPResult synthesizePolynomials(std::string_view activation, PlanRange input,
                                const DPOptions& options = {});
+
+// Native only. This must not add ReLU to the legacy template registry.
+DPResult synthesizeNativeRelu(PlanRange input,const DPOptions &options);
 
 // Strict Pareto dominance over the deterministic interface and each primitive
 // at each active level (including level reductions by source and span);

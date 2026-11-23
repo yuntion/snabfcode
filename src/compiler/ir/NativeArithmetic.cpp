@@ -1,8 +1,10 @@
 #include "NativeArithmetic.h"
+#include "NativePhysical.h"
 #include "AffineIntervalAnalyzer.h"
 #include "RouteSelection.h"
 #include "pass3/ConcreteVerifier.h"
 #include "pass3/ParameterMILP.h"
+#include "pass3/PrimeInstantiator.h"
 #include "llvm/ADT/APFloat.h"
 #include <algorithm>
 #include <bit>
@@ -123,17 +125,23 @@ struct Builder {
     const auto &decl=*lock.getArray("declared_domain");
     need(in.lo>=*decl[0].getAsNumber() && in.hi<=*decl[1].getAsNumber(),"computed activation domain exceeds source declaration");
     bool gelu=lock.getString("kind")=="gelu_exact_erf";
+    bool relu=lock.getString("kind")=="relu";
+    need(!relu || config.nativeRelu,"[SNABF_NATIVE_RELU_PROFILE] composite ReLU requires the explicit affine two-P profile");
+    if(relu) for(const auto &slot:af.slots(x.value))
+      p.reluSlotDomains[id].push_back({slot.enclosure.lo,slot.enclosure.hi});
     const std::string key=gelu?"gelu":"silu";
     auto opt=config.polynomial;
     opt.inputLevel=level(x.e); opt.maxDepth=std::min(opt.maxDepth,opt.inputLevel);
     opt.maxError=config.activationTolerance; opt.inputError=0;
-    auto dp=pass2::synthesizePolynomials(key,{in.lo,in.hi},opt);
+    auto dp=relu ? pass2::synthesizeNativeRelu({std::min(0.,in.lo),std::max(0.,in.hi)},opt) :
+                   pass2::synthesizePolynomials(key,{in.lo,in.hi},opt);
     need(!dp.frontier.empty(),"no certified polynomial at available depth/tolerance");
     auto rank=[](const auto &c){return std::tie(c.cost.depth,c.cost.ctMults,c.cost.ptMults,c.approximationError,c.id);};
     std::sort(dp.frontier.begin(),dp.frontier.end(),[&](const auto &a,const auto &b){return rank(a)<rank(b);});
     int pi=p.polynomials.size(); counts.push_back(dp.frontier.size());
     size_t pick=choices && size_t(pi)<choices->size()?choices->at(pi):0;
     p.polynomials.push_back(std::move(dp.frontier.at(pick)));
+    p.activationSites.push_back(id);
     const auto &c=p.polynomials.back();
     double local=c.approximationError;
     if(gelu) {
@@ -147,8 +155,9 @@ struct Builder {
       }
       need(found,"unbound erf literal");
     }
-    auto value=af.activate(x.value,gelu?af::Activation::ErfGeLU:af::Activation::SiLU,local);
+    auto value=af.activate(x.value,relu?af::Activation::ReLU:(gelu?af::Activation::ErfGeLU:af::Activation::SiLU),local);
     std::vector<int> values;
+    int first=p.graph.edges.size();
     pass3::Poly poly{level(x.e),int(c.dag.output),{}};
     for(size_t i=0;i<c.dag.nodes.size();++i) {
       const auto &n=c.dag.nodes[i]; const auto prefix=id+".p"+std::to_string(i)+".";
@@ -187,9 +196,16 @@ struct Builder {
       values.push_back(out);
     }
     p.graph.polys.push_back(std::move(poly));
+    if(relu) {
+      NativeArithmeticProgram::ReluSpan span{id,x.e,first,values.at(c.dag.output),{}};
+      for(const auto &st:c.stages) span.stageEnds.insert(values.at(st.outputNode));
+      need(span.output==int(p.graph.edges.size())-1 && span.first<=span.output &&
+           span.stageEnds.size()==c.stages.size(),"unbound ReLU physical span");
+      p.reluSpans.push_back(std::move(span));
+    }
     // Both exact reference activations have |f'| <= 1+|x| (no claim of
     // independence between this approximation and a residual bypass).
-    return {values.at(c.dag.output),value,add(local,mul(add(1,radius(in)),x.approximation))};
+    return {values.at(c.dag.output),value,add(local,mul(relu?1.:add(1,radius(in)),x.approximation))};
   }
   void build() {
     auto &s=p.source; const auto &ins=s.inspection;
@@ -212,7 +228,7 @@ struct Builder {
       if(kind=="constant"||kind=="empty"||kind=="zero_fill") continue;
       const auto &args=*n.getArray("inputs"); auto arg=[&](size_t i){return args[i].getAsString()->str();};
       if(kind=="matvec") bind(id,linear(id,data.at(arg(1))));
-      else if(kind=="silu"||kind=="gelu_exact_erf") {
+      else if(kind=="silu"||kind=="gelu_exact_erf"||kind=="relu") {
         const auto &lock=*locks.at(id); need(lock.getString("x")==arg(0),"unbound activation SSA input");
         bind(id,activation(id,data.at(arg(0)),lock));
       } else if(kind=="add" && data.contains(arg(0)) && data.contains(arg(1))) {
@@ -223,11 +239,41 @@ struct Builder {
       } else throw std::invalid_argument("unsupported encrypted source operation: "+kind);
     }
     need(site==s.matvecs.size(),"unused source route");
+    if(config.nativeRelu) need(std::any_of(p.polynomials.begin(),p.polynomials.end(),[](auto &c){return c.relu.has_value();}),
+      "[SNABF_NATIVE_RELU_PROFILE] explicit profile needs an original ReLU witness");
     auto out=data.at(ins.getArray("outputs")->front().getAsObject()->getString("value")->str());
     p.graph.sink=out.e; p.graph.approximation=out.approximation;
   }
 };
 } // namespace
+
+void configureNativeRelu(ArithmeticOptions &a,pass3::Options &o) {
+  a.domain={16,4096}; a.qCount=29; a.nativeRelu=true;
+  a.polynomial.degrees={3,5,7}; a.polynomial.maxDepth=28; a.polynomial.composed=true;
+  o.maxK=0; o.alpha=2; o.maxScale=47; o.securityCap=1400; // search envelope, never a security decision
+  a.activationTolerance=o.tolerance;
+}
+
+pass3::Solution nativeReluFixedBasis(const NativeArithmeticProgram &p) {
+  return nativeReluBasis(p,0);
+}
+pass3::Solution nativeReluBasis(const NativeArithmeticProgram &p,unsigned arm) {
+  need(!p.reluSlotDomains.empty() && p.graph.n==65536 && p.graph.levels==29,"wrong fixed ReLU arm");
+  struct Basis {int d,base,lowCount,low,p;};
+  static constexpr Basis bases[]={{43,53,0,43,54},{44,51,0,44,55},{45,50,6,40,56},{46,50,8,40,54},
+                                   {46,28,1,28,49},{47,25,1,25,49},{46,28,1,28,54},{47,25,1,25,54}};
+  static_assert(std::size(bases)==nativeReluArms);need(arm<nativeReluArms,"invalid native ReLU arm");
+  auto a=bases[arm];pass3::Solution s; std::set<int64_t> used; s.scale=a.d; s.k.assign(p.graph.edges.size(),0);
+  for(int i=0;i<p.graph.levels;++i){
+    int bits=i==0?a.base:i<=a.lowCount?a.low:a.d;
+    if(arm==5 && (i==2 || i==28))bits=38; // the two matvec mask/rescale levels
+    if(arm==6 && (i==2 || i==28))bits=40;
+    if(arm==7){if(i==2 || i==28)bits=38;if(i==3 || i==27)bits=42;}
+    s.q.push_back(pass3::nearestPrime(p.graph.n,bits,used));
+  }
+  for(int i=0;i<2;++i)s.p.push_back(pass3::nearestPrime(p.graph.n,a.p,used));
+  return s;
+}
 
 mlir::LogicalResult deriveNativeArithmetic(llvm::StringRef bytes,llvm::StringRef name,llvm::StringRef spec,
     const ArithmeticOptions &config,NativeArithmeticProgram &out,llvm::raw_ostream &diagnostics) {
@@ -241,8 +287,20 @@ mlir::LogicalResult deriveNativeArithmetic(llvm::StringRef bytes,llvm::StringRef
     diagnostics<<name<<": error: [SNABF_NATIVE_ARITHMETIC] "<<e.what()<<"\n"; return mlir::failure();
   }
 }
-pass3::Solution searchNativeParameters(const NativeArithmeticProgram &p,const pass3::Options &options) {
+pass3::Solution searchNativeParameters(const NativeArithmeticProgram &p,const pass3::Options &options,std::string *fixedRefusal) {
+  if(!p.reluSlotDomains.empty() && options.alpha==2) {
+    // Try the large-P, matched inner levels first; admission is still a
+    // fresh physical replay, and the public driver screens its exact Q/QP.
+    for(unsigned a:{6u,0u,1u,2u,3u,4u,5u,7u}){auto fixed=nativeReluBasis(p,a);
+      try{lowerNativePhysical(p,fixed,options,ExactRational(1)/(mpz_class(1)<<40),nullptr,&fixed);return fixed;}
+      catch(const std::exception &e){if(fixedRefusal && fixedRefusal->empty())*fixedRefusal=e.what();}
+    }
+  }
   auto candidate=pass3::optimize(p.graph,options);
+  if(!p.reluSpans.empty()) {
+    lowerNativePhysical(p,candidate,options,ExactRational(1)/(mpz_class(1)<<40),nullptr,&candidate);
+    return candidate;
+  }
   auto result=pass3::replay(p.graph,options,candidate);
   if(!result.reason.empty()) throw std::invalid_argument("native concrete replay: "+result.reason);
   return candidate;
@@ -255,18 +313,20 @@ mlir::LogicalResult specializeNativeArithmetic(llvm::StringRef bytes,llvm::Strin
     need(limit>0 && config.qCount>0 && config.qCount<=64 && config.activationTolerance>0 && std::isfinite(config.activationTolerance),"invalid native search budget");
     NativeLinearProgram source;
     if(mlir::failed(deriveNativeLinear(bytes,name,spec,config.domain,source,diagnostics))) return mlir::failure();
-    std::vector<size_t> choices;
+    std::vector<size_t> choices; std::string fixedWhy,lastWhy; size_t tried=0;
     for(size_t n=0;n<limit;++n) {
       NativeArithmeticProgram p; p.source=std::move(source);
       Builder b{p,config}; b.choices=&choices;
+      ++tried;
       try {
         b.build();
         if(p.graph.approximation<options.tolerance) {
-          auto s=searchNativeParameters(p,options);
+          auto s=searchNativeParameters(p,options,&fixedWhy);
           out=std::move(p); solution=std::move(s); attempts=n+1; return mlir::success();
-        }
+        } else lastWhy="approximation already exhausts sink allowance";
       } catch(const std::exception &e) {
         llvm::StringRef why=e.what();
+        lastWhy=why.str();
         if(why!="Pass 3 infeasible under requested scale, precision and QP bounds" &&
            why!="no certified polynomial at available depth/tolerance" &&
            why!="no level for linear rescale" && why!="computed activation domain exceeds source declaration") throw;
@@ -281,6 +341,8 @@ mlir::LogicalResult specializeNativeArithmetic(llvm::StringRef bytes,llvm::Strin
       }
       if(choices.empty()) break;
     }
+    if(config.nativeRelu) throw std::runtime_error("[SNABF_NATIVE_RELU_INFEASIBLE] schedules="+std::to_string(tried)+
+      "; first fixed arm: "+(fixedWhy.empty()?"not reached":fixedWhy)+"; last: "+lastWhy);
     throw std::runtime_error("no concrete native schedule within bounded certified search");
   } catch(const std::exception &e) {
     diagnostics<<name<<": error: [SNABF_NATIVE_ARITHMETIC] "<<e.what()<<"\n"; return mlir::failure();

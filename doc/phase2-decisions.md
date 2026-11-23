@@ -49,5 +49,12 @@ separately from a measured mid-depth matrix; see the README for the probe.
 
 Implementation status of 20 and 23: `--native-import-only` is a source inspection
 on the pinned MLIR stack. Its receipt must not be fed to a legacy emitter or
-used as a release certificate. The separate package and observation gates can
-be exercised before N1 execution is released; see [native probes](native-probes.md).
+used as a release certificate. For inspection see [native probes](native-probes.md);
+the public N1 path requires both MLIR entries, a standalone generated package
+and independent slot replay.
+
+Implementation note for decisions 16 and 20: native composite ReLU binds
+the source SSA before fusion. On closed cells covering the input domain,
+bound the emitted reconstruction with the shared input and all local
+perturbations present together. The legacy frontend continues to refuse ReLU;
+a ciphertext engineering check is not an Eq. (15) certificate.

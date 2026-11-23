@@ -7,11 +7,11 @@ using namespace mlir;
 namespace snabf::native {
 namespace {
 // Comparisons use the rounded *source* serialization, not a host libm value
-// or a tolerance. Only the two original analytic expression trees are in v1.
-enum Literal { One, Half, InvSqrt2 };
-constexpr uint64_t bits32[] = {0x3f800000, 0x3f000000, 0x3f3504f3};
-constexpr uint64_t bits64[] = {0x3ff0000000000000, 0x3fe0000000000000, 0x3fe6a09e667f3bcd};
-constexpr const char *roles[] = {"one", "half", "inv_sqrt2"};
+// or a tolerance. In particular -0 is not the positive-zero source witness.
+enum Literal { One, Half, InvSqrt2, PositiveZero };
+constexpr uint64_t bits32[] = {0x3f800000, 0x3f000000, 0x3f3504f3, 0};
+constexpr uint64_t bits64[] = {0x3ff0000000000000, 0x3fe0000000000000, 0x3fe6a09e667f3bcd, 0};
+constexpr const char *roles[] = {"one", "half", "inv_sqrt2", "positive_zero"};
 
 struct Matcher {
   Block &block;
@@ -90,18 +90,22 @@ LogicalResult lockActivation(const Source &s, linalg::GenericOp g, const ValueID
     return s.reject(b.getArgument(1).use_begin()->getOwner(), "[SNABF_NATIVE_GENERIC] activation reads outs block argument");
   if (failed(s.attrs(&b.back(), {}))) return failure();
   for (auto &op : b.without_terminator()) {
-    if (isa<arith::MaximumFOp, arith::SelectOp>(op))
-      return s.reject(&op, "[SNABF_RELU_NOT_RELEASED] maximum/select is outside C-1");
-    if (!isa<arith::MulFOp, arith::AddFOp, arith::NegFOp, arith::DivFOp, math::ExpOp, math::ErfOp>(op))
+    if (isa<arith::SelectOp>(op))
+      return s.reject(&op, "[SNABF_NATIVE_RELU_SSA] select is not maximumf(x,+0)");
+    if (!isa<arith::MaximumFOp, arith::MulFOp, arith::AddFOp, arith::NegFOp, arith::DivFOp, math::ExpOp, math::ErfOp>(op))
       return s.reject(&op, "[SNABF_NATIVE_GENERIC] unsupported scalar operation " + op.getName().getStringRef());
     if (failed(s.strictFloatOp(&op))) return failure();
   }
   Value yielded = b.back().getOperand(0);
   Matcher m{b, ids, b.getArgument(0), {}};
   StringRef kind;
-  if (m.silu(yielded)) kind = "silu";
+  if (llvm::any_of(b.without_terminator(), [](Operation &op){return isa<arith::MaximumFOp>(op);})) {
+    if (std::distance(b.begin(), b.end()) != 2 || m.other(yielded,"arith.maximumf",PositiveZero) != m.x)
+      return s.reject(g,"[SNABF_NATIVE_RELU_SSA] expected exactly yield maximumf(original block input, captured +0)");
+    kind = "relu";
+  } else if (m.silu(yielded)) kind = "silu";
   else if (m.gelu(yielded)) kind = "gelu_exact_erf";
-  if (kind.empty() || std::distance(b.begin(), b.end()) != 6)
+  if (kind.empty() || (kind != "relu" && std::distance(b.begin(), b.end()) != 6))
     return s.reject(g, "[SNABF_NATIVE_GENERIC] body is not the exact connected source-SSA SiLU or erf-GeLU expression");
 
   ValueIDs scoped(ids);

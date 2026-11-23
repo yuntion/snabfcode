@@ -4,11 +4,15 @@ Security-Noise Coupled Algebraic Budget Flow on Google HEIR and Lattigo.
 
 ### Static compiler entry (phase 2)
 
-`--frontend legacy-heir` is the default. RFC-004 N0 registers the native IR
-contracts for inspection only. `--frontend native-linalg` refuses before tool
-discovery or output creation; there is no fallback. Native execution, independent
-scale replay and whole-package ciphertext equivalence are N1 gates, not N0 results.
-No new provenance or scale fields are backfilled into historical plans.
+`--frontend legacy-heir` remains the default. The explicit `--frontend native-linalg`
+entry compiles the supported N1 subset without HEIR and does not fall back to
+the legacy frontend. `test/compiler/product_native_n1.py` checks the four
+reference programs through the public CLI and both MLIR entries. The separate
+`test/compiler/product_native_relu.py` gate binds the original ReLU input SSA,
+checks its reconstruction on a closed domain including zero, and accounts for
+shared-input and internal perturbations together. This does not enable legacy
+ReLU or issue a probabilistic precision certificate. Historical plans and
+frozen helper bytes remain unchanged.
 
 The [N0 inspection fixture](test/compiler/rfc004/contracts.mlir) shows the wire
 format. `slot_map[i]` is the physical slot for logical row-major element `i`

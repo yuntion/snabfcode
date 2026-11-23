@@ -1,4 +1,5 @@
 #include "ir/NativeScaleLower.h"
+#include "ir/NativePhysical.h"
 #include <array>
 #include <bit>
 #include <cmath>
@@ -83,6 +84,17 @@ void exactAndDomain() {
   }
   r.decoded_bias_budget = -1;
   refused([&]{ ready(r); }, "bound or budget");
+}
+
+void blockSwitch() {
+  ScaleDomain d{"key",16,40,{97,193,257},{449,577}};
+  const R factor=R(10)*16*16/(449*577);
+  check(nativeBlockSwitchError(d,0)==factor*98,"partial first digit");
+  check(nativeBlockSwitchError(d,1)==factor*(97*193+1),"two-limb digit");
+  check(nativeBlockSwitchError(d,2)==factor*(97*193+1+258),"partial final digit");
+  refused([&]{nativeBlockSwitchError(d,3);},"domain/level");
+  d.p.resize(1);
+  check(nativeBlockSwitchError(d,2)==R(10)*16*16*(98+194+258)/449,"one-P baseline");
 }
 
 void bounded() {
@@ -325,6 +337,7 @@ void strictResolve() {
 int main() {
   try {
     exactAndDomain();
+    blockSwitch();
     bounded();
     folds();
     strictResolve();

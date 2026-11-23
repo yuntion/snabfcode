@@ -9,6 +9,7 @@
 #include <deque>
 #include <limits>
 #include <numeric>
+#include <queue>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -271,6 +272,97 @@ double residualBound(const Reference& g, const Derivatives& p, Interval1D domain
   }
   return upper;
 }
+
+// Each z*Q(z^2) uses the output of the preceding stage; x is the original
+// bypass operand. The signed residual on a closed half-axis is exactly
+// x*(g(x)+1)/2 on the left, x*(g(x)-1)/2 on the right, also at zero.
+// Stationary-point cover for literal polynomials. On any subinterval a
+// polynomial's extrema occur at endpoints or inside these certified boxes.
+// A subdivision cap keeps the whole unresolved box, never just a midpoint.
+class CriticalRange {
+ public:
+  CriticalRange(const StagePolynomial& p, Interval1D axis) : domain_(axis) {
+    Powers slope;
+    for (unsigned i=0;i<=p.degree;++i) {
+      coefficients_.emplace_back(p.coefficients[i]);
+      if (i) slope.push_back(times(coefficients_.back(),i));
+    }
+    while (!slope.empty() && mpfi_is_zero(slope.back().v)) slope.pop_back();
+    unsigned budget=4096;
+    Powers curvature;
+    for (unsigned i=1;i<slope.size();++i) curvature.push_back(times(slope[i],i));
+    if (!slope.empty()) isolate(slope,curvature,axis,0,budget);
+  }
+  Interval1D operator()(Interval1D axis) const {
+    // Intersect two proved enclosures of the same input: stationary points
+    // were isolated on domain_, not outside its outward-rounded endpoints.
+    axis={std::max(axis.lo,domain_.lo),std::min(axis.hi,domain_.hi)};
+    checkDomain(axis);
+    auto r=hull(evaluate(coefficients_,Box(axis.lo)).bounds(),evaluate(coefficients_,Box(axis.hi)).bounds());
+    for (const auto& [cell,values]: critical_)
+      if (cell.lo<=axis.hi && cell.hi>=axis.lo) r=hull(r,values);
+    return r;
+  }
+ private:
+  void isolate(const Powers& slope, const Powers& curvature, Interval1D cell, unsigned depth, unsigned& budget) {
+    Box x(cell.lo,cell.hi);
+    if (!mpfi_has_zero(evaluate(slope,x).v)) return;
+    const double mid=std::midpoint(cell.lo,cell.hi);
+    const Box c(mid);
+    if (!mpfi_has_zero((evaluate(slope,c)+(x-c)*evaluate(curvature,x)).v)) return;
+    if (depth==44 || !budget || mid==cell.lo || mid==cell.hi) {
+      critical_.push_back({cell,evaluate(coefficients_,x).bounds()}); return;
+    }
+    --budget;
+    isolate(slope,curvature,{cell.lo,mid},depth+1,budget);
+    isolate(slope,curvature,{mid,cell.hi},depth+1,budget);
+  }
+  Powers coefficients_;
+  Interval1D domain_;
+  std::vector<std::pair<Interval1D,Interval1D>> critical_;
+};
+
+double reluBranchBound(const std::vector<Powers>& oddPowers, const std::vector<CriticalRange>& maps,
+                       Interval1D domain, double offset) {
+  const Box shift(offset);
+  auto residual = [&](Interval1D cell) {
+    const Box x(cell.lo,cell.hi);
+    Box z(x);
+    if (maps.empty()) {
+      for (const auto& q : oddPowers) z = z*evaluate(q,square(z));
+    } else {
+      auto a=cell;
+      for (const auto& map:maps) a=map(a);
+      z=Box(a.lo,a.hi);
+    }
+    return over(x*(z+shift),2).bounds();
+  };
+  struct Cell {
+    Interval1D axis;
+    double upper;
+    bool operator<(const Cell& b) const {
+      return upper == b.upper ? axis.lo > b.axis.lo : upper < b.upper;
+    }
+  };
+  std::priority_queue<Cell> leaves;
+  auto cover = [&](Interval1D cell) { leaves.push({cell,magnitude(residual(cell))}); };
+  cover(domain);
+  if (domain.lo == domain.hi) return leaves.top().upper;
+  auto pointLower = [&](double x) { return lowerMagnitude(residual({x,x})); };
+  double witness = std::max(pointLower(domain.lo),pointLower(domain.hi));
+  // Leaves always cover the whole branch. A point can stop refinement but
+  // never supplies the upper bound, even at the work/precision limit.
+  constexpr unsigned maxSplits = 512;
+  for (unsigned i=0; i<maxSplits && leaves.top().upper>witness; ++i) {
+    const auto [lo,hi] = leaves.top().axis;
+    const double mid = std::midpoint(lo,hi);
+    if (mid == lo || mid == hi) break;
+    witness = std::max(witness,pointLower(mid));
+    leaves.pop();
+    cover({lo,mid}); cover({mid,hi});
+  }
+  return leaves.top().upper;
+}
 }  // namespace
 
 StageCertificate certifyStage(F stage, const StagePolynomial& p, Interval1D Iin,
@@ -287,13 +379,50 @@ StageCertificate certifyStage(F stage, const StagePolynomial& p, Interval1D Iin,
     for (unsigned k=0; k<=std::min(kOrder,i); ++k)
       derivatives[k].push_back(times(Box(a),choose(i,k)));
   }
-  const Reference g(stage);
   const Interval1D J = hull(Iin,Ain);
-  const double epsilon = residualBound(g,derivatives,odd ? folded(Iin) : Iin);
   const double L = magnitude(polynomialRange(derivatives[1],odd ? folded(J) : J));
   auto Aout = polynomialRange(derivatives[0],Ain);
   if (odd && Ain.lo == -Ain.hi) Aout = {-magnitude(Aout),magnitude(Aout)};
+  // The stage reference here is the exact literal polynomial, NOT sign.
+  // Only the composed reconstruction certifier can issue a ReLU residual.
+  if (stage==F::ReluSignPolynomial) {
+    if (!odd) throw std::invalid_argument("expected an odd literal ReLU stage");
+    return {Iin,Ain,J,polynomialRange(derivatives[0],Iin),Aout,0,L};
+  }
+  const Reference g(stage);
+  const double epsilon = residualBound(g,derivatives,odd ? folded(Iin) : Iin);
   return {Iin,Ain,J,g.range(Iin),Aout,epsilon,L};
+}
+
+ReluReconstructionCertificate certifyReluReconstruction(
+    std::span<const StagePolynomial> chain, Interval1D input) {
+  checkDomain(input);
+  if (input.lo > 0 || input.hi < 0 || chain.empty())
+    throw std::invalid_argument("ReLU certification needs a nonempty chain and a domain containing zero");
+  std::vector<Powers> oddPowers;
+  oddPowers.reserve(chain.size());
+  for (const auto& p : chain) {
+    if (p.degree > kCandidateDegrees.back() || p.coefficients.size() != p.degree+1)
+      throw std::invalid_argument("invalid ReLU stage dimension");
+    Powers& q = oddPowers.emplace_back();
+    for (unsigned i=0; i<=p.degree; ++i) {
+      const double a = p.coefficients[i];
+      if (!std::isfinite(a) || (i%2 == 0 && a != 0))
+        throw std::invalid_argument("ReLU stage must have finite odd-polynomial coefficients");
+      if (i%2) q.emplace_back(a);
+    }
+  }
+  std::vector<CriticalRange> maps;
+  if (chain.size()>2) {
+    auto axis=input;
+    for (auto& p:chain) {
+      maps.emplace_back(p,axis);
+      axis=maps.back()(axis);
+    }
+  }
+  const double left = reluBranchBound(oddPowers,maps,{input.lo,0},1);
+  const double right = reluBranchBound(oddPowers,maps,{0,input.hi},-1);
+  return {input,left,right,std::max(left,right)};
 }
 
 }  // namespace snabf::pass2
