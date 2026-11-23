@@ -3,6 +3,7 @@
 #include "RouteSelection.h"
 #include "pass3/ConcreteVerifier.h"
 #include "pass3/ParameterMILP.h"
+#include "pass3/PrimeInstantiator.h"
 #include "llvm/ADT/APFloat.h"
 #include <algorithm>
 #include <bit>
@@ -123,17 +124,23 @@ struct Builder {
     const auto &decl=*lock.getArray("declared_domain");
     need(in.lo>=*decl[0].getAsNumber() && in.hi<=*decl[1].getAsNumber(),"computed activation domain exceeds source declaration");
     bool gelu=lock.getString("kind")=="gelu_exact_erf";
+    bool relu=lock.getString("kind")=="relu";
+    need(!relu || config.nativeRelu,"[SNABF_NATIVE_RELU_PROFILE] composite ReLU requires the explicit affine two-P profile");
+    if(relu) for(const auto &slot:af.slots(x.value))
+      p.reluSlotDomains[id].push_back({slot.enclosure.lo,slot.enclosure.hi});
     const std::string key=gelu?"gelu":"silu";
     auto opt=config.polynomial;
     opt.inputLevel=level(x.e); opt.maxDepth=std::min(opt.maxDepth,opt.inputLevel);
     opt.maxError=config.activationTolerance; opt.inputError=0;
-    auto dp=pass2::synthesizePolynomials(key,{in.lo,in.hi},opt);
+    auto dp=relu ? pass2::synthesizeNativeRelu({std::min(0.,in.lo),std::max(0.,in.hi)},opt) :
+                   pass2::synthesizePolynomials(key,{in.lo,in.hi},opt);
     need(!dp.frontier.empty(),"no certified polynomial at available depth/tolerance");
     auto rank=[](const auto &c){return std::tie(c.cost.depth,c.cost.ctMults,c.cost.ptMults,c.approximationError,c.id);};
     std::sort(dp.frontier.begin(),dp.frontier.end(),[&](const auto &a,const auto &b){return rank(a)<rank(b);});
     int pi=p.polynomials.size(); counts.push_back(dp.frontier.size());
     size_t pick=choices && size_t(pi)<choices->size()?choices->at(pi):0;
     p.polynomials.push_back(std::move(dp.frontier.at(pick)));
+    p.activationSites.push_back(id);
     const auto &c=p.polynomials.back();
     double local=c.approximationError;
     if(gelu) {
@@ -147,7 +154,7 @@ struct Builder {
       }
       need(found,"unbound erf literal");
     }
-    auto value=af.activate(x.value,gelu?af::Activation::ErfGeLU:af::Activation::SiLU,local);
+    auto value=af.activate(x.value,relu?af::Activation::ReLU:(gelu?af::Activation::ErfGeLU:af::Activation::SiLU),local);
     std::vector<int> values;
     pass3::Poly poly{level(x.e),int(c.dag.output),{}};
     for(size_t i=0;i<c.dag.nodes.size();++i) {
@@ -189,7 +196,7 @@ struct Builder {
     p.graph.polys.push_back(std::move(poly));
     // Both exact reference activations have |f'| <= 1+|x| (no claim of
     // independence between this approximation and a residual bypass).
-    return {values.at(c.dag.output),value,add(local,mul(add(1,radius(in)),x.approximation))};
+    return {values.at(c.dag.output),value,add(local,mul(relu?1.:add(1,radius(in)),x.approximation))};
   }
   void build() {
     auto &s=p.source; const auto &ins=s.inspection;
@@ -212,7 +219,7 @@ struct Builder {
       if(kind=="constant"||kind=="empty"||kind=="zero_fill") continue;
       const auto &args=*n.getArray("inputs"); auto arg=[&](size_t i){return args[i].getAsString()->str();};
       if(kind=="matvec") bind(id,linear(id,data.at(arg(1))));
-      else if(kind=="silu"||kind=="gelu_exact_erf") {
+      else if(kind=="silu"||kind=="gelu_exact_erf"||kind=="relu") {
         const auto &lock=*locks.at(id); need(lock.getString("x")==arg(0),"unbound activation SSA input");
         bind(id,activation(id,data.at(arg(0)),lock));
       } else if(kind=="add" && data.contains(arg(0)) && data.contains(arg(1))) {
@@ -223,11 +230,28 @@ struct Builder {
       } else throw std::invalid_argument("unsupported encrypted source operation: "+kind);
     }
     need(site==s.matvecs.size(),"unused source route");
+    if(config.nativeRelu) need(std::any_of(p.polynomials.begin(),p.polynomials.end(),[](auto &c){return c.relu.has_value();}),
+      "[SNABF_NATIVE_RELU_PROFILE] explicit profile needs an original ReLU witness");
     auto out=data.at(ins.getArray("outputs")->front().getAsObject()->getString("value")->str());
     p.graph.sink=out.e; p.graph.approximation=out.approximation;
   }
 };
 } // namespace
+
+void configureNativeRelu(ArithmeticOptions &a,pass3::Options &o) {
+  a.domain={16,4096}; a.qCount=29; a.nativeRelu=true;
+  a.polynomial.degrees={3,5,7}; a.polynomial.maxDepth=28; a.polynomial.composed=true;
+  o.maxK=0; o.alpha=2; o.securityCap=1400; // search envelope, never a security decision
+  a.activationTolerance=o.tolerance;
+}
+
+pass3::Solution nativeReluFixedBasis(const NativeArithmeticProgram &p) {
+  need(!p.reluSlotDomains.empty() && p.graph.n==65536 && p.graph.levels==29,"wrong fixed ReLU arm");
+  pass3::Solution s; std::set<int64_t> used; s.scale=43; s.k.assign(p.graph.edges.size(),0);
+  for(int i=0;i<p.graph.levels;++i)s.q.push_back(pass3::nearestPrime(p.graph.n,i?43:53,used));
+  for(int i=0;i<2;++i)s.p.push_back(pass3::nearestPrime(p.graph.n,54,used));
+  return s;
+}
 
 mlir::LogicalResult deriveNativeArithmetic(llvm::StringRef bytes,llvm::StringRef name,llvm::StringRef spec,
     const ArithmeticOptions &config,NativeArithmeticProgram &out,llvm::raw_ostream &diagnostics) {
@@ -242,6 +266,11 @@ mlir::LogicalResult deriveNativeArithmetic(llvm::StringRef bytes,llvm::StringRef
   }
 }
 pass3::Solution searchNativeParameters(const NativeArithmeticProgram &p,const pass3::Options &options) {
+  if(!p.reluSlotDomains.empty() && options.alpha==2) {
+    auto fixed=nativeReluFixedBasis(p);
+    try { if(pass3::replay(p.graph,options,fixed).reason.empty()) return fixed; }
+    catch(const std::runtime_error &) { /* An incompatible fixed scale schedule cannot be used. */ }
+  }
   auto candidate=pass3::optimize(p.graph,options);
   auto result=pass3::replay(p.graph,options,candidate);
   if(!result.reason.empty()) throw std::invalid_argument("native concrete replay: "+result.reason);

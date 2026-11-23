@@ -1,4 +1,5 @@
 #include "NativeArithmetic.h"
+#include "pass3/ConcreteVerifier.h"
 #include "Target/Lattigo/NativeSingleGo.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <cmath>
@@ -48,6 +49,18 @@ int main(int argc,char **argv) {
     NativeArithmeticProgram p;
     pass3::Options o; o.maxK=0; // Native exact-arithmetic arm; do not claim a truncation kernel.
     opt.activationTolerance=o.tolerance;
+    if(argc==4 && llvm::StringRef(argv[3])=="--relu-contract") {
+      configureNativeRelu(opt,o);
+      if(mlir::failed(deriveNativeArithmetic((*bytes)->getBuffer(),argv[1],(*spec)->getBuffer(),opt,p,llvm::errs())))return 1;
+      auto w=nativeReluWitness(p); auto candidate=nativeReluFixedBasis(p); llvm::json::Array q,aux;
+      for(auto x:candidate.q)q.push_back(x); for(auto x:candidate.p)aux.push_back(x);
+      std::string why;
+      try { why=pass3::replay(p.graph,o,candidate).reason; } catch(const std::exception &e){why=e.what();}
+      w["first_arm"]=llvm::json::Object{{"ring",p.graph.n},{"q",std::move(q)},{"p",std::move(aux)},
+        {"scale",candidate.scale},{"security_cap",o.securityCap},{"replay_refusal",why}};
+      w["approximation"]=p.graph.approximation; w["sink_level"]=p.graph.edges.at(p.graph.sink).level;
+      llvm::outs()<<llvm::formatv("{0}\n",llvm::json::Value(std::move(w)));return 0;
+    }
     pass3::Solution s; size_t attempts=0;
     if(mlir::failed(specializeNativeArithmetic((*bytes)->getBuffer(),argv[1],(*spec)->getBuffer(),opt,o,32,p,s,attempts,llvm::errs())))return 1;
     check(s.errors.at(p.graph.sink)+p.graph.approximation<=o.tolerance,"concrete error budget");

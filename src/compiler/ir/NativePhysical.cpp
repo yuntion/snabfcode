@@ -29,16 +29,42 @@ Object encoding(const EncodingCallReceipt &pt, std::span<const double> payload) 
 }
 } // namespace
 
+Object nativeReluWitness(const NativeArithmeticProgram &p) {
+  auto bits=[](double a){auto s=llvm::utohexstr(std::bit_cast<uint64_t>(a),true);return std::string(16-s.size(),'0')+s;};
+  Array sites;
+  for(size_t i=0;i<p.polynomials.size();++i) {
+    const auto &c=p.polynomials[i]; if(!c.relu)continue;
+    const auto &site=p.activationSites.at(i); const auto &proof=*c.relu;
+    Array stages,dag,slots; const Object *lock=nullptr;
+    for(auto &l:*p.source.inspection.getArray("activation_locks"))
+      if(l.getAsObject()->getString("site")==site)lock=l.getAsObject();
+    need(lock && lock->getString("kind")=="relu","missing original ReLU lock");
+    for(auto a:p.reluSlotDomains.at(site))slots.push_back(Array{a.lo,a.hi});
+    for(const auto &s:c.stages){Array co;for(double x:s.coefficients)co.push_back(bits(x));
+      stages.push_back(Object{{"input",s.inputNode},{"output",s.outputNode},{"degree",s.degree},{"bits",std::move(co)}});}
+    for(const auto &n:c.dag.nodes){Array w;for(double x:n.weights)w.push_back(bits(x));
+      dag.push_back(Object{{"op",n.op},{"inputs",ints(n.inputs)},{"weights",std::move(w)},{"constant",bits(n.constant)},{"depth",n.depth}});}
+    sites.push_back(Object{{"source_lock",Object(*lock)},{"template",c.templateName},{"site",site},
+      {"affine_slots",std::move(slots)},{"axis",Array{c.idealInput.lo,c.idealInput.hi}},
+      {"mpfi160",Array{proof.mpfi[0],proof.mpfi[1]}},{"bernstein",Array{proof.bernstein[0],proof.bernstein[1]}},
+      {"cells",ints(proof.cells)},{"stages",std::move(stages)},{"dag",std::move(dag)},{"output",c.dag.output}});
+  }
+  return Object{{"schema","snabf.native-relu-witness.v1"},{"source",p.source.inspection.getString("source_sha256")->str()},
+    {"input_spec",p.source.inspection.getString("input_spec_sha256")->str()},{"sites",std::move(sites)}};
+}
+
 Object lowerNativePhysical(const NativeArithmeticProgram &p,const pass3::Solution &input,const pass3::Options &opt,const R &budget) {
   const auto &g=p.graph; auto s=input;
   auto replay=pass3::replay(g,opt,s);
   if(!replay.reason.empty()) throw std::invalid_argument("unreplayable candidate: "+replay.reason);
-  need(s.p.size()==1 && std::all_of(s.k.begin(),s.k.end(),[](int k){return k==0;}),"native exact single-P arm only");
+  need((s.p.size()==1 || (s.p.size()==2 && opt.alpha==2 && !p.reluSlotDomains.empty())) &&
+       std::all_of(s.k.begin(),s.k.end(),[](int k){return k==0;}),"unsupported native special-basis/truncation profile");
   need(s.scale<=53 && budget>=0 && opt.guardBits==1,"unsupported encoding/guard policy");
   ScaleDomain d{"native.source",g.n,s.scale,{s.q.begin(),s.q.end()},{s.p.begin(),s.p.end()}};
   d.check(g.levels-1);
   const int slots=p.source.domain.encodedSlots;
-  const R N=g.n, P=integer(d.p.front()), S=uint64_t(std::ceil(pass3::secretBound(g.n)));
+  R P=1; for(auto prime:d.p)P*=integer(prime);
+  const R N=g.n, S=uint64_t(std::ceil(pass3::secretBound(g.n)));
   const R round=N*(1+S)/2;
   std::vector<R> modulus; R qprod=1;
   for(auto q:d.q) {qprod*=integer(q); modulus.push_back(qprod);}
@@ -102,7 +128,11 @@ Object lowerNativePhysical(const NativeArithmeticProgram &p,const pass3::Solutio
       }
       case O::Baby: case O::Giant:case O::Relin: {
         auto &a=wire(0);w.s=a.s;R ks=0;
-        for(int l=0;l<=e.level;++l)ks+=10*N*N*(integer(d.q.at(l))+1)/P;
+        for(int b=0;b<=e.level;b+=int(d.p.size())) {
+          R digit=1;
+          for(int l=b;l<std::min(e.level+1,b+int(d.p.size()));++l)digit*=integer(d.q.at(l));
+          ks+=10*N*N*(digit+1)/P;
+        }
         w.err=a.err+(ks+round)/w.s.metadata;break;
       }
       case O::Rescale: {
@@ -132,6 +162,7 @@ Object lowerNativePhysical(const NativeArithmeticProgram &p,const pass3::Solutio
     {"q",ints(d.q)},{"p",ints(d.p)},{"width",int64_t(p.source.width)},{"slots",slots},{"sink",g.sink},
     {"edges",std::move(records)},{"input_domain",Array{*(*port.getArray("domain"))[0].getAsNumber(),*(*port.getArray("domain"))[1].getAsNumber()}},{"local_join_budget",budget.get_str()},
     {"engineering_upper",pass2::upperDouble(total)},{"probabilistic_cert_issued",false}};
+  if(!p.reluSlotDomains.empty()) result["relu_witness"]=nativeReluWitness(p);
   auto canonical=llvm::formatv("{0}",llvm::json::Value(Object(result))).str();
   result["emit_sha256"]=llvm::toHex(llvm::SHA256::hash(llvm::arrayRefFromStringRef(canonical)),true);return result;
 }

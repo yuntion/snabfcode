@@ -95,7 +95,7 @@ def source_negatives(t, c, cs, r, rs):
         ('dynamic-loop', b'return %l1', b'scf.while : () -> () {\n%b = arith.constant false\nscf.condition(%b)\n} do {\nscf.yield\n}\nreturn %l1', 'unsupported control flow'),
         ('dynamic-branch', b'return %l1', b'%cond = arith.constant false\ncf.cond_br %cond, ^yes, ^no\n^yes:\nreturn %l1 : tensor<4xf32>\n^no:\nreturn %l1', 'unsupported control flow'),
         ('call', b'return %l1', b'%call = func.call @f88280ebd6b8f89e(%x) : (tensor<4xf32>)->tensor<4xf32>\nreturn %l1', 'unsupported control flow'),
-        ('relu-gate', b'%e = math.erf %z', b'%e = arith.maximumf %z, %zero', 'SNABF_RELU_NOT_RELEASED'),
+        ('relu-in-erf-not-a-witness', b'%e = math.erf %z', b'%e = arith.maximumf %z, %zero', 'SNABF_NATIVE_RELU_SSA'),
         ('source-nul', b'return %l1', b'\0return %l1', 'embedded NUL'),
     ]:
         fail(name, old, new, diagnostic)

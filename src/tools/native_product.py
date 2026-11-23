@@ -35,10 +35,12 @@ def screen(proposal, cache, estimator):
 
 
 def native_compile(a):
+    relu = (a.log_n,a.q_count,a.gadget_alpha,a.interval_mode)==(16,29,2,'affine')
+    old = (a.log_n,a.q_count,a.gadget_alpha,a.interval_mode)==(14,8,None,None)
     if (a.input_spec is None or not math.isfinite(a.input_bound) or a.input_bound <= 0 or
-            (a.security_bits, a.switch_security_bits, a.precision_bits, a.log_n, a.q_count, a.min_slots) != (128,128,12,14,8,4096)
+            (a.security_bits,a.switch_security_bits,a.precision_bits,a.min_slots)!=(128,128,12,4096) or not (old or relu)
             or a.mode not in ('adaptive','keep-source') or a.cut_profile != 'single-live-v1' or
-            a.gadget_alpha is not None or a.cost_profile or a.cost_hardware_id or a.interval_mode or
+            a.cost_profile or a.cost_hardware_id or
             a.heterogeneous_scales or a.scale_mode not in (None,'narrow') or a.max_k not in (None,0) or
             a.source_arithmetic_fraction is not None or a.certify_failure_bits is not None or a.certify_failure_prob is not None
             or (a.prime_bw_min,a.prime_bw_max,a.aux_prime_margin_bits) != (24,59,2)):
@@ -66,7 +68,9 @@ def native_compile(a):
         tmp = Path(td); publish = tmp/'publish'; publish.mkdir()
         def run(*args):
             subprocess.run([binary, '--mlir-print-op-on-diagnostic=false', *args], cwd=publish, env=env, check=True)
-        (publish/'source.mlir').write_text(carrier(dict(source=source, ports=spec, stage=b'source')),encoding='ascii')
+        fields=dict(source=source, ports=spec, stage=b'source')
+        if relu: fields['profile']=b'relu-affine-2p-v1'
+        (publish/'source.mlir').write_text(carrier(fields),encoding='ascii')
         run('--snabf-native-plan=proposal=../proposal.json','source.mlir','-o','planned.mlir')
         proposal = json.loads((tmp/'proposal.json').read_bytes(), object_pairs_hook=unique_fields)
         plan = proposal['plan']

@@ -11,18 +11,25 @@ struct ArithmeticOptions {
   int qCount = 8;
   double activationTolerance = 0x1p-16;
   pass2::DPOptions polynomial;
+  bool nativeRelu = false;
 };
 
 struct NativeArithmeticProgram {
   NativeLinearProgram source;
   std::vector<size_t> routeIndices;
   std::vector<pass2::PolyCandidate> polynomials;
+  std::vector<std::string> activationSites; // same indices as polynomials
+  std::map<std::string,std::vector<pass2::PlanRange>> reluSlotDomains;
   pass3::Graph graph;
   // Masks contain one inverse-giant-adjusted period. Coefficient/AddPlain
   // carry one signed binary64 operand; Pass 3 magnitude is not its value.
   std::map<int, std::vector<double>> publicOperands;
   std::map<std::string, int> sourceValues;
 };
+
+void configureNativeRelu(ArithmeticOptions &,pass3::Options &);
+// First concrete arm of the ReLU profile, not an admission or an estimate.
+pass3::Solution nativeReluFixedBasis(const NativeArithmeticProgram &);
 
 // No disk receipts as inputs; failure leaves the destination unchanged.
 mlir::LogicalResult deriveNativeArithmetic(llvm::StringRef bytes, llvm::StringRef sourceName,

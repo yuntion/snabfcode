@@ -22,6 +22,10 @@ void set(ModuleOp m, StringRef k, StringRef v) {
 }
 void carrier(ModuleOp m, StringRef state) {
   std::set<StringRef> allowed{source, ports, stage};
+  if(m->hasAttr("snabf.n1_profile")) {
+    need(field(m,"snabf.n1_profile")=="relu-affine-2p-v1","unknown native profile");
+    allowed.insert("snabf.n1_profile");
+  }
   if (state != "source") allowed.insert(plan);
   if (state == "checked") allowed.insert(seal);
   need(m.getBody()->empty() && field(m, stage) == state, "wrong native product body/stage");
@@ -44,6 +48,9 @@ struct Rebuilt {
     ArithmeticOptions opt;
     opt.domain = {14, 4096}; opt.polynomial.degrees = {3, 5, 7}; opt.polynomial.composed = false;
     options.maxK = 0; opt.activationTolerance = options.tolerance;
+    if(m->hasAttr("snabf.n1_profile")) {
+      configureNativeRelu(opt,options);
+    }
     std::string errors;
     llvm::raw_string_ostream diag(errors);
     if (mlir::failed(specializeNativeArithmetic(field(m, source), "original.mlir", field(m, ports),

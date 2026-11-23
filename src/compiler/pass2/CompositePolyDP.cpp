@@ -2,6 +2,8 @@
 
 #include "IntervalCertifier.h"
 #include "PolyTemplates.h"
+#include "ReluRecipe.h"
+#include "ReluBernstein.h"
 
 #include <algorithm>
 #include <cmath>
@@ -441,6 +443,49 @@ PolyCandidate reconstruct(Prefix prefix, const PolyTemplateSpec& spec) {
 }
 
 }  // namespace
+
+DPResult synthesizeNativeRelu(Range input,const DPOptions &o) {
+  require(valid(input) && input.lo<=0 && input.hi>=0 && o.inputError==0 &&
+          isfinite(o.maxError) && o.maxError>0,"invalid native ReLU domain/error contract");
+  DPResult r;
+  if(o.minOutputLevel>o.inputLevel || !o.composed) return r;
+  const auto chain=reluRecipe(certRange(input));
+  for(auto &s:chain) if(std::find(o.degrees.begin(),o.degrees.end(),s.degree)==o.degrees.end()) return r;
+  const auto proof=certifyReluReconstruction(chain,certRange(input));
+  if(proof.epsilon>o.maxError) {++r.errorRejected;return r;}
+  const auto independent=relu_bernstein::prove(chain,certRange(input),o.maxError);
+  const auto limit=std::min(o.maxDepth,o.inputLevel-o.minOutputLevel);
+  for(bool ps:{false,true}) {
+    if(ps ? !o.ps : !o.balanced) continue;
+    Prefix s; s.ideal=s.actual=s.p.idealInput=s.p.actualInput=input;
+    s.p.inputLevel=o.inputLevel; s.p.activation="relu"; s.p.templateName=s.p.id="relu_composite";
+    append(s.p.dag,"input",{});
+    for(const auto &poly:chain) {
+      auto fn=StageFunction::ReluSignPolynomial;
+      auto cert=certifyStage(fn,poly,certRange(s.ideal),certRange(s.actual));
+      s=extend(s,{poly,cert},fn,ps); ++r.transitions;
+    }
+    auto &p=s.p; const Id core=p.dag.output;
+    const Id half=append(p.dag,"linear",{0},{0.5});
+    const Id product=append(p.dag,"mul",{half,core});
+    append(p.dag,"add",{half,product});
+    p.cost=costDAG(p.dag);
+    if(p.cost.depth>limit){++r.depthRejected;continue;}
+    p.outputLevel=p.inputLevel-p.cost.depth;
+    p.relu=PolyCandidate::ReluProof{{proof.leftEpsilon,proof.rightEpsilon},
+      {independent.upper[0].get_str(),independent.upper[1].get_str()},independent.cells};
+    p.approximationError=p.outputError=proof.epsilon;
+    const auto factor=times({0.5,0.5},plus({1,1},s.actual));
+    p.coreGain=upProduct(0.5,s.gain); p.bypassGain=magnitude(factor);
+    p.outputGain=upSum(p.bypassGain,upProduct(magnitude(input),p.coreGain));
+    p.idealOutput={std::max(0.,input.lo),std::max(0.,input.hi)};
+    p.actualOutput=intersect(times(input,factor),plus(p.idealOutput,{-p.outputError,p.outputError}));
+    p.noise=noiseContract(p); ++r.feasible;
+    if(o.keepAllFeasible)r.allFeasible.push_back(p);
+    insertFront(r.frontier,std::move(p),dominates);
+  }
+  return r;
+}
 
 bool dominates(const PolyCandidate& a, const PolyCandidate& b) {
   if (a.activation != b.activation || a.inputLevel != b.inputLevel || a.inputError != b.inputError ||
