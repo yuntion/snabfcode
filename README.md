@@ -252,3 +252,11 @@ difference between these probes and encrypted N1 acceptance, see
 
 For the source-to-ciphertext single-ring engineering path (not the released
 `--frontend native-linalg` CLI), see [the server gate](doc/native-single-engineering.md).
+
+### Wave 1 B: local noise bounds, not a certificate
+
+For the residual graph 55 of 59 obligations are proved locally; for single
+GeLU the count is 58 of 62. Each still lacks four obligations and issues zero
+probability certificates. The production `require-noise-cert=true` check must
+deny both requests with exit code **1**; exit 0, a crash, or an unrelated
+error is not a passing result. See the Wave 1 B note in the phase 2 decisions.

@@ -1,5 +1,6 @@
 #include "DirectEmitter.h"
 #include "EmitGraph.h"
+#include "MulRescaleTarget.h"
 #include <charconv>
 #include <cmath>
 
@@ -43,8 +44,8 @@ void layout(llvm::raw_ostream &o,DictionaryAttr d) {
   o<<", Active:";list(o,"int",ints(d,"active_lanes"));o<<", Mask:";list(o,"int",ints(d,"mask_signature"));o<<"}";
 }
 void bind(llvm::raw_ostream &o,const EmitGraph &g,StringRef digest) {
-  o<<"const PlanSHA256 = "<<quoted(digest)<<"\n\nfunc New() (*epoch.Runtime, error) {\n"
-    "\treturn epoch.Bind(epoch.Program{Fingerprint: PlanSHA256, Source:"<<g.source<<", Target:"<<g.target
+  o<<"const PlanSHA256 = "<<quoted(digest)<<"\n\nfunc New() (*epoch."<<(mulRescaleTarget ? "FreshModel" : "Runtime")<<", error) {\n"
+    "\treturn epoch."<<(mulRescaleTarget ? "BindFresh" : "Bind")<<"(epoch.Program{Fingerprint: PlanSHA256, Source:"<<g.source<<", Target:"<<g.target
    <<", Width:"<<g.width<<", Slots:"<<g.slots<<", GaloisBytes:"<<num(g.program,"galois_bytes")<<",\n\t\tEpochs: []epoch.Epoch{\n";
   for (auto [n,d]:g.families) {
     o<<"\t\t\t{N:"<<n<<", Scale:"<<num(d,"scale")<<", KeyID:"<<quoted(str(d,"key_id"))<<", KeyBytes:"
@@ -87,7 +88,8 @@ void bind(llvm::raw_ostream &o,const EmitGraph &g,StringRef digest) {
     list(o,"float64",e.values);o<<"},\n";
   }
   const bool masks = llvm::any_of(g.edges, [](const Edge &e) { return e.op == Op::Mask && e.values.size() > 1; });
-  o<<"\t\t},\n\t}, evaluate, epoch."<<(masks ? "RequireDiagonalEncodingV1" : "RequireExactEncoding")<<")\n}\n\n";
+  o<<"\t\t},\n\t}, evaluate, epoch."<<(mulRescaleTarget ? "RequireFreshMulRescaleV1" :
+      masks ? "RequireDiagonalEncodingV1" : "RequireExactEncoding")<<")\n}\n\n";
 }
 std::string site(const Edge &e) {
   return "gadget.Site{ID:"+quoted(e.id)+", Level:"+std::to_string(e.level)+", K:"+std::to_string(e.k)+"}";

@@ -45,6 +45,8 @@ struct Topology {
   std::vector<Node> nodes;
   std::vector<OutputPort> outputs; // ALL returned ports, not selected witnesses
   int direct_go_slots = 0; // sealed emitter layout, not inferred from a plaintext receipt
+  int fresh_width = 0; // nonzero ONLY for the explicit guarded EvalFresh target
+  bool common_support = false; // additional audit for the same guarded target, not a law
 };
 
 enum class Role { Encode, Encrypt, Add, Sub, Neg, Drop, RescaleRound,

@@ -1,4 +1,5 @@
 #include "ir/NoiseCertVerifier.h"
+#include "ir/CommonArithmeticSupport.h"
 #include <iostream>
 
 using namespace snabf;
@@ -191,9 +192,102 @@ void unsafeWordRange() {
   expect(r.errors.empty() && enc.blocker == "unproved_ntt_word_range" && !enc.encoded_constant && !enc.ntt_word_upper,
          "overflowed or silently normalized the raw q word");
 }
+
+void freshDegreeOne() {
+  const ScaleDomain d{"retained",16384,39,{1146881,540311683073,540311912449},{56863324045313}};
+  const Exact E = Exact(0x1p39);
+  Topology g; g.domains={{d.key_id,d.ring_n,d.q,d.p,1}}; g.direct_go_slots=4096; g.fresh_width=64;
+  auto u=op("u",Op::Source,{},2); u.input_draw=u.id; u.source_bound=1;
+  auto bind=[&](Node &n,bool dynamic,const std::string &id) {
+    n.bound_plain_call=BoundPlainCall::encode({"encode:"+id,id,dynamic?0:1,n.level,g.direct_go_slots,d,true,
+        "[]float64",53,53,dynamic},E,n.plain_values);
+    n.encoded_scale=E; n.effective_encoder_scale=E;
+  };
+  bind(u,true,u.id);
+  auto rot=op("r",Op::Rotate,{0},2); rot.rotation=1; rot.evk="retained:rotation:1";
+  auto v=op("v",Op::VectorMulPlain,{1},2); v.diagonal_mask=true; v.plain_values={.25,-.25};bind(v,false,v.id);
+  g.nodes={u,rot,v,op("rs",Op::Rescale,{2},1)}; g.outputs={{"sink",3}};
+  auto audit=[&] {return verifyNoiseCertificate(g,options(g));};
+  auto r=audit();
+  expect(r.errors.empty() && !r.accepts() && row(r,"v/mul_plain").bias>0 && !row(r,"v/mul_plain").lhs_gain &&
+         row(r,"rs/rescale_round").lhs_gain==Exact(1, d.q.back()) && !r.total_delta_valid &&
+         r.missing_contract_terms.contains("node/r/evk_switch"),"wrong fresh/correlated support");
+  auto noLift=[&] {auto t=audit(); expect(t.errors.empty() && row(t,"v/mul_plain").formula.empty() &&
+       row(t,"rs/rescale_round").formula.empty() && !t.accepts(),"unbound support released");};
+  g.nodes[0].bound_plain_call.reset(); noLift();
+  bind(g.nodes[0],true,"wrong"); noLift();
+  g.nodes[0]=u;g.nodes[0].input_draw="another";noLift();g.nodes[0]=u;
+  g.nodes[0].source_bound=2; noLift();g.nodes[0]=u;
+  g.nodes[1].evk="another:rotation:1";noLift();g.nodes[1]=rot;
+  // Inject a hypothesis into the private transfer ONLY, not the checker:
+  // both sufficient guards accept the largest possible bound and reject +1.
+  std::vector<LocalStep> done(3);
+  auto boundary=[&](size_t idx, const LocalTransfer &proof) {
+    const auto p=g.nodes[idx].inputs[0];const Exact limit(proof.premises.at("max_parent_coeff"));
+    for (int j : {0,1}) {
+      done[p].fresh_coeff=limit+j;
+      auto step=boundedStep(g,idx,done,E,Exact(1),true,1,1);
+      const auto &end=step.rows.back();
+      expect(bool(step.fresh_coeff)==(j==0) && bool(end.bias)==(j==0) && end.formula.empty()==(j!=0),
+             "off by one in strict centered modulus guard");
+    }
+  };
+  boundary(2,row(r,"v/mul_plain")); boundary(3,row(r,"rs/rescale_round"));
+}
+// Isolate the transfer lemma; no production entry point accepts these hypotheses.
+void commonBoundaries() {
+  const Exact q=1146881, half=(q-1)/2;
+  Topology g; g.fresh_width=4;
+  g.domains={{"k",16384,{1146881,540311683073},{56863324045313},1}};
+  g.nodes={op("x",Op::Source,{},0),op("y",Op::Source,{},0),op("z",Op::Add,{0,1},0)};
+  std::vector<LocalStep> steps(3);
+  auto &x=steps[0].arithmetic;auto &y=steps[1].arithmetic;auto &z=g.nodes[2];
+  auto test=[&](const Exact &ideal) {
+    steps[2]=LocalStep{};
+    commonArithmeticSupport(g,2,steps,Exact(1),ideal,Exact(0),1,1);
+    return steps[2].arithmetic;
+  };
+  y=ArithmeticSupport{1,1,1,1};
+  x=ArithmeticSupport{1,half-2,half,1};
+  expect(test(q)->coeff==half-1,"largest unambiguous integral lift refused");
+  x->coeff=half-1;
+  expect(!test(q),"accepted CRT display endpoint +floor(Q/2)");
+  x->coeff=half;
+  expect(!test(q) && steps[2].rows.at(0).blocker=="unproved_common_centered_lift" &&
+         !steps[2].rows[0].bias,"accepted half-Q plus one via a loose embedding");
+  // Independent second route, using all odd roots before centering. Integer
+  // coefficients are essential: a nonintegral upper just below half is OK.
+  expect(test(half-3+Exact(3,4))->coeff==half-1 && !test(half-2),"inverse embedding off by one");
+  z.op=Op::Sub;z.inputs={0,0};
+  expect(test(q)->error==0 && steps[2].arithmetic->coeff==0,"identical SSA did not cancel");
+  z.inputs={0,1};x=ArithmeticSupport{1,1,0,1};y=x;
+  expect(test(0)->error==2,"cancelled distinct SSA by common key");
+  z.op=Op::CtMul;z.inputs={0,0};
+  auto sq=test(0);expect(sq && sq->degree==2 && sq->coeff==1 && sq->error==1 &&
+      steps[2].rows[0].centered_support.at("cross")=="1","lost same-draw nonlinear cross term");
+  x->degree=2;expect(!test(q),"accepted degree-two ciphertext multiply");
+  x.reset();expect(!test(q),"accepted a missing parent");
+  x=sq;z=op("z",Op::Relin,{0},1);g.nodes[0].level=1;z.k=1;z.evk="k:relin";
+  auto rel=test(0);expect(rel && rel->degree==1 && steps[2].rows.size()==2,"lost relin obligations");
+  const Exact N=g.domains[0].ring_n;
+  expect(steps[2].rows[0].centered_support.at("cut_coeff")==Exact(N*N*half).get_str(),"used s not s squared");
+  z.evk="other:relin";expect(!test(0),"accepted unrelated relinearization key");z.evk="k:relin";
+  z.k=0;expect(!test(0),"unmodelled native degree-two switch");z.k=1;
+  x->degree=1;expect(!test(0),"relinearized degree one");
+  z=op("z",Op::Rotate,{0},1);z.rotation=-1;z.evk="k:rotation:-1";
+  expect(test(0).has_value() && steps[2].rows.size()==2,"signed rotation K0");
+  z.k=1;expect(test(0) && steps[2].rows.size()==3,"rotation K1");
+  z.evk="k:rotation:1";expect(!test(0),"rotation with wrong signed EVK");
+  z.evk="k:rotation:-1";z.k=2;expect(!test(0),"unknown projection");
+  z.k=1;x->degree=2;expect(!test(0),"rotation of degree two");
+  z=op("z",Op::Rescale,{0},0);expect(!test(0),"rescaled degree two");
+  x->degree=1;g.nodes[0].level=0;expect(!test(0),"rescale without actual dropped suffix");
+  g.nodes[0].level=1;g.domains[0].rescale_primes=2;expect(!test(0),"unexpected double-prime rescale");
+}
 } // namespace
 int main() {
   linear(); fixedPoint(false); fixedPoint(true);
   uniformWords(); nonuniform(); exactProduct(1); exactProduct(-1); unsafeWordRange();
+  freshDegreeOne();commonBoundaries();
   std::cout << "B2-i public DC encodings, centered transfers, signed bias and refusals passed\n";
 }

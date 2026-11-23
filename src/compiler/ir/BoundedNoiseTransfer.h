@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ExactScaleTracker.h"
+#include <map>
 #include <optional>
 #include <vector>
 
@@ -39,8 +40,14 @@ struct LocalTransfer {
       encoded_constant, delta_pt, bias;
   std::optional<pass2::Exact> dc_before_center, dc_after_center, dc_center_correction, ntt_word_upper;
   std::optional<DiagonalEncoding> diagonal;
+  std::map<std::string, std::string> premises; // independently regenerated, never provider inputs
+  std::map<std::string, std::string> centered_support;
 };
 struct Topology;
+struct ArithmeticSupport {
+  int degree;
+  pass2::Exact coeff, ideal_units, error; // all embeddings, fixed input, no joint MGF
+};
 struct LocalStep {
   // Always bounds the actual centered DECRYPTED polynomial coefficients, not
   // an ideal slot magnitude. Even an arbitrary residue has the full half-Q bound.
@@ -49,6 +56,9 @@ struct LocalStep {
   std::optional<pass2::Exact> centered_dc;
   std::optional<pass2::Exact> plain_mul_gain; // signed, same component, proved at this node
   std::vector<LocalTransfer> rows;
+  std::optional<pass2::Exact> fresh_coeff; // degree-one same-key support; absent across unproved ops
+  std::optional<pass2::Exact> fresh_slot_error; // optional improvement over N*B + A*I
+  std::optional<ArithmeticSupport> arithmetic;
 };
 LocalStep boundedStep(const Topology &, size_t index, const std::vector<LocalStep> &parents,
     const std::optional<pass2::Exact> &parent_scale, const std::optional<pass2::Exact> &parent_ideal,

@@ -208,7 +208,9 @@ ROLES = {'source': ('encode', 'encrypt'), 'add': ('add',), 'add_plain': ('plain_
 
 
 def independent(checked, params, compare=None, baseline=None, *, source_witness=None, basis=None, compare_scales=None,
-                b2i=False, precision_bits=12, guarded_diagonals=False):
+                b2i=False, precision_bits=12, guarded_diagonals=False, mul_rescale=False, common_support=False):
+    need(not common_support or mul_rescale, 'common support requires fresh mul/rescale')
+    need(not mul_rescale or guarded_diagonals, 'fresh mul/rescale requires guarded diagonals')
     need(not guarded_diagonals or b2i, 'guarded diagonals require source-bound B2-i replay')
     ir, checked_plan, seal, source_bound = checked_inputs(checked)
     p = load(params)
@@ -319,6 +321,12 @@ def independent(checked, params, compare=None, baseline=None, *, source_witness=
     if b2i:
         from b2i_noise_replay import refusal, transfers
         local = transfers(trace, p, edges, guarded_diagonals=guarded_diagonals)
+        if mul_rescale:
+            from fresh_mul_rescale_replay import reconstruct
+            local = reconstruct(trace, p, edges, local)
+        if common_support:
+            from common_support_replay import reconstruct as common_reconstruct
+            local = common_reconstruct(trace, p, edges, local)
         releases = {r['site_id']: r['formula_ref'] for r in local['transfers'] if r['formula_ref']}
         need(releases.keys() <= missing, 'orphan local proof')
         release = refusal(sink_scale, ir['ring'], precision_bits)
@@ -397,6 +405,10 @@ if __name__ == '__main__':
     parser.add_argument('--b2i', action='store_true', help='reconstruct local noise transfers; requires original source and ordered basis')
     parser.add_argument('--guarded-diagonals', action='store_true',
                         help='target freshly generated RequireDiagonalEncodingV1 code; not evidence about an archived executable')
+    parser.add_argument('--mul-rescale', action='store_true',
+                        help='target newly generated RequireFreshMulRescaleV1/EvalFresh; excludes external ciphertexts')
+    parser.add_argument('--common-support', action='store_true',
+                        help='reconstruct centered degree-one/two supports; requires --mul-rescale')
     parser.add_argument('--checked', type=Path)
     parser.add_argument('--params', type=Path, help='direct program.json with public coefficients, parameters and receipts')
     parser.add_argument('--compare', type=Path, help='optional native audit, read only at final comparison')
@@ -411,10 +423,12 @@ if __name__ == '__main__':
             need(args.checked and args.params and not args.package and not args.snabf_opt, 'use --independent --checked IR --params PROGRAM')
             summary = independent(args.checked, args.params, args.compare, args.baseline,
                                   source_witness=args.source_witness, basis=args.basis, compare_scales=args.compare_scales,
-                                  b2i=args.b2i, precision_bits=args.precision_bits, guarded_diagonals=args.guarded_diagonals)
+                                  b2i=args.b2i, precision_bits=args.precision_bits, guarded_diagonals=args.guarded_diagonals,
+                                  mul_rescale=args.mul_rescale, common_support=args.common_support)
         else:
             need(args.package and args.snabf_opt and not any((args.checked, args.params, args.compare, args.baseline,
-                 args.source_witness, args.basis, args.compare_scales, args.b2i, args.guarded_diagonals)), 'use PACKAGE --snabf-opt PATH for native engineering replay')
+                 args.source_witness, args.basis, args.compare_scales, args.b2i, args.guarded_diagonals, args.mul_rescale,
+                 args.common_support)), 'use PACKAGE --snabf-opt PATH for native engineering replay')
             report = replay(args.package, args.snabf_opt, args.precision_bits)
             summary = dict(matched=True, mode=report['mode'], sinks=len(report['sinks']), probabilistic_cert_issued=report['probabilistic_cert_issued'])
     except (ValueError, TypeError, KeyError, IndexError, ArithmeticError, OSError, subprocess.CalledProcessError) as exc:

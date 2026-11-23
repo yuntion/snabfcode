@@ -2,6 +2,7 @@
 #include "Pass3IR.h"
 #include "Pass4IR.h"
 #include "Target/Lattigo/EmitGraph.h"
+#include "Target/Lattigo/MulRescaleTarget.h"
 #include "llvm/Support/FileSystem.h"
 
 #include <algorithm>
@@ -12,6 +13,8 @@ namespace snabf::ir {
 namespace ng = noise;
 namespace eg = lattigo_target::detail;
 namespace {
+llvm::cl::opt<bool> commonSupport("snabf-b2-common-support", llvm::cl::init(false),
+    llvm::cl::desc("Replay same-key arithmetic support on the guarded DirectGo EvalFresh target"));
 int checkedInt(int64_t n) {
   require(n >= 0 && n <= std::numeric_limits<int>::max(), "out-of-range physical parameter");
   return int(n);
@@ -48,6 +51,8 @@ static ng::Topology collectTopology(ModuleOp m, std::vector<V1EncodingCall> *cal
                    "B2-i requires a sealed, single-ring v1 encoding program");
   ng::Topology g;
   if (b2i) g.direct_go_slots = checkedInt(emitted.slots);
+  if (b2i && eg::mulRescaleTarget) g.fresh_width = checkedInt(emitted.width);
+  g.common_support = b2i && eg::mulRescaleTarget && commonSupport;
   std::map<int64_t, size_t> domain;
   for (const auto &[n, d] : emitted.families) {
     domain.emplace(n, g.domains.size());
@@ -85,7 +90,7 @@ static ng::Topology collectTopology(ModuleOp m, std::vector<V1EncodingCall> *cal
           {d.key_id, d.ring_n, def, d.q, d.p}, true, "[]float64", 53, std::max(53, def), input};
       const auto requested = pass2::plannedEncodingScale(log);
       const std::span<const double> payload{e.values.data(), e.values.size()};
-      if (b2i && !input) n.bound_plain_call = ng::BoundPlainCall::encode(ctx, requested, payload);
+      if (b2i && (!input || g.fresh_width)) n.bound_plain_call = ng::BoundPlainCall::encode(ctx, requested, payload);
       const auto call = n.bound_plain_call ? n.bound_plain_call->receipt() : ExactScaleTracker::encode(ctx, requested, payload);
       require(eg::str(e.encoding, "payload_sha256") == call.payload_sha256 &&
               eg::str(e.encoding, "metadata_scale") == call.realized_meta_scale.get_str() &&
@@ -311,6 +316,16 @@ j::Object noiseAuditJSON(const ng::CertAuditReport &r) {
             {"ifft_coeff_error", v->ifft_error.get_str()}, {"centered_coeff_abs", v->coeff_abs.get_str()},
             {"slot_delta_inf", v->delta_inf.get_str()}};
       }
+      if (!t.premises.empty()) {
+        j::Object proof;
+        for (const auto &[k,v] : t.premises) proof[k] = v;
+        obj["fresh_degree_one"] = std::move(proof);
+      }
+      if (!t.centered_support.empty()) {
+        j::Object proof;
+        for (const auto &[k,v] : t.centered_support) proof[k] = v;
+        obj["centered_support"] = std::move(proof);
+      }
       rows.emplace_back(std::move(obj));
     }
     out["b2i_local"] = j::Object{{"schema", "snabf.b2i.local.v2"}, {"transfers", std::move(rows)}};
@@ -325,6 +340,8 @@ void auditNoisePlan(ModuleOp m, StringRef path, bool certify, unsigned bits, dou
   try {
     require(bits <= 16384 && std::isfinite(target) && target > 0 && target <= ng::theoremBudget,
             "invalid noise precision or failure budget");
+    require(!eg::mulRescaleTarget || b2i, "fresh mul/rescale audit requires b2i-local");
+    require(!commonSupport || (eg::mulRescaleTarget && b2i), "common support requires guarded fresh mul/rescale audit");
     require(!b2i || m->hasAttr("snabf.pass3"), "B2-i requires a materialized program");
     if (!m->hasAttr("snabf.pass3")) {
       // Legacy pre-specialization check: never invent a lowering, physical
