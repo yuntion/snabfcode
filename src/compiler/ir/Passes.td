@@ -42,6 +42,10 @@ def CheckPlan : ModuleStage<"snabf-check-plan","Recompute budget transfers, sele
     Option<"precisionBits","precision-bits","unsigned","12","Decoded precision in bits for the noise audit">];
   let dependentDialects = []; // Legacy dialects are registered by the full driver pass.
 }
+def FullSlotPlan : ModuleStage<"snabf-pass4-fullslot","Plan the two-half neighbor/SiLU/diagonal graph with physical cut feedback"> {
+  let dependentDialects = [];
+  let options = [Option<"proposal","proposal","std::string","\"\"","Write the concrete full-slot proposal before independent security evaluation">];
+}
 def NativePlan : ModuleStage<"snabf-native-plan","Specialize the original native source and materialize its physical plan"> {
   let dependentDialects = [];
   let options = [Option<"proposal","proposal","std::string","\"\"","Write the ordered integer security request and plan">];

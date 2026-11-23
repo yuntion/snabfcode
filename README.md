@@ -14,6 +14,15 @@ shared-input and internal perturbations together. This does not enable legacy
 ReLU or issue a probabilistic precision certificate. Historical plans and
 frozen helper bytes remain unchanged.
 
+The optional native N2 profile takes the original source and input spec. Use
+`--frontend native-linalg`, `--mode keep-source` and explicit `--gadget-alpha`
+`1` or `2`; `--scale-mode narrow` or `wide` selects the non-base search
+range. This profile keeps `k=0` and is separate from affine ReLU. The
+[full-slot Pass 4 gate](test/compiler/a2b_public.py) covers the bounded
+neighbor/SiLU/diagonal graph at widths 8192 and 4097 (zero-padded). Its
+adaptive comparison concerns key material, not latency. Neither path issues
+a probabilistic precision certificate.
+
 The [N0 inspection fixture](test/compiler/rfc004/contracts.mlir) shows the wire
 format. `slot_map[i]` is the physical slot for logical row-major element `i`
 within one period; a reduction group enumerates the actual contributing slots.

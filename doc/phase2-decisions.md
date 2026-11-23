@@ -58,3 +58,13 @@ the source SSA before fusion. On closed cells covering the input domain,
 bound the emitted reconstruction with the shared input and all local
 perturbations present together. The legacy frontend continues to refuse ReLU;
 a ciphertext engineering check is not an Eq. (15) certificate.
+
+Implementation boundary for native N2 and full-slot Pass 4: the fixed-block
+N2 profile binds the measured search envelope, concrete ordered Q/P, block
+width (alpha 1 or 2) and narrow/wide scale policy back to the original
+source and input spec. It cannot be combined with the affine ReLU profile.
+The separate bounded full-slot graph supports keep-source, force-down and
+adaptive arms; a split carries two ordered halves and preserves the logical
+extent of the padded tail. Both plan checking and lowering replay the source
+before accepting the carrier. This does not extend support to arbitrary
+graphs, certify a failure probability, or establish a latency improvement.

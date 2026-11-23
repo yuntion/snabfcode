@@ -1,0 +1,83 @@
+package planned
+
+import (
+	"encoding/json"
+	"os"
+	"runtime"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/tuneinsight/lattigo/v6/core/rlwe"
+	"github.com/tuneinsight/lattigo/v6/schemes/ckks"
+)
+
+// The test driver supplies a new process per arm/block on one pinned CPU.
+// Only the checked production Eval, including its live assertions, is timed.
+func TestN2EvalBlock(t *testing.T) {
+	start, err := strconv.Atoi(os.Getenv("N2_START"))
+	if err != nil || (start != 0 && start != 32) || runtime.GOMAXPROCS(0) != 1 {
+		t.Fatal("invalid benchmark block/CPU policy")
+	}
+	var s fixturePlan
+	fixtureJSON(t, fixtureProgram, &s)
+	p := s.parameters(t)
+	expected := s.prepare(t, p)
+	trials := s.vectors(t, os.Getenv("TEST_VECTORS"))
+	kg := rlwe.NewKeyGenerator(p)
+	sk, pk := kg.GenKeyPairNew()
+	r, err := BindNative(p, s.evaluator(p, kg, sk))
+	if err != nil {
+		t.Fatal(err)
+	}
+	enc, encrypt, decrypt := ckks.NewEncoder(p), rlwe.NewEncryptor(p, pk), rlwe.NewDecryptor(p, sk)
+	output := func(name string) *json.Encoder {
+		f, err := os.OpenFile(os.Getenv(name), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := f.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		return json.NewEncoder(f)
+	}
+	slots, times := output("N2_SLOTS"), output("N2_TIMES")
+	for k := -3; k < 32; k++ {
+		i := start + k
+		if k < 0 {
+			i = start + k + 3
+		}
+		pt, err := r.EncodeInput(trials[i].Input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ct, err := encrypt.EncryptNew(pt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		begin := time.Now()
+		y, err := r.Eval(ct)
+		delta := time.Since(begin).Nanoseconds()
+		if err != nil || y == nil || delta <= 0 {
+			t.Fatal("checked Eval failed:", err)
+		}
+		v := s.decode(t, enc, decrypt, y, expected[*s.Sink])
+		if k < 0 {
+			continue
+		}
+		re, im := make([]float64, len(v)), make([]float64, len(v))
+		for j, z := range v {
+			re[j], im[j] = real(z), imag(z)
+		}
+		scale, _ := y.Scale.Value.Rat(nil)
+		if err := slots.Encode(map[string]any{"schema": "snabf.n1-complex-slots.v1", "source_sha256": s.Source, "emit_sha256": PlanSHA256,
+			"trial": i, "x": trials[i].Input, "decoded": re, "imag": im, "ring": p.N(), "level": y.Level(), "slots": y.Slots(), "scale": scale.RatString()}); err != nil {
+			t.Fatal(err)
+		}
+		if err := times.Encode(map[string]any{"trial": i, "emit_sha256": PlanSHA256, "eval_ns": delta}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

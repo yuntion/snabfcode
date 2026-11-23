@@ -1,0 +1,146 @@
+package graphgate
+
+import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"os"
+	"testing"
+
+	"github.com/tuneinsight/lattigo/v6/core/rlwe"
+	"github.com/tuneinsight/lattigo/v6/schemes/ckks"
+	ad "snabf.local/compiler/adaptive"
+	fd "snabf.local/compiler/forcedown"
+	ks "snabf.local/compiler/keepsource"
+	r "snabf.local/compiler/src/backend/ringswitch"
+)
+
+func TestLoweredArms(t *testing.T) {
+	read := func(path string, dst any) {
+		b, e := os.ReadFile(path)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if e = json.Unmarshal(b, dst); e != nil {
+			t.Fatal(e)
+		}
+	}
+	must := func(e error) {
+		t.Helper()
+		if e != nil {
+			t.Fatal(e)
+		}
+	}
+	var plan struct {
+		Basis struct {
+			Q, P []uint64
+			D    int
+		}
+		Input  int      `json:"input_width"`
+		Keep   []uint64 `json:"keep_galois"`
+		Target []uint64 `json:"target_galois"`
+	}
+	read("forcedown/program.json", &plan)
+	s, e := ckks.NewParametersFromLiteral(ckks.ParametersLiteral{LogN: 14, Q: plan.Basis.Q, P: plan.Basis.P, LogDefaultScale: plan.Basis.D})
+	must(e)
+	d, e := ckks.NewParametersFromLiteral(ckks.ParametersLiteral{LogN: 13, Q: plan.Basis.Q[:2], P: plan.Basis.P, LogDefaultScale: plan.Basis.D})
+	must(e)
+	write := func(name string, v any) {
+		f, e := os.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		must(e)
+		must(json.NewEncoder(f).Encode(v))
+		must(f.Close())
+	}
+	hash := func(c *rlwe.Ciphertext) string {
+		raw, e := c.MarshalBinary()
+		must(e)
+		return fmt.Sprintf("%x", sha256.Sum256(raw))
+	}
+	for tr := 0; tr < 2; tr++ {
+		kg, dk := rlwe.NewKeyGenerator(s), rlwe.NewKeyGenerator(d)
+		sk, small := kg.GenSecretKeyNew(), dk.GenSecretKeyNew()
+		a, b, c := 1, 2, 3
+		pk1 := rlwe.EvaluationKeyParameters{LevelQ: &a}
+		pk2 := rlwe.EvaluationKeyParameters{LevelQ: &b}
+		pk3 := rlwe.EvaluationKeyParameters{LevelQ: &c}
+		rot := kg.GenGaloisKeyNew(s.GaloisElement(1), sk)
+		common := r.GraphKeys{Relin: kg.GenRelinearizationKeyNew(sk, pk3), Source: []*rlwe.GaloisKey{rot}}
+		keep := common
+		for _, gal := range plan.Keep {
+			if gal != rot.GaloisElement {
+				keep.Source = append(keep.Source, kg.GenGaloisKeyNew(gal, sk, pk2))
+			}
+		}
+		down := common
+		down.Split = &r.FullSlotKeys{Down: kg.GenEvaluationKeyNew(sk, small, pk1), Fold: kg.GenGaloisKeyNew(s.GaloisElement(4096), sk, pk1), Target: dk.GenGaloisKeysNew(plan.Target, small, pk1)}
+		keepPin, e := keep.Commitment(s, d)
+		must(e)
+		downPin, e := down.Commitment(s, d)
+		must(e)
+		// Same-size unrelated secret material must not pass the trusted pin.
+		if tr == 0 {
+			other := *down.Split
+			other.Down = kg.GenEvaluationKeyNew(sk, dk.GenSecretKeyNew(), pk1)
+			bad := down
+			bad.Split = &other
+			if _, e = fd.Prepare(bad, downPin); e == nil {
+				t.Fatal("wrong conversion secret accepted")
+			}
+		}
+		var ap struct{ Selected string }
+		read("adaptive/program.json", &ap)
+		ak, pin := keep, keepPin
+		if ap.Selected == "force-down" {
+			ak, pin = down, downPin
+		}
+		k, e := ks.Prepare(keep, keepPin)
+		must(e)
+		f, e := fd.Prepare(down, downPin)
+		must(e)
+		z, e := ad.Prepare(ak, pin)
+		must(e)
+		x := make([]float64, s.MaxSlots())
+		for i := 0; i < plan.Input; i++ {
+			x[i] = float64((37*i+17*tr+13*(i/4096))%251-125) / 256
+		}
+		pt := ckks.NewPlaintext(s, 5)
+		must(ckks.NewEncoder(s).Encode(x, pt))
+		ct, e := rlwe.NewEncryptor(s, sk).EncryptNew(pt)
+		must(e)
+		before := hash(ct)
+		if tr == 0 {
+			bad := ct.CopyNew()
+			bad.Scale = rlwe.NewScale(1)
+			if _, _, e = f.Eval(bad); e == nil {
+				t.Fatal("wrong input scale accepted")
+			}
+		}
+		write(fmt.Sprintf("input-%d.json", tr), map[string]any{"x": x, "input_sha256": before, "keep_pin": fmt.Sprintf("%x", keepPin), "down_pin": fmt.Sprintf("%x", downPin)})
+		for _, arm := range []struct {
+			name string
+			g    *r.PreparedGraph
+		}{{"keep-source", k}, {"force-down", f}, {"adaptive", z}} {
+			outs, trace, e := arm.g.Eval(ct)
+			must(e)
+			if hash(ct) != before {
+				t.Fatal("shared ciphertext mutated")
+			}
+			var ports []map[string]any
+			for _, port := range outs {
+				params, key := s, sk
+				if len(outs) == 2 {
+					params, key = d, small
+				}
+				v := make([]complex128, params.MaxSlots())
+				must(ckks.NewEncoder(params).Decode(rlwe.NewDecryptor(params, key).DecryptNew(port.Value), v))
+				pairs := make([][2]float64, len(v))
+				for i, x := range v {
+					pairs[i] = [2]float64{real(x), imag(x)}
+				}
+				rs, _ := port.Value.Scale.Value.Rat(nil)
+				ports = append(ports, map[string]any{"start": port.Start, "used": port.Used, "level": port.Value.Level(), "ring": port.Value.Value[0].N(), "scale": rs.RatString(), "slots": pairs})
+			}
+			write(fmt.Sprintf("trial-%d-%s.json", tr, arm.name), map[string]any{"input_sha256": before, "trace": trace, "ports": ports})
+		}
+	}
+}

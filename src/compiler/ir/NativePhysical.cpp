@@ -78,6 +78,7 @@ Object lowerNativePhysical(const NativeArithmeticProgram &p,const pass3::Solutio
   const auto &g=p.graph; auto s=input;
   auto replay=pass3::replay(g,opt,s);
   const bool relu=!p.reluSpans.empty();
+  const bool n2=!relu && opt.alpha>0;
   if(relu) need(g.n==65536 && g.levels==29 && s.p.size()==2 && opt.alpha==2 && opt.maxK==0 &&
     opt.securityCap==1400 && opt.tolerance==0x1p-12 && p.reluSpans.size()==p.reluSlotDomains.size() &&
     std::all_of(g.edges.begin(),g.edges.end(),[&](auto &e){return !e.ring || e.ring==g.n;}),"wrong native ReLU profile");
@@ -93,8 +94,9 @@ Object lowerNativePhysical(const NativeArithmeticProgram &p,const pass3::Solutio
     replace|=replay.reason=="sink approximation + arithmetic bound exceeds target";
   }
   if(!replay.reason.empty()&&!replace) throw std::invalid_argument("unreplayable candidate: "+replay.reason);
-  need((s.p.size()==1 || (s.p.size()==2 && opt.alpha==2 && !p.reluSlotDomains.empty())) &&
+  need((s.p.size()==1 || (s.p.size()==2 && opt.alpha==2)) &&
        std::all_of(s.k.begin(),s.k.end(),[](int k){return k==0;}),"unsupported native special-basis/truncation profile");
+  need(!n2 || size_t(opt.alpha)==s.p.size(),"N2 alpha does not match the concrete P basis");
   need(s.scale<=53 && budget>=0 && opt.guardBits==1,"unsupported encoding/guard policy");
   ScaleDomain d{"native.source",g.n,s.scale,{s.q.begin(),s.q.end()},{s.p.begin(),s.p.end()}};
   d.check(g.levels-1);
@@ -192,6 +194,7 @@ Object lowerNativePhysical(const NativeArithmeticProgram &p,const pass3::Solutio
       case O::Baby: case O::Giant:case O::Relin: {
         auto &a=wire(0);w.s=a.s;
         if(!switchTerms.contains(e.level)) switchTerms.emplace(e.level,nativeBlockSwitchError(d,e.level));
+        if(n2) rec["ks_before_round"]=switchTerms.at(e.level).get_str();
         if(scope){need(e.op==O::Relin,"non-scalar key switch inside ReLU");
           auto key=scope->fresh(scope->ids.at(a.id),switchTerms.at(e.level)/w.s.metadata,e.id+":block-ks");
           scope->ids[e.id]=scope->fresh(key,round/w.s.metadata,e.id+":round");break;}
@@ -278,6 +281,10 @@ Object lowerNativePhysical(const NativeArithmeticProgram &p,const pass3::Solutio
     {"edges",std::move(records)},{"input_domain",Array{*(*port.getArray("domain"))[0].getAsNumber(),*(*port.getArray("domain"))[1].getAsNumber()}},{"local_join_budget",budget.get_str()},
     {"engineering_upper",pass2::upperDouble(total)},{"probabilistic_cert_issued",false}};
   if(relu){result["relu_witness"]=nativeReluWitness(p);result["relu_jacobian"]=std::move(proofs);}
+  if(n2) result["n2_search"]=Object{{"alpha",opt.alpha},{"scale_mode",opt.heterogeneous?"wide":"narrow"},
+    {"min_scale",opt.minScale},{"max_scale",opt.maxScale},{"max_k",opt.maxK},{"cap_bits",int(opt.securityCap)},
+    {"heir_scale_anchor",opt.heirScaleAnchor},{"prime_bw",Array{opt.primeWidthMin,opt.primeWidthMax}},
+    {"aux_margin_bits",opt.auxMarginBits}};
   auto canonical=llvm::formatv("{0}",llvm::json::Value(Object(result))).str();
   result["emit_sha256"]=llvm::toHex(llvm::SHA256::hash(llvm::arrayRefFromStringRef(canonical)),true);
   if(verified){s.errors.clear();for(const auto &w:wires)s.errors.push_back(pass2::upperDouble(w.err+abs(w.s.effective/w.s.metadata-1)*w.mag));*verified=std::move(s);}

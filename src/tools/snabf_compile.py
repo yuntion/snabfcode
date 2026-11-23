@@ -77,6 +77,8 @@ def compile_model(a):
         return native_compile(a)
     if a.native_import_only or a.native_routes_only is not None or a.input_spec is not None:
         raise ValueError('[SNABF_INVALID_OPTIONS] native inspection requires explicit --frontend native-linalg')
+    if a.scale_mode == 'wide':
+        raise ValueError('[SNABF_INVALID_OPTIONS] wide is native-linalg only')
     if a.security_bits != 128:
         raise ValueError('[SNABF_UNSUPPORTED_SECURITY_TARGET] ordinary domains currently replay 128 bits only')
     certification = a.certify_failure_bits is not None or a.certify_failure_prob is not None
@@ -244,8 +246,8 @@ def main():
     p.add_argument('--cost-hardware-id',help='expected hardware fingerprint, independently supplied by the operator')
     p.add_argument('--interval-mode',choices=('affine','naive'),help='Pass 2 candidate domains (default: legacy naive)')
     p.add_argument('--heterogeneous-scales', action='store_true', help='v2 heterogeneous search constrained to the pinned HEIR integer rescale bin')
-    p.add_argument('--scale-mode', choices=('narrow','heir-anchor'),
-                   help='narrow by default; heir-anchor is the explicit pinned-HEIR ablation')
+    p.add_argument('--scale-mode', choices=('narrow','heir-anchor','wide'),
+                   help='narrow by default; wide requires native-linalg and an explicit gadget alpha')
     p.add_argument('--prime-bw-min', type=float, default=24, help='continuous width floor for non-base Q and P in v2')
     p.add_argument('--prime-bw-max', type=float, default=59, help='continuous prime width ceiling in v2')
     p.add_argument('--aux-prime-margin-bits', type=int, default=2, help='minimum bits of P headroom over each fixed Q block')

@@ -1,4 +1,5 @@
 #include "NativeProduct.h"
+#include "pass4/FullSlotProduct.h"
 #include "mlir/Pass/Pass.h"
 #ifndef SNABF_NATIVE_ONLY
 #include "Pipeline.h"
@@ -35,6 +36,7 @@ using namespace mlir;
 #define GEN_PASS_DEF_CHECKPLAN
 #define GEN_PASS_DEF_LOWERCKKS
 #define GEN_PASS_DEF_NATIVEPLAN
+#define GEN_PASS_DEF_FULLSLOTPLAN
 #include "Passes.h.inc"
 
 #ifndef SNABF_NATIVE_ONLY
@@ -151,6 +153,12 @@ struct NativePlanner : impl::NativePlanBase<NativePlanner> {
     if (failed(native::planProduct(getOperation(), proposal))) signalPassFailure();
   }
 };
+struct FullSlotPlanner : impl::FullSlotPlanBase<FullSlotPlanner> {
+  using Base::Base;
+  void runOnOperation() override {
+    if (failed(pass4::planFullSlotProduct(getOperation(), proposal))) signalPassFailure();
+  }
+};
 struct Checker : impl::CheckPlanBase<Checker> {
   using Base::Base;
 #ifndef SNABF_NATIVE_ONLY
@@ -159,6 +167,13 @@ struct Checker : impl::CheckPlanBase<Checker> {
   }
 #endif
   void runOnOperation() override {
+    if (pass4::isFullSlotProduct(getOperation())) {
+      if (b2iLocal || !noiseAudit.empty() || requireNoiseCert || precisionBits != 12) {
+        getOperation().emitError("unsupported full-slot noise certificate request");return signalPassFailure();
+      }
+      if (failed(pass4::checkFullSlotProduct(getOperation(),nativeSecurity,requireDown))) signalPassFailure();
+      return;
+    }
     if (native::isProduct(getOperation())) {
       if (b2iLocal) {
         getOperation().emitError("b2i-local requires DirectGo v1; unsupported on native N1");
@@ -194,6 +209,10 @@ struct Lower : impl::LowerCKKSBase<Lower> {
   }
 #endif
   void runOnOperation() override {
+    if (pass4::isFullSlotProduct(getOperation())) {
+      if (failed(pass4::lowerFullSlotProduct(getOperation(),nativeSecurity,nativeOutput))) signalPassFailure();
+      return;
+    }
     if (native::isProduct(getOperation())) {
       if (failed(native::lowerProduct(getOperation(), nativeSecurity, nativeOutput))) signalPassFailure();
       return;
@@ -233,6 +252,7 @@ struct Bind : impl::BindLattigoBase<Bind> {
 };
 #endif
 void registerPasses() {
+  PassRegistration<FullSlotPlanner>();
   PassRegistration<NativePlanner>();
 #ifndef SNABF_NATIVE_ONLY
   PassRegistration<Import>();
