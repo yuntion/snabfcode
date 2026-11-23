@@ -3,6 +3,7 @@
 #include "NativeLinearRoute.h"
 #include "pass2/CompositePolyDP.h"
 #include "pass3/GadgetNoiseContract.h"
+#include <set>
 
 namespace snabf::native {
 // One periodic ciphertext; Pass 1 is priced in work/key counts, not time.
@@ -15,11 +16,17 @@ struct ArithmeticOptions {
 };
 
 struct NativeArithmeticProgram {
+  struct ReluSpan {
+    std::string site;
+    int entry, first, output;
+    std::set<int> stageEnds;
+  };
   NativeLinearProgram source;
   std::vector<size_t> routeIndices;
   std::vector<pass2::PolyCandidate> polynomials;
   std::vector<std::string> activationSites; // same indices as polynomials
   std::map<std::string,std::vector<pass2::PlanRange>> reluSlotDomains;
+  std::vector<ReluSpan> reluSpans; // source/DAG-derived physical edge indices
   pass3::Graph graph;
   // Masks contain one inverse-giant-adjusted period. Coefficient/AddPlain
   // carry one signed binary64 operand; Pass 3 magnitude is not its value.
@@ -30,6 +37,8 @@ struct NativeArithmeticProgram {
 void configureNativeRelu(ArithmeticOptions &,pass3::Options &);
 // First concrete arm of the ReLU profile, not an admission or an estimate.
 pass3::Solution nativeReluFixedBasis(const NativeArithmeticProgram &);
+inline constexpr unsigned nativeReluArms=8;
+pass3::Solution nativeReluBasis(const NativeArithmeticProgram &, unsigned arm);
 
 // No disk receipts as inputs; failure leaves the destination unchanged.
 mlir::LogicalResult deriveNativeArithmetic(llvm::StringRef bytes, llvm::StringRef sourceName,

@@ -1,4 +1,5 @@
 #include "NativeArithmetic.h"
+#include "NativePhysical.h"
 #include "AffineIntervalAnalyzer.h"
 #include "RouteSelection.h"
 #include "pass3/ConcreteVerifier.h"
@@ -156,6 +157,7 @@ struct Builder {
     }
     auto value=af.activate(x.value,relu?af::Activation::ReLU:(gelu?af::Activation::ErfGeLU:af::Activation::SiLU),local);
     std::vector<int> values;
+    int first=p.graph.edges.size();
     pass3::Poly poly{level(x.e),int(c.dag.output),{}};
     for(size_t i=0;i<c.dag.nodes.size();++i) {
       const auto &n=c.dag.nodes[i]; const auto prefix=id+".p"+std::to_string(i)+".";
@@ -194,6 +196,13 @@ struct Builder {
       values.push_back(out);
     }
     p.graph.polys.push_back(std::move(poly));
+    if(relu) {
+      NativeArithmeticProgram::ReluSpan span{id,x.e,first,values.at(c.dag.output),{}};
+      for(const auto &st:c.stages) span.stageEnds.insert(values.at(st.outputNode));
+      need(span.output==int(p.graph.edges.size())-1 && span.first<=span.output &&
+           span.stageEnds.size()==c.stages.size(),"unbound ReLU physical span");
+      p.reluSpans.push_back(std::move(span));
+    }
     // Both exact reference activations have |f'| <= 1+|x| (no claim of
     // independence between this approximation and a residual bypass).
     return {values.at(c.dag.output),value,add(local,mul(relu?1.:add(1,radius(in)),x.approximation))};
@@ -241,15 +250,28 @@ struct Builder {
 void configureNativeRelu(ArithmeticOptions &a,pass3::Options &o) {
   a.domain={16,4096}; a.qCount=29; a.nativeRelu=true;
   a.polynomial.degrees={3,5,7}; a.polynomial.maxDepth=28; a.polynomial.composed=true;
-  o.maxK=0; o.alpha=2; o.securityCap=1400; // search envelope, never a security decision
+  o.maxK=0; o.alpha=2; o.maxScale=47; o.securityCap=1400; // search envelope, never a security decision
   a.activationTolerance=o.tolerance;
 }
 
 pass3::Solution nativeReluFixedBasis(const NativeArithmeticProgram &p) {
+  return nativeReluBasis(p,0);
+}
+pass3::Solution nativeReluBasis(const NativeArithmeticProgram &p,unsigned arm) {
   need(!p.reluSlotDomains.empty() && p.graph.n==65536 && p.graph.levels==29,"wrong fixed ReLU arm");
-  pass3::Solution s; std::set<int64_t> used; s.scale=43; s.k.assign(p.graph.edges.size(),0);
-  for(int i=0;i<p.graph.levels;++i)s.q.push_back(pass3::nearestPrime(p.graph.n,i?43:53,used));
-  for(int i=0;i<2;++i)s.p.push_back(pass3::nearestPrime(p.graph.n,54,used));
+  struct Basis {int d,base,lowCount,low,p;};
+  static constexpr Basis bases[]={{43,53,0,43,54},{44,51,0,44,55},{45,50,6,40,56},{46,50,8,40,54},
+                                   {46,28,1,28,49},{47,25,1,25,49},{46,28,1,28,54},{47,25,1,25,54}};
+  static_assert(std::size(bases)==nativeReluArms);need(arm<nativeReluArms,"invalid native ReLU arm");
+  auto a=bases[arm];pass3::Solution s; std::set<int64_t> used; s.scale=a.d; s.k.assign(p.graph.edges.size(),0);
+  for(int i=0;i<p.graph.levels;++i){
+    int bits=i==0?a.base:i<=a.lowCount?a.low:a.d;
+    if(arm==5 && (i==2 || i==28))bits=38; // the two matvec mask/rescale levels
+    if(arm==6 && (i==2 || i==28))bits=40;
+    if(arm==7){if(i==2 || i==28)bits=38;if(i==3 || i==27)bits=42;}
+    s.q.push_back(pass3::nearestPrime(p.graph.n,bits,used));
+  }
+  for(int i=0;i<2;++i)s.p.push_back(pass3::nearestPrime(p.graph.n,a.p,used));
   return s;
 }
 
@@ -267,14 +289,18 @@ mlir::LogicalResult deriveNativeArithmetic(llvm::StringRef bytes,llvm::StringRef
 }
 pass3::Solution searchNativeParameters(const NativeArithmeticProgram &p,const pass3::Options &options,std::string *fixedRefusal) {
   if(!p.reluSlotDomains.empty() && options.alpha==2) {
-    auto fixed=nativeReluFixedBasis(p);
-    std::string reason;
-    try { reason=pass3::replay(p.graph,options,fixed).reason; }
-    catch(const std::runtime_error &e) {reason=e.what();}
-    if(reason.empty())return fixed;
-    if(fixedRefusal && fixedRefusal->empty()) *fixedRefusal=reason;
+    // Try the large-P, matched inner levels first; admission is still a
+    // fresh physical replay, and the public driver screens its exact Q/QP.
+    for(unsigned a:{6u,0u,1u,2u,3u,4u,5u,7u}){auto fixed=nativeReluBasis(p,a);
+      try{lowerNativePhysical(p,fixed,options,ExactRational(1)/(mpz_class(1)<<40),nullptr,&fixed);return fixed;}
+      catch(const std::exception &e){if(fixedRefusal && fixedRefusal->empty())*fixedRefusal=e.what();}
+    }
   }
   auto candidate=pass3::optimize(p.graph,options);
+  if(!p.reluSpans.empty()) {
+    lowerNativePhysical(p,candidate,options,ExactRational(1)/(mpz_class(1)<<40),nullptr,&candidate);
+    return candidate;
+  }
   auto result=pass3::replay(p.graph,options,candidate);
   if(!result.reason.empty()) throw std::invalid_argument("native concrete replay: "+result.reason);
   return candidate;

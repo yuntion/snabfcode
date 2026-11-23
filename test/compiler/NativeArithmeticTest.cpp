@@ -51,9 +51,20 @@ int main(int argc,char **argv) {
     pass3::Options o; o.maxK=0; // Native exact-arithmetic arm; do not claim a truncation kernel.
     opt.activationTolerance=o.tolerance;
     if((argc==4 && (llvm::StringRef(argv[3])=="--relu-contract" || llvm::StringRef(argv[3])=="--relu-isolate")) ||
-       (argc==5 && llvm::StringRef(argv[3])=="--relu-recheck")) {
+       (argc==5 && (llvm::StringRef(argv[3])=="--relu-recheck" || llvm::StringRef(argv[3])=="--relu-physical"))) {
       configureNativeRelu(opt,o);
       if(mlir::failed(deriveNativeArithmetic((*bytes)->getBuffer(),argv[1],(*spec)->getBuffer(),opt,p,llvm::errs())))return 1;
+      if(llvm::StringRef(argv[3])=="--relu-physical") {
+        unsigned arm=0;if(llvm::StringRef(argv[4]).getAsInteger(10,arm))return 2;
+        auto s=nativeReluBasis(p,arm);llvm::json::Array q,ps;for(auto v:s.q)q.push_back(v);for(auto v:s.p)ps.push_back(v);
+        llvm::json::Object row{{"source",p.source.inspection.getString("source_sha256")->str()},
+          {"input_spec",p.source.inspection.getString("input_spec_sha256")->str()},{"scale",s.scale},
+          {"q",std::move(q)},{"p",std::move(ps)},{"ring",p.graph.n},{"security_cap",o.securityCap},{"approximation",p.graph.approximation}};
+        int rc=0;try{auto plan=lowerNativePhysical(p,s,o,ExactRational(1)/(mpz_class(1)<<40),&row);
+          row["accepted"]=true;row["seal"]=plan.getString("emit_sha256")->str();}
+        catch(const std::exception &e){row["accepted"]=false;row["refusal"]=std::string(e.what());rc=1;}
+        llvm::outs()<<llvm::formatv("{0}\n",llvm::json::Value(std::move(row)));return rc;
+      }
       if(llvm::StringRef(argv[3])=="--relu-isolate") {
         llvm::outs()<<llvm::formatv("{0}\n",llvm::json::Value(test::isolate(p,o)));return 0;
       }

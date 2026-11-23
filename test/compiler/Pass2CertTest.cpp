@@ -1,5 +1,6 @@
 #include "pass2/IntervalCertifier.h"
 #include "pass2/PolyTemplates.h"
+#include "NativeReluJacobianTests.h"
 
 #include <mpfr.h>
 
@@ -306,7 +307,7 @@ void invalidInputs() {
 int main() {
   try {
     const auto start=std::chrono::steady_clock::now();
-    registry(); smallDomains(); independentCertificate(); broadDomains(); reluReconstruction(); invalidInputs();
+    registry(); smallDomains(); independentCertificate(); broadDomains(); reluReconstruction(); nativeReluJacobianTests(); invalidInputs();
     std::cout << "Pass2CertTest passed (" << std::chrono::duration<double>(
         std::chrono::steady_clock::now()-start).count() << " s)\n";
     return 0;
