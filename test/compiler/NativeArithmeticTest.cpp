@@ -1,4 +1,5 @@
 #include "NativeArithmetic.h"
+#include "NativeReluIsolation.h"
 #include "pass3/ConcreteVerifier.h"
 #include "Target/Lattigo/NativeSingleGo.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -49,10 +50,13 @@ int main(int argc,char **argv) {
     NativeArithmeticProgram p;
     pass3::Options o; o.maxK=0; // Native exact-arithmetic arm; do not claim a truncation kernel.
     opt.activationTolerance=o.tolerance;
-    if((argc==4 && llvm::StringRef(argv[3])=="--relu-contract") ||
+    if((argc==4 && (llvm::StringRef(argv[3])=="--relu-contract" || llvm::StringRef(argv[3])=="--relu-isolate")) ||
        (argc==5 && llvm::StringRef(argv[3])=="--relu-recheck")) {
       configureNativeRelu(opt,o);
       if(mlir::failed(deriveNativeArithmetic((*bytes)->getBuffer(),argv[1],(*spec)->getBuffer(),opt,p,llvm::errs())))return 1;
+      if(llvm::StringRef(argv[3])=="--relu-isolate") {
+        llvm::outs()<<llvm::formatv("{0}\n",llvm::json::Value(test::isolate(p,o)));return 0;
+      }
       if(argc==5) {
         auto file=llvm::MemoryBuffer::getFile(argv[4]); if(!file)return 2;
         auto claim=llvm::json::parse((*file)->getBuffer());

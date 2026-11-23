@@ -41,7 +41,7 @@ def variants(w):
     yield 'missing-affine-endpoint', change(['affine_slots',2,1],0.5)
 
 
-def gate(folder, case, arithmetic, importer):
+def gate(folder, case, arithmetic, importer, native_opt=None):
     raw, spec = fixture(case)
     src, ports, claim = [folder/n for n in ('source.mlir','ports.json','claim.json')]
     src.write_bytes(raw); ports.write_bytes(spec)
@@ -67,7 +67,7 @@ def gate(folder, case, arithmetic, importer):
             raise AssertionError(f'offline replay accepted {k}')
         bad_witnesses.append(k)
     prefix = b'%p = arith.maximumf %in, %zero : f32'
-    bad_sources = []
+    bad_sources, entry_refusals = [], []
     for label, edited, diagnostic in [
         ('x-is-not-source', raw.replace(prefix,b'%p = arith.maximumf %in, %in : f32'), 'SNABF_NATIVE_RELU_SSA'),
         ('negative-zero',raw.replace(b'%one =',b'%negative = arith.constant -0.0 : f32\n%one =')
@@ -80,10 +80,28 @@ def gate(folder, case, arithmetic, importer):
         r = run([importer,src,'--input-spec',ports]); msg = r.stderr.decode()
         need(r.returncode==1 and not r.stdout and diagnostic in msg,f'{label}: {msg}')
         bad_sources.append(label)
-    print(f'{case}: original contract + offline proof passed; source refusals={bad_sources}; witness refusals={bad_witnesses}')
+        if native_opt:
+            # Only test source re-import here. There is no issued physical
+            # plan for these fixtures; do not turn the placeholder into one.
+            for stage, flag in [('planned','--snabf-check-plan'),('checked','--snabf-lower-ckks')]:
+                fields = dict(source=edited, ports=spec, profile=b'relu-affine-2p-v1', stage=stage.encode(), plan=b'{}')
+                if stage=='checked': fields['seal']=b'unissued'
+                path = folder/'carrier.mlir'; path.write_text(carrier(fields),encoding='ascii')
+                out = folder/'rejected.mlir'; module = folder/'rejected-module'
+                options = 'native-security='+str(folder/'unissued.json')
+                if stage=='checked': options += ' native-output='+str(module)
+                rejected = run([native_opt,'--mlir-print-op-on-diagnostic=false',flag+'='+options,path,'-o',out])
+                msg = rejected.stderr.decode()
+                need(rejected.returncode==1 and diagnostic in msg and not rejected.stdout and not out.exists()
+                     and not module.exists(), f'{case} {label} {flag}: {msg}')
+                entry_refusals.append([label,flag])
+    print(f'{case}: original contract + offline proof passed; source refusals={bad_sources}; witness refusals={bad_witnesses}; '
+          f'formal source-preflight refusals={len(entry_refusals)}')
 
 
 if __name__ == '__main__':
+    sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'src'/'tools'))
+    from native_product import carrier
     for case in ('single','mixed'):
         with tempfile.TemporaryDirectory() as root:
             gate(Path(root),case,*sys.argv[1:])
