@@ -41,7 +41,7 @@ def portable_proof(stages,axis,budget=F(1,4096)):
             lo,hi,k=work.pop(); z=(lo,hi)
             for row in cs: z=stage(row,z)
             error=max(abs(x*(y+sign)/2) for x in (lo,hi) for y in z)
-            if error<budget: leaves.append((lo,hi,error)); continue
+            if error<=budget: leaves.append((lo,hi,error)); continue
             if k>=32 or len(leaves)+len(work)>=2048:
                 raise ValueError('portable enclosure did not establish the full-domain budget')
             m=(lo+hi)/2;work.extend(((m,hi,k+1),(lo,m,k+1)))

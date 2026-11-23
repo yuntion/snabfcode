@@ -37,6 +37,7 @@ void checkNativeSingle(const NativeArithmeticProgram &p,const pass3::Solution &s
   // Compare structure, not whitespace. Binary64 payloads and scales are
   // strings; equal mathematical values do not make encoding branches equal.
   auto *body=actual->getAsObject();check(body && body->getString("emit_sha256"),"missing native plan seal");
+  if(!p.reluSlotDomains.empty())checkNativeReluWitness(p,body->getObject("relu_witness"));
   auto claimedSeal=body->getString("emit_sha256")->str();body->erase("emit_sha256");
   auto expected=lowerNativePhysical(p,s,o,budget);auto seal=expected.getString("emit_sha256")->str();expected.erase("emit_sha256");
   check(*body==expected,"stale native ScalePlan, ordered basis, encoding or source receipt");

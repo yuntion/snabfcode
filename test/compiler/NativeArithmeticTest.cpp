@@ -40,7 +40,7 @@ Rows run(const NativeArithmeticProgram &p,int seed) {
 }
 int main(int argc,char **argv) {
   try {
-    if(argc!=3 && argc!=4 && argc!=6) return 2;
+    if(argc!=3 && argc!=4 && argc!=5 && argc!=6) return 2;
     auto bytes=llvm::MemoryBuffer::getFile(argv[1]),spec=llvm::MemoryBuffer::getFile(argv[2]);
     if(!bytes||!spec) return 2;
     ArithmeticOptions opt; opt.domain={14,4096};
@@ -49,15 +49,32 @@ int main(int argc,char **argv) {
     NativeArithmeticProgram p;
     pass3::Options o; o.maxK=0; // Native exact-arithmetic arm; do not claim a truncation kernel.
     opt.activationTolerance=o.tolerance;
-    if(argc==4 && llvm::StringRef(argv[3])=="--relu-contract") {
+    if((argc==4 && llvm::StringRef(argv[3])=="--relu-contract") ||
+       (argc==5 && llvm::StringRef(argv[3])=="--relu-recheck")) {
       configureNativeRelu(opt,o);
       if(mlir::failed(deriveNativeArithmetic((*bytes)->getBuffer(),argv[1],(*spec)->getBuffer(),opt,p,llvm::errs())))return 1;
+      if(argc==5) {
+        auto file=llvm::MemoryBuffer::getFile(argv[4]); if(!file)return 2;
+        auto claim=llvm::json::parse((*file)->getBuffer());
+        if(!claim)throw std::invalid_argument(llvm::toString(claim.takeError()));
+        checkNativeReluWitness(p,claim->getAsObject());return 0;
+      }
       auto w=nativeReluWitness(p); auto candidate=nativeReluFixedBasis(p); llvm::json::Array q,aux;
       for(auto x:candidate.q)q.push_back(x); for(auto x:candidate.p)aux.push_back(x);
       std::string why;
       try { why=pass3::replay(p.graph,o,candidate).reason; } catch(const std::exception &e){why=e.what();}
       w["first_arm"]=llvm::json::Object{{"ring",p.graph.n},{"q",std::move(q)},{"p",std::move(aux)},
         {"scale",candidate.scale},{"security_cap",o.securityCap},{"replay_refusal",why}};
+      if(candidate.errors.size()<p.graph.edges.size() && candidate.physical.size()==p.graph.edges.size()) {
+        const size_t i=candidate.errors.size(); const auto &e=p.graph.edges[i];
+        if(e.op==pass3::Op::Coefficient && why=="arithmetic allowance exceeded at "+e.id) {
+          auto parent=e.inputs.at(0); double pe=candidate.errors.at(parent);
+          double inherited=pe*e.gains.at(0);
+          double encoding=(p.graph.edges.at(parent).magnitude+pe)*p.graph.n*std::exp2(candidate.physical[parent])/std::exp2(candidate.physical[i]);
+          w["first_blocked_edge"]=llvm::json::Object{{"id",e.id},{"parent",p.graph.edges.at(parent).id},
+            {"parent_error",pe},{"gain",e.gains.at(0)},{"inherited",inherited},{"encoding",encoding},{"internal_limit",8*o.tolerance}};
+        }
+      }
       w["approximation"]=p.graph.approximation; w["sink_level"]=p.graph.edges.at(p.graph.sink).level;
       llvm::outs()<<llvm::formatv("{0}\n",llvm::json::Value(std::move(w)));return 0;
     }

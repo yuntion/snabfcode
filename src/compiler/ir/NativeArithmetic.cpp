@@ -265,11 +265,14 @@ mlir::LogicalResult deriveNativeArithmetic(llvm::StringRef bytes,llvm::StringRef
     diagnostics<<name<<": error: [SNABF_NATIVE_ARITHMETIC] "<<e.what()<<"\n"; return mlir::failure();
   }
 }
-pass3::Solution searchNativeParameters(const NativeArithmeticProgram &p,const pass3::Options &options) {
+pass3::Solution searchNativeParameters(const NativeArithmeticProgram &p,const pass3::Options &options,std::string *fixedRefusal) {
   if(!p.reluSlotDomains.empty() && options.alpha==2) {
     auto fixed=nativeReluFixedBasis(p);
-    try { if(pass3::replay(p.graph,options,fixed).reason.empty()) return fixed; }
-    catch(const std::runtime_error &) { /* An incompatible fixed scale schedule cannot be used. */ }
+    std::string reason;
+    try { reason=pass3::replay(p.graph,options,fixed).reason; }
+    catch(const std::runtime_error &e) {reason=e.what();}
+    if(reason.empty())return fixed;
+    if(fixedRefusal && fixedRefusal->empty()) *fixedRefusal=reason;
   }
   auto candidate=pass3::optimize(p.graph,options);
   auto result=pass3::replay(p.graph,options,candidate);
@@ -284,18 +287,20 @@ mlir::LogicalResult specializeNativeArithmetic(llvm::StringRef bytes,llvm::Strin
     need(limit>0 && config.qCount>0 && config.qCount<=64 && config.activationTolerance>0 && std::isfinite(config.activationTolerance),"invalid native search budget");
     NativeLinearProgram source;
     if(mlir::failed(deriveNativeLinear(bytes,name,spec,config.domain,source,diagnostics))) return mlir::failure();
-    std::vector<size_t> choices;
+    std::vector<size_t> choices; std::string fixedWhy,lastWhy; size_t tried=0;
     for(size_t n=0;n<limit;++n) {
       NativeArithmeticProgram p; p.source=std::move(source);
       Builder b{p,config}; b.choices=&choices;
+      ++tried;
       try {
         b.build();
         if(p.graph.approximation<options.tolerance) {
-          auto s=searchNativeParameters(p,options);
+          auto s=searchNativeParameters(p,options,&fixedWhy);
           out=std::move(p); solution=std::move(s); attempts=n+1; return mlir::success();
-        }
+        } else lastWhy="approximation already exhausts sink allowance";
       } catch(const std::exception &e) {
         llvm::StringRef why=e.what();
+        lastWhy=why.str();
         if(why!="Pass 3 infeasible under requested scale, precision and QP bounds" &&
            why!="no certified polynomial at available depth/tolerance" &&
            why!="no level for linear rescale" && why!="computed activation domain exceeds source declaration") throw;
@@ -310,6 +315,8 @@ mlir::LogicalResult specializeNativeArithmetic(llvm::StringRef bytes,llvm::Strin
       }
       if(choices.empty()) break;
     }
+    if(config.nativeRelu) throw std::runtime_error("[SNABF_NATIVE_RELU_INFEASIBLE] schedules="+std::to_string(tried)+
+      "; first fixed arm: "+(fixedWhy.empty()?"not reached":fixedWhy)+"; last: "+lastWhy);
     throw std::runtime_error("no concrete native schedule within bounded certified search");
   } catch(const std::exception &e) {
     diagnostics<<name<<": error: [SNABF_NATIVE_ARITHMETIC] "<<e.what()<<"\n"; return mlir::failure();

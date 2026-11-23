@@ -453,7 +453,10 @@ DPResult synthesizeNativeRelu(Range input,const DPOptions &o) {
   for(auto &s:chain) if(std::find(o.degrees.begin(),o.degrees.end(),s.degree)==o.degrees.end()) return r;
   const auto proof=certifyReluReconstruction(chain,certRange(input));
   if(proof.epsilon>o.maxError) {++r.errorRejected;return r;}
-  const auto independent=relu_bernstein::prove(chain,certRange(input),o.maxError);
+  int exponent=0;
+  const double frac=std::frexp(proof.epsilon,&exponent);
+  const double coverBudget=frac==0 ? o.maxError : std::min(o.maxError,std::ldexp(1.,exponent-(frac==0.5)));
+  const auto independent=relu_bernstein::prove(chain,certRange(input),coverBudget);
   const auto limit=std::min(o.maxDepth,o.inputLevel-o.minOutputLevel);
   for(bool ps:{false,true}) {
     if(ps ? !o.ps : !o.balanced) continue;
@@ -473,7 +476,7 @@ DPResult synthesizeNativeRelu(Range input,const DPOptions &o) {
     if(p.cost.depth>limit){++r.depthRejected;continue;}
     p.outputLevel=p.inputLevel-p.cost.depth;
     p.relu=PolyCandidate::ReluProof{{proof.leftEpsilon,proof.rightEpsilon},
-      {independent.upper[0].get_str(),independent.upper[1].get_str()},independent.cells};
+      {independent.upper[0].get_str(),independent.upper[1].get_str()},independent.cells,coverBudget};
     p.approximationError=p.outputError=proof.epsilon;
     const auto factor=times({0.5,0.5},plus({1,1},s.actual));
     p.coreGain=upProduct(0.5,s.gain); p.bypassGain=magnitude(factor);

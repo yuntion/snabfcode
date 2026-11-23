@@ -98,6 +98,7 @@ struct PolyCandidate {
     std::array<double,2> mpfi;
     std::array<std::string,2> bernstein;
     std::array<unsigned,2> cells;
+    double bernsteinBudget;
   };
   std::optional<ReluProof> relu;
   std::string id, templateName, activation;

@@ -47,10 +47,30 @@ Object nativeReluWitness(const NativeArithmeticProgram &p) {
     sites.push_back(Object{{"source_lock",Object(*lock)},{"template",c.templateName},{"site",site},
       {"affine_slots",std::move(slots)},{"axis",Array{c.idealInput.lo,c.idealInput.hi}},
       {"mpfi160",Array{proof.mpfi[0],proof.mpfi[1]}},{"bernstein",Array{proof.bernstein[0],proof.bernstein[1]}},
-      {"cells",ints(proof.cells)},{"stages",std::move(stages)},{"dag",std::move(dag)},{"output",c.dag.output}});
+      {"cells",ints(proof.cells)},{"bernstein_budget",proof.bernsteinBudget},{"stages",std::move(stages)},
+      {"dag",std::move(dag)},{"output",c.dag.output}});
   }
   return Object{{"schema","snabf.native-relu-witness.v1"},{"source",p.source.inspection.getString("source_sha256")->str()},
     {"input_spec",p.source.inspection.getString("input_spec_sha256")->str()},{"sites",std::move(sites)}};
+}
+
+void checkNativeReluWitness(const NativeArithmeticProgram &p,const Object *claim) {
+  need(!p.reluSlotDomains.empty() && claim && *claim==nativeReluWitness(p),
+       "[SNABF_NATIVE_RELU_WITNESS] stale source, affine slots, odd chain, reconstruction or proof");
+}
+
+R nativeBlockSwitchError(const ScaleDomain &d,int level) {
+  d.check(level);
+  need(d.p.size()<=2,"unsupported native special basis");
+  R P=1, sum=0;
+  for(auto x:d.p) P*=integer(x);
+  const int width=d.p.size();
+  for(int b=0;b<=level;b+=width) {
+    R digit=1;
+    for(int l=b;l<std::min(level+1,b+width);++l) digit*=integer(d.q[l]);
+    sum+=digit+1;
+  }
+  return R(10)*d.ring_n*d.ring_n*sum/P;
 }
 
 Object lowerNativePhysical(const NativeArithmeticProgram &p,const pass3::Solution &input,const pass3::Options &opt,const R &budget) {
@@ -68,6 +88,7 @@ Object lowerNativePhysical(const NativeArithmeticProgram &p,const pass3::Solutio
   const R round=N*(1+S)/2;
   std::vector<R> modulus; R qprod=1;
   for(auto q:d.q) {qprod*=integer(q); modulus.push_back(qprod);}
+  std::map<int,R> switchTerms;
   Array records;std::vector<Wire> wires;
   for(size_t i=0;i<g.edges.size();++i) {
     const auto &e=g.edges[i]; Wire w{e.id,{0,0},rat(e.magnitude),0};
@@ -127,13 +148,9 @@ Object lowerNativePhysical(const NativeArithmeticProgram &p,const pass3::Solutio
         w.s=acc.s; w.err=acc.err;break;
       }
       case O::Baby: case O::Giant:case O::Relin: {
-        auto &a=wire(0);w.s=a.s;R ks=0;
-        for(int b=0;b<=e.level;b+=int(d.p.size())) {
-          R digit=1;
-          for(int l=b;l<std::min(e.level+1,b+int(d.p.size()));++l)digit*=integer(d.q.at(l));
-          ks+=10*N*N*(digit+1)/P;
-        }
-        w.err=a.err+(ks+round)/w.s.metadata;break;
+        auto &a=wire(0);w.s=a.s;
+        if(!switchTerms.contains(e.level)) switchTerms.emplace(e.level,nativeBlockSwitchError(d,e.level));
+        w.err=a.err+(switchTerms.at(e.level)+round)/w.s.metadata;break;
       }
       case O::Rescale: {
         auto &a=wire(0);auto level=g.edges[e.inputs[0]].level;

@@ -36,7 +36,8 @@ mlir::LogicalResult deriveNativeArithmetic(llvm::StringRef bytes, llvm::StringRe
     llvm::StringRef inputSpec, const ArithmeticOptions &, NativeArithmeticProgram &,
     llvm::raw_ostream &diagnostics);
 // A replayed candidate, NOT a concrete security-oracle decision.
-pass3::Solution searchNativeParameters(const NativeArithmeticProgram &, const pass3::Options &);
+pass3::Solution searchNativeParameters(const NativeArithmeticProgram &, const pass3::Options &,
+                                       std::string *fixedRefusal=nullptr);
 
 // Try distinct certified Pass 2 schedules against the unchanged Pass 3
 // options. The frontier for a downstream activation depends on its parents.
