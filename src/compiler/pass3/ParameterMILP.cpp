@@ -351,6 +351,7 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
   m.row(-inf, total, o.securityCap);
   int pinv = m.upperExp(p, plo, phi, -1, plo);
   std::vector<std::vector<int>> z(g.edges.size());
+  std::vector<int> fresh(g.edges.size(), -1);
   int n = g.n;
   double S = secretBound(n);
   const double eta = o.tolerance;
@@ -360,12 +361,23 @@ std::optional<Solution> fixed(const Graph &g, const Options &o, int d, int alpha
     double nominal = cls * d, slack = o.heterogeneous ? 2. : .20;
     int s = m.var(nominal - slack, nominal + slack);
     sc.push_back(s);
-    int en = m.var(0, i == g.sink ? 1 - g.approximation / eta : 8);
+    const double allowance = i == g.sink ? 1 - g.approximation / eta : 8;
+    int en = m.var(0, allowance);
     noise.push_back(en);
-    Row eq{{s, 1}}, er{{en, 1}};
+    // en always bounds the complete error, including at internal cosets.
+    // Only the entrance contribution has slot provenance. The original
+    // injection/KS rows below now charge the layer-local fresh component.
+    const bool split = e.linearEntry >= 0;
+    if (split) {
+      fresh[i] = m.var(0, allowance); // fresh <= total, with the very same upper bound
+      m.row(0, {{en, 1}, {noise.at(e.linearEntry), -e.entryGain}, {fresh[i], -1}}, inf);
+    }
+    Row eq{{s, 1}}, er{{split ? fresh[i] : en, 1}};
     double fixed = 0, inv = std::exp2(-nominal + slack) / eta;
     for (size_t j = 0; j < e.inputs.size(); ++j) {
-      er[noise[e.inputs[j]]] -=
+      int a = e.inputs[j];
+      if (split && a == e.linearEntry) continue;
+      er[split ? fresh.at(a) : noise.at(a)] -=
           e.gains[j] + (e.op == Op::Multiply ? 4 * eta : 0);
     }
     auto parent = [&]() { eq[sc[e.inputs[0]]]--; };

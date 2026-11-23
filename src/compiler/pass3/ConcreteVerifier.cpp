@@ -8,6 +8,17 @@
 #include <stdexcept>
 namespace snabf::pass3 {
 namespace {
+// Outward composition for the new nonnegative split. Preserve exact zero
+// and identity gains; a positive sub-ulp contribution must not disappear.
+double splitSum(double a, double b) {
+  if (a == 0 || b == 0) return a + b;
+  return std::nextafter(a + b, INFINITY);
+}
+double splitProduct(double a, double b) {
+  if (a == 0 || b == 0) return 0;
+  if (a == 1 || b == 1) return a * b;
+  return std::nextafter(a * b, INFINITY);
+}
 std::vector<double> polyScales(const Poly &p, const Solution &s) {
   int n = p.nodes.size();
   std::vector<std::vector<double>> rows;
@@ -143,6 +154,7 @@ Violation replay(const Graph &g, const Options &o, Solution &s) {
   }
   s.physical = replayScales(g, s);
   s.errors.clear();
+  std::vector<double> fresh(g.edges.size(), 0.);
   double P = double(specialModulus(s.p));
   for (size_t i = 0; i < g.edges.size(); ++i) {
     auto &e = g.edges[i];
@@ -154,21 +166,27 @@ Violation replay(const Graph &g, const Options &o, Solution &s) {
       return {"illegal truncation at " + e.id};
     double scale = std::exp2(s.physical[i]);
     double err = 0;
-    for (size_t j = 0; j < e.inputs.size(); ++j)
-      err += s.errors.at(e.inputs[j]) * e.gains[j];
+    const bool split = e.linearEntry >= 0;
+    auto charge = [&](double x) { err = split ? splitSum(err,x) : err + x; };
+    for (size_t j = 0; j < e.inputs.size(); ++j) {
+      int a = e.inputs[j];
+      if (split && a == e.linearEntry) continue;
+      charge(split ? splitProduct(fresh.at(a),e.gains[j]) : s.errors.at(a)*e.gains[j]);
+    }
     if (e.op == Op::Multiply)
       err += s.errors[e.inputs[0]] * s.errors[e.inputs[1]];
     if (e.op == Op::Source)
       err += (round + N + (20 * N * (N + 1 + S)) / P) / scale;
     if (e.op == Op::Mask || e.op == Op::Coefficient) {
       int a = e.inputs[0];
-      err += (g.edges[a].magnitude + s.errors[a]) * N *
-             std::exp2(s.physical[a]) / scale;
+      double amp = split ? splitSum(g.edges[a].magnitude, s.errors[a])
+                         : g.edges[a].magnitude + s.errors[a];
+      charge(amp * N * std::exp2(s.physical[a]) / scale);
     }
     if (e.op == Op::AddPlain)
       err += N / scale;
     if (e.op == Op::Rescale)
-      err += round / scale;
+      charge(round / scale);
     if (keyOp(e.op) || e.op==Op::Down) {
       long double key = switchKeyError(s.q, s.p, e.level, k, N), D = 1;
       if (!o.blockSearch()) {
@@ -177,9 +195,13 @@ Violation replay(const Graph &g, const Options &o, Solution &s) {
         for (int j=k;j<=e.level;++j) key+=10.L*N*N*(s.q[j]+1.L)/P;
       }
       for (int j = 0; j < k; ++j) D *= s.q[j];
-      err +=
-          double(key + round + (k ? residualFactor(e.op, N) * (D - 1) : 0)) /
-          scale;
+      charge(double(key + round + (k ? residualFactor(e.op, N) * (D - 1) : 0)) / scale);
+    }
+    if (split) {
+      // Encoding above used the TOTAL predecessor error, including entrance
+      // error (the plaintext-error cross term). Never subtract two bounds.
+      fresh[i] = err;
+      err = splitSum(err, splitProduct(e.entryGain, s.errors.at(e.linearEntry)));
     }
     if (!std::isfinite(err) || err > 8 * o.tolerance)
       return {"arithmetic allowance exceeded at " + e.id};

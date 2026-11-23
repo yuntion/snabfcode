@@ -105,4 +105,36 @@ private:
   size_t period;
   std::vector<std::vector<double>> slots;
 };
+
+// A separate unit box for the entrance error of ONE lintrans. Not an ideal
+// magnitude, not intersected with affine facts (ideal-zero lanes can be noisy).
+class LinearEntryBounds {
+public:
+  LinearEntryBounds(size_t period, int entry, int first)
+      : unit(period), entry(entry), first(first), next(first) {
+    require(entry >= 0 && entry < first, "invalid lintrans entrance");
+    pass3::Edge source{"unit-error", pass3::Op::Source, 0, {}, {}, 1.};
+    unit.append(source, {});
+  }
+
+  void annotate(int index, pass3::Edge &edge, Pass3SlotBounds::Operands t) {
+    using O = pass3::Op;
+    require(index == next && !edge.inputs.empty() &&
+                (edge.op == O::Mask || edge.op == O::Baby || edge.op == O::Giant ||
+                 edge.op == O::Add || edge.op == O::Rescale),
+            "unproven lintrans noise transfer");
+    auto local = edge;
+    for (int &a : local.inputs) {
+      require(a == entry || (a >= first && a < index), "foreign lintrans error input");
+      a = a == entry ? 0 : 1 + a - first;
+    }
+    edge.entryGain = unit.append(local, t);
+    edge.linearEntry = entry;
+    ++next;
+  }
+
+private:
+  Pass3SlotBounds unit;
+  int entry, first, next;
+};
 } // namespace snabf::ir

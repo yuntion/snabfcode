@@ -107,6 +107,12 @@ def run(opt, work):
     check(new['lin1.rescale']['magnitude'] == .5*775/1024 and new['step0']['magnitude'] == 775/1024,
           'second tower/add lost per-slot parents')
     check(new['lin1.mask37']['gains'] == [2.] and set(old) == set(new), 'changed mask gain or topology')
+    check(not any('linear_noise_entry' in e or 'inherited_noise_gain' in e for e in old.values()),
+          'legacy inherited an unrequested noise transfer')
+    check(new['lin0.rescale']['inherited_noise_gain'] == 1 and
+          plan['edges'][new['lin0.rescale']['linear_noise_entry']]['ID'] == 'input' and
+          plan['edges'][new['lin1.rescale']['linear_noise_entry']]['ID'] == 'lin0.rescale',
+          'real IR did not reset the error unit box at each linear entrance')
     for name, e in new.items():
         if e['op'] == 'mul':
             a,b = (plan['edges'][i]['magnitude'] for i in e['inputs'])
@@ -121,6 +127,10 @@ def run(opt, work):
     check(corrected.count(marker) >= 2, 'missing module/profile mode copies')
     native(corrected.replace(marker,''), check_plan, reject='stale Pass 3 site, scale or error transfer')
     native(corrected.replace('"co-slot-v1"','"unknown"'), check_plan, reject='unknown recorded Pass 3 magnitude mode')
+    import re
+    wrong_gain, count = re.subn(r'inherited_noise_gain = [^ ]+ : f64', 'inherited_noise_gain = 0.0 : f64', corrected)
+    check(count >= 2, 'missing both copies of recomputed inherited gain')
+    native(wrong_gain, check_plan, reject='stale Pass 3 site, scale or error transfer')
 
     affine = select('affine', fixture())
     _, _, projected = proposal(affine, 'co-slot-v1')
